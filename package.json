@@ -1,0 +1,29 @@
+{
+  "name": "vica",
+  "version": "1.0.0",
+  "description": "A assistente virtual do meu grupo de amigos no Discord",
+  "keywords": [
+    "discord",
+    "chatbot"
+  ],
+  "homepage": "https://github.com/vico93/vica#readme",
+  "bugs": {
+    "url": "https://github.com/vico93/vica/issues"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/vico93/vica.git"
+  },
+  "license": "MIT",
+  "author": "Vico",
+  "type": "commonjs",
+  "main": "bot.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "dependencies": {
+    "axios": "^1.10.0",
+    "discord.js": "^14.21.0",
+    "sqlite3": "^5.1.7"
+  }
+}
