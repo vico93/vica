@@ -48,34 +48,38 @@ function canalNaBlacklist(guildId, canalId) {
   });
 }
 
-// --> INÍCIO DAS NOVAS FUNÇÕES <--
-
-// Adiciona um canal à blacklist
 function adicionarCanalBlacklist(guildId, canalId) {
   return new Promise((resolve, reject) => {
-    // "INSERT OR IGNORE" evita erro se o canal já existir, simplesmente não faz nada.
     const query = `INSERT OR IGNORE INTO canais_blacklist (guild_id, canal_id) VALUES (?, ?)`;
     db.run(query, [guildId, canalId], function(err) {
       if (err) reject(err);
-      // Retorna o número de linhas alteradas (1 se adicionou, 0 se já existia)
-      else resolve(this.changes); 
-    });
-  });
-}
-
-// Remove um canal da blacklist
-function removerCanalBlacklist(guildId, canalId) {
-  return new Promise((resolve, reject) => {
-    const query = `DELETE FROM canais_blacklist WHERE guild_id = ? AND canal_id = ?`;
-    db.run(query, [guildId, canalId], function(err) {
-      if (err) reject(err);
-      // Retorna o número de linhas alteradas (1 se removeu, 0 se não estava na lista)
       else resolve(this.changes);
     });
   });
 }
 
-// --> FIM DAS NOVAS FUNÇÕES <--
+function removerCanalBlacklist(guildId, canalId) {
+  return new Promise((resolve, reject) => {
+    const query = `DELETE FROM canais_blacklist WHERE guild_id = ? AND canal_id = ?`;
+    db.run(query, [guildId, canalId], function(err) {
+      if (err) reject(err);
+      else resolve(this.changes);
+    });
+  });
+}
+
+function listarCanaisBlacklist(guildId) {
+  return new Promise((resolve, reject) => {
+    const query = `SELECT canal_id FROM canais_blacklist WHERE guild_id = ?`;
+    db.all(query, [guildId], (err, rows) => {
+      if (err) {
+        reject(err);
+      } else {
+        resolve(rows);
+      }
+    });
+  });
+}
 
 function inserirMensagem(guildId, canalId, usuarioId, conteudo, timestamp) {
   return new Promise((resolve, reject) => {
@@ -126,9 +130,10 @@ function atualizarUltimoResponseId(guildId, canalId, usuarioId, novoResponseId) 
 
 module.exports = {
   canalNaBlacklist,
+  adicionarCanalBlacklist,
+  removerCanalBlacklist,
+  listarCanaisBlacklist,
   inserirMensagem,
   buscarUltimoResponseId,
   atualizarUltimoResponseId,
-  adicionarCanalBlacklist, // --> EXPORTA A NOVA FUNÇÃO
-  removerCanalBlacklist,  // --> EXPORTA A NOVA FUNÇÃO
 };
