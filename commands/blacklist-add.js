@@ -1,8 +1,9 @@
 // Arquivo: commands/blacklist-add.js
 
-const { SlashCommandBuilder, PermissionsBitField } = require('discord.js');
+const { SlashCommandBuilder, PermissionsBitField, MessageFlags } = require('discord.js');
 const database = require('../core/database');
 
+// A CORREÇÃO ESTÁ AQUI: module.exports com 'e' minúsculo
 module.exports = {
   data: new SlashCommandBuilder()
     .setName('blacklist-add')
@@ -11,9 +12,7 @@ module.exports = {
       option.setName('canal')
         .setDescription('O canal a ser adicionado à blacklist')
         .setRequired(true))
-    // Apenas membros com permissão de Gerenciar Canais podem usar
     .setDefaultMemberPermissions(PermissionsBitField.Flags.ManageChannels)
-    // Comando não pode ser usado em DMs
     .setDMPermission(false),
 
   async execute(interaction) {
@@ -26,19 +25,19 @@ module.exports = {
       if (changes > 0) {
         await interaction.reply({
           content: `✅ O canal ${canal} foi adicionado à blacklist. Não responderei mais a menções aqui.`,
-          ephemeral: true // Resposta visível apenas para quem executou o comando
+          flags: [MessageFlags.Ephemeral]
         });
       } else {
         await interaction.reply({
           content: `ℹ️ O canal ${canal} já estava na blacklist.`,
-          ephemeral: true
+          flags: [MessageFlags.Ephemeral]
         });
       }
     } catch (err) {
       console.error('[BLACKLIST-ADD] Erro ao adicionar canal:', err);
       await interaction.reply({
         content: '❌ Ocorreu um erro ao tentar adicionar o canal à blacklist.',
-        ephemeral: true
+        flags: [MessageFlags.Ephemeral]
       });
     }
   }
