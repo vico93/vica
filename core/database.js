@@ -1,0 +1,106 @@
+const sqlite3 = require('sqlite3').verbose();
+const path = require('path');
+
+const dbPath = path.join(__dirname, '..', 'data', 'database.db');
+
+const db = new sqlite3.Database(dbPath, (err) => {
+  if (err) {
+    console.error('[DB] Erro ao conectar ao SQLite:', err.message);
+  } else {
+    console.log('[DB] Conectado ao SQLite em', dbPath);
+  }
+});
+
+// Criar tabela mensagens (se não existir)
+db.serialize(() => {
+  db.run(`
+    CREATE TABLE IF NOT EXISTS mensagens (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      guild_id TEXT NOT NULL,
+      canal_id TEXT NOT NULL,
+      usuario_id TEXT NOT NULL,
+      conteudo TEXT NOT NULL,
+      timestamp INTEGER NOT NULL,
+      response_id TEXT
+    )
+  `);
+
+  db.run(`
+    CREATE TABLE IF NOT EXISTS canais_blacklist (
+      guild_id TEXT NOT NULL,
+      canal_id TEXT NOT NULL,
+      PRIMARY KEY (guild_id, canal_id)
+    )
+  `);
+});
+
+// Verifica se canal está na blacklist
+function canalNaBlacklist(guildId, canalId) {
+  return new Promise((resolve, reject) => {
+    const query = `SELECT 1 FROM canais_blacklist WHERE guild_id = ? AND canal_id = ? LIMIT 1`;
+    db.get(query, [guildId, canalId], (err, row) => {
+      if (err) {
+        reject(err);
+      } else {
+        resolve(!!row);
+      }
+    });
+  });
+}
+
+// Inserir mensagem no banco
+function inserirMensagem(guildId, canalId, usuarioId, conteudo, timestamp) {
+  return new Promise((resolve, reject) => {
+    const query = `
+      INSERT INTO mensagens (guild_id, canal_id, usuario_id, conteudo, timestamp)
+      VALUES (?, ?, ?, ?, ?)
+    `;
+    db.run(query, [guildId, canalId, usuarioId, conteudo, timestamp], function(err) {
+      if (err) reject(err);
+      else resolve(this.lastID);
+    });
+  });
+}
+
+// Buscar último response_id para usuário e canal específicos
+function buscarUltimoResponseId(guildId, canalId, usuarioId) {
+  return new Promise((resolve, reject) => {
+    const query = `
+      SELECT response_id FROM mensagens
+      WHERE guild_id = ? AND canal_id = ? AND usuario_id = ? AND response_id IS NOT NULL
+      ORDER BY timestamp DESC LIMIT 1
+    `;
+    db.get(query, [guildId, canalId, usuarioId], (err, row) => {
+      if (err) {
+        reject(err);
+      } else {
+        resolve(row ? row.response_id : null);
+      }
+    });
+  });
+}
+
+// Atualizar response_id na mensagem mais recente daquele usuário no canal
+function atualizarUltimoResponseId(guildId, canalId, usuarioId, novoResponseId) {
+  return new Promise((resolve, reject) => {
+    const query = `
+      UPDATE mensagens SET response_id = ?
+      WHERE id = (
+        SELECT id FROM mensagens
+        WHERE guild_id = ? AND canal_id = ? AND usuario_id = ?
+        ORDER BY timestamp DESC LIMIT 1
+      )
+    `;
+    db.run(query, [novoResponseId, guildId, canalId, usuarioId], function(err) {
+      if (err) reject(err);
+      else resolve(this.changes);
+    });
+  });
+}
+
+module.exports = {
+  canalNaBlacklist,
+  inserirMensagem,
+  buscarUltimoResponseId,
+  atualizarUltimoResponseId,
+};

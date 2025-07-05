@@ -1,7 +1,7 @@
 const { SlashCommandBuilder } = require('discord.js');
 const fs = require('fs');
 const path = require('path');
-const responder = require('../core/responder');
+const oai = require('../core/oai_interface');
 const config = require('../config.json');
 
 module.exports = {
@@ -40,7 +40,7 @@ module.exports = {
       }
     } else if (fonte === 'ia') {
       try {
-        pergunta = await responder.gerarPerguntaViaAPI();
+        pergunta = await oai.gerarPerguntaViaAPI();
       } catch (err) {
         console.error('Erro ao gerar pergunta via IA:', err);
         return interaction.editReply('Erro ao gerar pergunta pela IA.');
