@@ -1,0 +1,130 @@
+// Arquivo: commands/config.js
+
+const { SlashCommandBuilder, PermissionsBitField, MessageFlags } = require('discord.js');
+const database = require('../core/database');
+
+module.exports = {
+    data: new SlashCommandBuilder()
+        // --- MUDANÇA AQUI ---
+        .setName('config')
+        .setDescription('Configurações avançadas da Vica.')
+        .setDefaultMemberPermissions(PermissionsBitField.Flags.ManageGuild)
+        .setDMPermission(false)
+        // Grupo de comandos para a blacklist do CHATBOT
+        .addSubcommandGroup(group => group
+            .setName('blacklist_chatbot')
+            .setDescription('Gerencia os canais onde a Vica não pode interagir.')
+            .addSubcommand(sub => sub
+                .setName('add')
+                .setDescription('Adiciona um canal à blacklist do chatbot.')
+                .addChannelOption(opt => opt.setName('canal').setDescription('O canal a ser adicionado.').setRequired(true)))
+            .addSubcommand(sub => sub
+                .setName('remove')
+                .setDescription('Remove um canal da blacklist do chatbot.')
+                .addChannelOption(opt => opt.setName('canal').setDescription('O canal a ser removido.').setRequired(true)))
+            .addSubcommand(sub => sub
+                .setName('list')
+                .setDescription('Lista os canais na blacklist do chatbot.')))
+        // Grupo de comandos para a blacklist de XP
+        .addSubcommandGroup(group => group
+            .setName('blacklist_xp')
+            .setDescription('Gerencia os canais onde não se ganha XP.')
+            .addSubcommand(sub => sub
+                .setName('add')
+                .setDescription('Adiciona um canal à blacklist de XP.')
+                .addChannelOption(opt => opt.setName('canal').setDescription('O canal a ser adicionado.').setRequired(true)))
+            .addSubcommand(sub => sub
+                .setName('remove')
+                .setDescription('Remove um canal da blacklist de XP.')
+                .addChannelOption(opt => opt.setName('canal').setDescription('O canal a ser removido.').setRequired(true)))
+            .addSubcommand(sub => sub
+                .setName('list')
+                .setDescription('Lista os canais na blacklist de XP.')))
+        // Grupo de comandos para os multiplicadores de XP
+        .addSubcommandGroup(group => group
+            .setName('xp_multipliers')
+            .setDescription('Gerencia os multiplicadores de XP por cargo.')
+            .addSubcommand(sub => sub
+                .setName('set')
+                .setDescription('Define um multiplicador de XP para um cargo.')
+                .addRoleOption(opt => opt.setName('cargo').setDescription('O cargo que receberá o bônus.').setRequired(true))
+                .addNumberOption(opt => opt.setName('multiplicador').setDescription('Ex: 1.5 para 50% de bônus.').setRequired(true)))
+            .addSubcommand(sub => sub
+                .setName('remove')
+                .setDescription('Remove o multiplicador de XP de um cargo.')
+                .addRoleOption(opt => opt.setName('cargo').setDescription('O cargo a ser removido.').setRequired(true)))
+            .addSubcommand(sub => sub
+                .setName('list')
+                .setDescription('Lista todos os multiplicadores de XP configurados.'))),
+
+    async execute(interaction) {
+        const group = interaction.options.getSubcommandGroup();
+        const subcommand = interaction.options.getSubcommand();
+
+        try {
+            // Lógica para o grupo "blacklist_chatbot"
+            if (group === 'blacklist_chatbot') {
+                const canal = interaction.options.getChannel('canal');
+                if (subcommand === 'add') {
+                    await database.chatbotAdicionarCanal(interaction.guild.id, canal.id);
+                    return interaction.reply({ content: `✅ O canal ${canal} foi adicionado à blacklist do **chatbot**.`, flags: [MessageFlags.Ephemeral] });
+                }
+                if (subcommand === 'remove') {
+                    await database.chatbotRemoverCanal(interaction.guild.id, canal.id);
+                    return interaction.reply({ content: `👍 O canal ${canal} foi removido da blacklist do **chatbot**.`, flags: [MessageFlags.Ephemeral] });
+                }
+                if (subcommand === 'list') {
+                    const canais = await database.chatbotListarCanais(interaction.guild.id);
+                    if (canais.length === 0) return interaction.reply({ content: 'ℹ️ Não há canais na blacklist do chatbot.', flags: [MessageFlags.Ephemeral] });
+                    const lista = canais.map(c => `- <#${c.canal_id}>`).join('\n');
+                    return interaction.reply({ content: `**🚫 Canais na blacklist do chatbot:**\n${lista}`, flags: [MessageFlags.Ephemeral] });
+                }
+            }
+
+            // Lógica para o grupo "blacklist_xp"
+            if (group === 'blacklist_xp') {
+                const canal = interaction.options.getChannel('canal');
+                if (subcommand === 'add') {
+                    await database.xpAdicionarCanal(interaction.guild.id, canal.id);
+                    return interaction.reply({ content: `✅ O canal ${canal} foi adicionado à blacklist de **XP**.`, flags: [MessageFlags.Ephemeral] });
+                }
+                if (subcommand === 'remove') {
+                    await database.xpRemoverCanal(interaction.guild.id, canal.id);
+                    return interaction.reply({ content: `👍 O canal ${canal} foi removido da blacklist de **XP**.`, flags: [MessageFlags.Ephemeral] });
+                }
+                if (subcommand === 'list') {
+                    const canais = await database.xpListarCanais(interaction.guild.id);
+                    if (canais.length === 0) return interaction.reply({ content: 'ℹ️ Não há canais na blacklist de XP.', flags: [MessageFlags.Ephemeral] });
+                    const lista = canais.map(c => `- <#${c.canal_id}>`).join('\n');
+                    return interaction.reply({ content: `**🚫 Canais onde não se ganha XP:**\n${lista}`, flags: [MessageFlags.Ephemeral] });
+                }
+            }
+
+            // Lógica para o grupo "xp_multipliers"
+            if (group === 'xp_multipliers') {
+                const cargo = interaction.options.getRole('cargo');
+                if (subcommand === 'set') {
+                    const multiplicador = interaction.options.getNumber('multiplicador');
+                    if (multiplicador <= 0) return interaction.reply({ content: '❌ O multiplicador deve ser um número maior que zero.', flags: [MessageFlags.Ephemeral] });
+                    await database.definirMultiplicadorRole(interaction.guild.id, cargo.id, multiplicador);
+                    return interaction.reply({ content: `✅ O cargo ${cargo} agora tem um multiplicador de XP de **${multiplicador}x**.`, flags: [MessageFlags.Ephemeral] });
+                }
+                if (subcommand === 'remove') {
+                    await database.removerMultiplicadorRole(interaction.guild.id, cargo.id);
+                    return interaction.reply({ content: `👍 O multiplicador de XP do cargo ${cargo} foi removido.`, flags: [MessageFlags.Ephemeral] });
+                }
+                if (subcommand === 'list') {
+                    const multiplicadores = await database.listarMultiplicadoresRole(interaction.guild.id);
+                    if (multiplicadores.length === 0) return interaction.reply({ content: 'ℹ️ Não há multiplicadores de XP configurados para cargos.', flags: [MessageFlags.Ephemeral] });
+                    const lista = multiplicadores.map(m => `- <@&${m.role_id}>: **${m.multiplier}x**`).join('\n');
+                    return interaction.reply({ content: `**✨ Multiplicadores de XP por cargo:**\n${lista}`, flags: [MessageFlags.Ephemeral] });
+                }
+            }
+
+        } catch (err) {
+            // --- MUDANÇA AQUI ---
+            console.error(`[CONFIG] Erro no comando /config:`, err);
+            return interaction.reply({ content: '❌ Ocorreu um erro ao executar esta configuração.', flags: [MessageFlags.Ephemeral] });
+        }
+    }
+};
