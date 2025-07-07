@@ -1,8 +1,11 @@
+// Arquivo: core/oai_interface.js
+
 const fs = require('fs');
 const path = require('path');
 const OpenAI = require('openai');
 const config = require('../config.json');
 
+// --- FUNÇÃO 1: Prompt para o CHATBOT ---
 async function carregarSystemPrompt() {
   const filePath = path.join(__dirname, '..', 'data', 'system_prompt.txt');
   try {
@@ -10,7 +13,21 @@ async function carregarSystemPrompt() {
     return prompt.trim();
   } catch (err) {
     console.error('[ERRO] Não foi possível ler system_prompt.txt:', err);
+    // Fallback para o chatbot
     return 'Você é uma IA que responde a mensagens mencionando-a de forma criativa, divertida ou útil.';
+  }
+}
+
+// --- FUNÇÃO 2: Prompt para o COMANDO /PERGUNTAR ---
+async function carregarSystemPromptPerguntar() {
+  const filePath = path.join(__dirname, '..', 'data', 'system_prompt_perguntar.txt');
+  try {
+    const prompt = await fs.promises.readFile(filePath, 'utf-8');
+    return prompt.trim();
+  } catch (err) {
+    console.error('[ERRO] Não foi possível ler system_prompt_perguntar.txt:', err);
+    // Fallback para o /perguntar
+    return 'Você é uma IA que gera perguntas interessantes, criativas e divertidas. Sua única saída deve ser a pergunta em si, sem introduções, saudações ou qualquer texto adicional.';
   }
 }
 
@@ -21,7 +38,7 @@ const openai = new OpenAI({
 
 // Função do comando /perguntar
 async function gerarPerguntaViaAPI(promptUsuario = null) {
-  const systemPrompt = await carregarSystemPrompt();
+  const systemPrompt = await carregarSystemPromptPerguntar();
 
   const messages = [
     { role: 'system', content: systemPrompt },
@@ -57,7 +74,7 @@ async function gerarPerguntaViaAPI(promptUsuario = null) {
   }
 }
 
-// Função para resposta contextual (menções ou replies)
+// Função para resposta contextual (menções ou replies) - AGORA COMPLETA
 async function gerarRespostaContextual(mensagemUsuario, urlImagem = null, previousResponseId = null) {
   const systemPrompt = await carregarSystemPrompt();
   const dataHoraAtual = new Date().toLocaleString('pt-BR', { timeZone: 'America/Sao_Paulo' });
