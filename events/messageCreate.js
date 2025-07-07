@@ -68,12 +68,8 @@ module.exports = {
     const foiMencionadoDiretamente = message.mentions.has(botId);
     const foiRespondidoComMention = message.reference && (await message.channel.messages.fetch(message.reference.messageId)).author.id === botId;
 
-    // Se não foi mencionado de nenhuma forma, para aqui.
-    if (!foiMencionadoDiretamente && !foiRespondidoComMention) return;
-
-    // Se foi mencionado, continua para gerar a resposta
+    // Salva a mensagem no banco ANTES de verificar a menção, para que todo o histórico seja registrado
     try {
-      // Salva a mensagem no banco para o histórico do chatbot
       await database.inserirMensagem(
         guildId,
         canalId,
@@ -81,33 +77,22 @@ module.exports = {
         message.content,
         message.createdTimestamp
       );
-        
-      // Remove a menção para usar só o texto limpo
-      const prompt = message.content.replace(`<@${botId}>`, '').trim();
+    } catch (err) {
+      console.error('[DB] Erro ao inserir mensagem:', err);
+    }
 
-      // Busca o último response_id para manter o contexto
-      const lastResponseId = await database.buscarUltimoResponseId(guildId, canalId, usuarioId);
+    // Se não foi mencionado de nenhuma forma, para aqui.
+    if (!foiMencionadoDiretamente && !foiRespondidoComMention) return;
 
-      // Verifica se a mensagem tem anexo de imagem para enviar à API
-      let imageUrl = null;
-      if (message.attachments.size > 0) {
-        const attachment = message.attachments.find(a => a.contentType?.startsWith('image'));
-        if (attachment) {
-          imageUrl = attachment.url;
-        }
-      }
+    // Se foi mencionado, continua para gerar a resposta
+    try {
+      const prompt = message.content.replace(/<@!?\d+>/g, '').trim();
 
-      // Gera a resposta contextual usando o prompt, imagem e lastResponseId
-      const respostaObj = await oai.gerarRespostaContextual(prompt, imageUrl, lastResponseId);
+      // Chama a função contextual passando todos os IDs necessários
+      const textoResposta = await oai.gerarRespostaContextual(guildId, canalId, usuarioId, prompt);
 
-      // Atualiza o último response_id no banco
-      if (respostaObj.response_id) {
-        await database.atualizarUltimoResponseId(guildId, canalId, usuarioId, respostaObj.response_id);
-      }
-
-      // Envia a resposta no canal, respondendo à mensagem original
       await message.reply({
-        content: respostaObj.texto,
+        content: textoResposta,
         failIfNotExists: false
       });
 

@@ -25,7 +25,6 @@ db.serialize(() => {
       response_id TEXT
     )
   `);
-
   db.run(`
     CREATE TABLE IF NOT EXISTS rank_xp (
       guild_id TEXT NOT NULL,
@@ -37,7 +36,6 @@ db.serialize(() => {
       PRIMARY KEY (guild_id, usuario_id)
     )
   `);
-
   db.run(`
     CREATE TABLE IF NOT EXISTS blacklist_chatbot_canais (
       guild_id TEXT NOT NULL,
@@ -45,7 +43,6 @@ db.serialize(() => {
       PRIMARY KEY (guild_id, canal_id)
     )
   `);
-
   db.run(`
     CREATE TABLE IF NOT EXISTS blacklist_xp_canais (
       guild_id TEXT NOT NULL,
@@ -53,7 +50,6 @@ db.serialize(() => {
       PRIMARY KEY (guild_id, canal_id)
     )
   `);
-
   db.run(`
     CREATE TABLE IF NOT EXISTS rank_role_multipliers (
       guild_id TEXT NOT NULL,
@@ -202,36 +198,20 @@ function inserirMensagem(guildId, canalId, usuarioId, conteudo, timestamp) {
   });
 }
 
-function buscarUltimoResponseId(guildId, canalId, usuarioId) {
+function buscarHistoricoConversa(guildId, canalId, usuarioId, limit = 3) {
   return new Promise((resolve, reject) => {
     const query = `
-      SELECT response_id FROM mensagens
-      WHERE guild_id = ? AND canal_id = ? AND usuario_id = ? AND response_id IS NOT NULL
-      ORDER BY timestamp DESC LIMIT 1
+      SELECT conteudo FROM mensagens
+      WHERE guild_id = ? AND canal_id = ? AND usuario_id = ?
+      ORDER BY timestamp DESC
+      LIMIT ?
     `;
-    db.get(query, [guildId, canalId, usuarioId], (err, row) => {
+    db.all(query, [guildId, canalId, usuarioId, limit], (err, rows) => {
       if (err) {
         reject(err);
       } else {
-        resolve(row ? row.response_id : null);
+        resolve(rows.map(r => r.conteudo).reverse());
       }
-    });
-  });
-}
-
-function atualizarUltimoResponseId(guildId, canalId, usuarioId, novoResponseId) {
-  return new Promise((resolve, reject) => {
-    const query = `
-      UPDATE mensagens SET response_id = ?
-      WHERE id = (
-        SELECT id FROM mensagens
-        WHERE guild_id = ? AND canal_id = ? AND usuario_id = ?
-        ORDER BY timestamp DESC LIMIT 1
-      )
-    `;
-    db.run(query, [novoResponseId, guildId, canalId, usuarioId], function(err) {
-      if (err) reject(err);
-      else resolve(this.changes);
     });
   });
 }
@@ -258,6 +238,5 @@ module.exports = {
   atualizarUsuarioXP,
   // Mensagens
   inserirMensagem,
-  buscarUltimoResponseId,
-  atualizarUltimoResponseId,
+  buscarHistoricoConversa,
 };

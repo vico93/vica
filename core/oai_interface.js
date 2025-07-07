@@ -4,8 +4,10 @@ const fs = require('fs');
 const path = require('path');
 const OpenAI = require('openai');
 const config = require('../config.json');
+// Importa o database para buscar o histórico de conversas
+const database = require('./database');
 
-// --- FUNÇÃO 1: Prompt para o CHATBOT ---
+// Carrega o prompt do sistema para o chatbot
 async function carregarSystemPrompt() {
   const filePath = path.join(__dirname, '..', 'data', 'system_prompt.txt');
   try {
@@ -13,12 +15,11 @@ async function carregarSystemPrompt() {
     return prompt.trim();
   } catch (err) {
     console.error('[ERRO] Não foi possível ler system_prompt.txt:', err);
-    // Fallback para o chatbot
-    return 'Você é uma IA que responde a mensagens mencionando-a de forma criativa, divertida ou útil.';
+    return 'Você é uma IA que responde a mensagens de forma criativa e útil.';
   }
 }
 
-// --- FUNÇÃO 2: Prompt para o COMANDO /PERGUNTAR ---
+// Carrega o prompt do sistema para o comando /perguntar
 async function carregarSystemPromptPerguntar() {
   const filePath = path.join(__dirname, '..', 'data', 'system_prompt_perguntar.txt');
   try {
@@ -26,8 +27,7 @@ async function carregarSystemPromptPerguntar() {
     return prompt.trim();
   } catch (err) {
     console.error('[ERRO] Não foi possível ler system_prompt_perguntar.txt:', err);
-    // Fallback para o /perguntar
-    return 'Você é uma IA que gera perguntas interessantes, criativas e divertidas. Sua única saída deve ser a pergunta em si, sem introduções, saudações ou qualquer texto adicional.';
+    return 'Sua única função é gerar perguntas. Sua resposta deve ser apenas e exclusivamente a pergunta gerada.';
   }
 }
 
@@ -39,101 +39,63 @@ const openai = new OpenAI({
 // Função do comando /perguntar
 async function gerarPerguntaViaAPI(promptUsuario = null) {
   const systemPrompt = await carregarSystemPromptPerguntar();
-
   const messages = [
     { role: 'system', content: systemPrompt },
-    {
-      role: 'user',
-      content: promptUsuario
-        ? promptUsuario
-        : 'Gere uma pergunta interessante, criativa ou divertida para uma conversa descontraída entre amigos. Apenas a pergunta, sem explicações ou introduções.',
-    },
+    { role: 'user', content: promptUsuario || 'Gere uma pergunta interessante para uma conversa descontraída.' },
   ];
-
   try {
-    let response = await openai.chat.completions.create({
+    const response = await openai.chat.completions.create({
       model: config.openai.model,
       messages,
       temperature: 0.9,
       max_tokens: config.settings.maxTokens,
     });
-
-    if (typeof response === 'string') {
-      response = JSON.parse(response);
-    }
-
     const content = response?.choices?.[0]?.message?.content;
-    if (!content || typeof content !== 'string') {
-      throw new Error('Resposta inesperada da API');
-    }
-
+    if (!content) throw new Error('A API não retornou conteúdo na resposta.');
     return content.trim();
   } catch (error) {
-    console.error('[ERRO] Falha na chamada à Responses API:', error.message);
+    console.error('[ERRO] Falha na API em gerarPerguntaViaAPI:', error.message);
     throw error;
   }
 }
 
-// Função para resposta contextual (menções ou replies) - AGORA COMPLETA
-async function gerarRespostaContextual(mensagemUsuario, urlImagem = null, previousResponseId = null) {
+// Função para resposta contextual (COM MEMÓRIA)
+async function gerarRespostaContextual(guildId, canalId, usuarioId, mensagemUsuario) {
   const systemPrompt = await carregarSystemPrompt();
-  const dataHoraAtual = new Date().toLocaleString('pt-BR', { timeZone: 'America/Sao_Paulo' });
+  
+  // 1. Busca o histórico de mensagens do usuário no banco de dados
+  const historico = await database.buscarHistoricoConversa(guildId, canalId, usuarioId);
 
-  const inputContent = [
-    {
-      type: 'input_text',
-      text: `Agora são ${dataHoraAtual}.
-
-${mensagemUsuario}`,
-    },
+  // 2. Monta o array de mensagens para a API
+  const messages = [
+    { role: 'system', content: systemPrompt }
   ];
 
-  if (urlImagem) {
-    inputContent.push({
-      type: 'input_image',
-      image_url: urlImagem,
-    });
+  // 3. Adiciona as mensagens antigas do histórico
+  for (const msg of historico) {
+    // Adicionamos a mensagem do usuário
+    messages.push({ role: 'user', content: msg });
+    // Futuramente, poderíamos salvar a resposta da Vica e adicioná-la aqui
+    // como { role: 'assistant', content: respostaDaVica } para um contexto ainda melhor.
   }
 
+  // 4. Adiciona a mensagem atual que disparou o evento
+  messages.push({ role: 'user', content: mensagemUsuario });
+
   try {
-    const requestPayload = {
+    const response = await openai.chat.completions.create({
       model: config.openai.model,
-      input: [
-        {
-          role: 'user',
-          content: inputContent,
-        },
-      ],
-      system: systemPrompt,
-    };
-
-    if (previousResponseId) {
-      requestPayload.previous_response_id = previousResponseId;
-    }
-
-    let response = await openai.responses.create(requestPayload);
-
-    if (typeof response === 'string') {
-      response = JSON.parse(response);
-    }
-
-    const content =
-      response.output?.[0]?.content?.[0]?.text ||
-      response.output_text ||
-      null;
-
-    const idResposta = response?.id;
-
-    if (!content || typeof content !== 'string') {
-      throw new Error('Resposta inesperada da API');
-    }
-
-    return {
-      texto: content.trim(),
-      response_id: idResposta || null,
-    };
+      messages,
+      temperature: 0.8,
+      max_tokens: config.settings.maxTokens,
+    });
+    const content = response?.choices?.[0]?.message?.content;
+    if (!content) throw new Error('A API não retornou conteúdo na resposta.');
+    
+    // Retorna apenas o texto, já que a Chat Completions API não tem 'response_id'
+    return content.trim();
   } catch (error) {
-    console.error('[ERRO] Falha ao gerar resposta contextual:', error.message);
+    console.error('[ERRO] Falha na API em gerarRespostaContextual:', error.message);
     throw error;
   }
 }
