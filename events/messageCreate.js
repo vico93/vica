@@ -86,6 +86,11 @@ module.exports = {
 
     // Se foi mencionado, continua para gerar a resposta
     try {
+
+      // Indicador "Digitando..."
+      await message.channel.sendTyping();
+
+      // Filtra a mensagem para remover menções ao bot e espaços extras
       const prompt = message.content.replace(/<@!?\d+>/g, '').trim();
 
       // Chama a função contextual passando todos os IDs necessários
