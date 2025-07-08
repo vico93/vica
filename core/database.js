@@ -184,7 +184,6 @@ function atualizarUsuarioXP(guildId, usuarioId, xpAdicional, timestamp) {
   });
 }
 
-// --- NOVA FUNÇÃO DE RANKING ---
 function buscarRank(guildId, limit = 10) {
     return new Promise((resolve, reject) => {
         const query = `
@@ -200,6 +199,38 @@ function buscarRank(guildId, limit = 10) {
         });
     });
 }
+
+function definirXP(guildId, usuarioId, novoXp) {
+    return new Promise(async (resolve, reject) => {
+        try {
+            const insertQuery = `INSERT OR IGNORE INTO rank_xp (guild_id, usuario_id) VALUES (?, ?)`;
+            await new Promise((res, rej) => db.run(insertQuery, [guildId, usuarioId], (err) => err ? rej(err) : res()));
+
+            const novoNivel = Math.floor(novoXp / 1000);
+            const updateQuery = `UPDATE rank_xp SET xp = ?, nivel = ? WHERE guild_id = ? AND usuario_id = ?`;
+            
+            db.run(updateQuery, [novoXp, novoNivel, guildId, usuarioId], function(err) {
+                if (err) reject(err);
+                else resolve(this.changes);
+            });
+        } catch (err) {
+            reject(err);
+        }
+    });
+}
+
+// --- NOVA FUNÇÃO PARA RESETAR O RANKING ---
+function resetarXP(guildId) {
+    return new Promise((resolve, reject) => {
+        // Simplesmente deleta todos os registros da tabela para o servidor especificado
+        const query = `DELETE FROM rank_xp WHERE guild_id = ?`;
+        db.run(query, [guildId], function(err) {
+            if (err) reject(err);
+            else resolve(this.changes); // Retorna o número de usuários resetados
+        });
+    });
+}
+
 
 // --- Message Functions ---
 function inserirMensagem(guildId, canalId, usuarioId, conteudo, timestamp) {
@@ -253,7 +284,9 @@ module.exports = {
   // Ranking
   buscarUsuarioXP,
   atualizarUsuarioXP,
-  buscarRank, // <-- Exportando a nova função
+  buscarRank,
+  definirXP,
+  resetarXP, // <-- Exportando a nova função
   // Mensagens
   inserirMensagem,
   buscarHistoricoConversa,

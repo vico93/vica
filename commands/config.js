@@ -5,7 +5,6 @@ const database = require('../core/database');
 
 module.exports = {
     data: new SlashCommandBuilder()
-        // --- MUDANÇA AQUI ---
         .setName('config')
         .setDescription('Configurações avançadas da Vica.')
         .setDefaultMemberPermissions(PermissionsBitField.Flags.ManageGuild)
@@ -14,48 +13,36 @@ module.exports = {
         .addSubcommandGroup(group => group
             .setName('blacklist_chatbot')
             .setDescription('Gerencia os canais onde a Vica não pode interagir.')
-            .addSubcommand(sub => sub
-                .setName('add')
-                .setDescription('Adiciona um canal à blacklist do chatbot.')
-                .addChannelOption(opt => opt.setName('canal').setDescription('O canal a ser adicionado.').setRequired(true)))
-            .addSubcommand(sub => sub
-                .setName('remove')
-                .setDescription('Remove um canal da blacklist do chatbot.')
-                .addChannelOption(opt => opt.setName('canal').setDescription('O canal a ser removido.').setRequired(true)))
-            .addSubcommand(sub => sub
-                .setName('list')
-                .setDescription('Lista os canais na blacklist do chatbot.')))
+            .addSubcommand(sub => sub.setName('add').setDescription('Adiciona um canal à blacklist do chatbot.').addChannelOption(opt => opt.setName('canal').setDescription('O canal a ser adicionado.').setRequired(true)))
+            .addSubcommand(sub => sub.setName('remove').setDescription('Remove um canal da blacklist do chatbot.').addChannelOption(opt => opt.setName('canal').setDescription('O canal a ser removido.').setRequired(true)))
+            .addSubcommand(sub => sub.setName('list').setDescription('Lista os canais na blacklist do chatbot.')))
         // Grupo de comandos para a blacklist de XP
         .addSubcommandGroup(group => group
             .setName('blacklist_xp')
             .setDescription('Gerencia os canais onde não se ganha XP.')
-            .addSubcommand(sub => sub
-                .setName('add')
-                .setDescription('Adiciona um canal à blacklist de XP.')
-                .addChannelOption(opt => opt.setName('canal').setDescription('O canal a ser adicionado.').setRequired(true)))
-            .addSubcommand(sub => sub
-                .setName('remove')
-                .setDescription('Remove um canal da blacklist de XP.')
-                .addChannelOption(opt => opt.setName('canal').setDescription('O canal a ser removido.').setRequired(true)))
-            .addSubcommand(sub => sub
-                .setName('list')
-                .setDescription('Lista os canais na blacklist de XP.')))
+            .addSubcommand(sub => sub.setName('add').setDescription('Adiciona um canal à blacklist de XP.').addChannelOption(opt => opt.setName('canal').setDescription('O canal a ser adicionado.').setRequired(true)))
+            .addSubcommand(sub => sub.setName('remove').setDescription('Remove um canal da blacklist de XP.').addChannelOption(opt => opt.setName('canal').setDescription('O canal a ser removido.').setRequired(true)))
+            .addSubcommand(sub => sub.setName('list').setDescription('Lista os canais na blacklist de XP.')))
         // Grupo de comandos para os multiplicadores de XP
         .addSubcommandGroup(group => group
             .setName('xp_multipliers')
             .setDescription('Gerencia os multiplicadores de XP por cargo.')
+            .addSubcommand(sub => sub.setName('set').setDescription('Define um multiplicador de XP para um cargo.').addRoleOption(opt => opt.setName('cargo').setDescription('O cargo que receberá o bônus.').setRequired(true)).addNumberOption(opt => opt.setName('multiplicador').setDescription('Ex: 1.5 para 50% de bônus.').setRequired(true)))
+            .addSubcommand(sub => sub.setName('remove').setDescription('Remove o multiplicador de XP de um cargo.').addRoleOption(opt => opt.setName('cargo').setDescription('O cargo a ser removido.').setRequired(true)))
+            .addSubcommand(sub => sub.setName('list').setDescription('Lista todos os multiplicadores de XP configurados.')))
+        // Grupo de comandos para gerenciamento de XP
+        .addSubcommandGroup(group => group
+            .setName('xp_management')
+            .setDescription('Gerenciamento manual de XP de usuários.')
             .addSubcommand(sub => sub
                 .setName('set')
-                .setDescription('Define um multiplicador de XP para um cargo.')
-                .addRoleOption(opt => opt.setName('cargo').setDescription('O cargo que receberá o bônus.').setRequired(true))
-                .addNumberOption(opt => opt.setName('multiplicador').setDescription('Ex: 1.5 para 50% de bônus.').setRequired(true)))
+                .setDescription('Define o valor exato de XP para um usuário.')
+                .addUserOption(opt => opt.setName('usuario').setDescription('O usuário a ser modificado.').setRequired(true))
+                .addIntegerOption(opt => opt.setName('valor').setDescription('O novo valor total de XP.').setRequired(true).setMinValue(0)))
+            // --- NOVO SUB-COMANDO ---
             .addSubcommand(sub => sub
-                .setName('remove')
-                .setDescription('Remove o multiplicador de XP de um cargo.')
-                .addRoleOption(opt => opt.setName('cargo').setDescription('O cargo a ser removido.').setRequired(true)))
-            .addSubcommand(sub => sub
-                .setName('list')
-                .setDescription('Lista todos os multiplicadores de XP configurados.'))),
+                .setName('reset_all')
+                .setDescription('⚠️ ATENÇÃO: Zera o XP e o nível de TODOS os membros do servidor.'))),
 
     async execute(interaction) {
         const group = interaction.options.getSubcommandGroup();
@@ -121,8 +108,26 @@ module.exports = {
                 }
             }
 
+            // Lógica para gerenciamento de XP
+            if (group === 'xp_management') {
+                if (subcommand === 'set') {
+                    const usuario = interaction.options.getUser('usuario');
+                    const valor = interaction.options.getInteger('valor');
+                    const nivel = Math.floor(valor / 1000);
+
+                    await database.definirXP(interaction.guild.id, usuario.id, valor);
+
+                    return interaction.reply({ content: `✅ O XP de ${usuario} foi definido para **${valor}** (Nível ${nivel}).`, flags: [MessageFlags.Ephemeral] });
+                }
+                // --- NOVA LÓGICA PARA RESETAR O RANKING ---
+                if (subcommand === 'reset_all') {
+                    // Futuramente, poderíamos adicionar um botão de confirmação aqui para segurança
+                    const membrosResetados = await database.resetarXP(interaction.guild.id);
+                    return interaction.reply({ content: `💥 **O ranking de XP do servidor foi completamente resetado!** ${membrosResetados} membros foram afetados.`, flags: [MessageFlags.Ephemeral] });
+                }
+            }
+
         } catch (err) {
-            // --- MUDANÇA AQUI ---
             console.error(`[CONFIG] Erro no comando /config:`, err);
             return interaction.reply({ content: '❌ Ocorreu um erro ao executar esta configuração.', flags: [MessageFlags.Ephemeral] });
         }
