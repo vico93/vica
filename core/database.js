@@ -184,6 +184,23 @@ function atualizarUsuarioXP(guildId, usuarioId, xpAdicional, timestamp) {
   });
 }
 
+// --- NOVA FUNÇÃO DE RANKING ---
+function buscarRank(guildId, limit = 10) {
+    return new Promise((resolve, reject) => {
+        const query = `
+            SELECT usuario_id, xp, nivel 
+            FROM rank_xp 
+            WHERE guild_id = ? 
+            ORDER BY xp DESC 
+            LIMIT ?
+        `;
+        db.all(query, [guildId, limit], (err, rows) => {
+            if (err) reject(err);
+            else resolve(rows);
+        });
+    });
+}
+
 // --- Message Functions ---
 function inserirMensagem(guildId, canalId, usuarioId, conteudo, timestamp) {
   return new Promise((resolve, reject) => {
@@ -236,6 +253,7 @@ module.exports = {
   // Ranking
   buscarUsuarioXP,
   atualizarUsuarioXP,
+  buscarRank, // <-- Exportando a nova função
   // Mensagens
   inserirMensagem,
   buscarHistoricoConversa,
