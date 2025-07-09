@@ -1,14 +1,22 @@
+// Arquivo: bot.js
+
 const fs = require('fs');
 const path = require('path');
-const { Client, GatewayIntentBits, Collection } = require('discord.js');
+// --- MUDANÇA 1: Importar 'Partials' ---
+const { Client, GatewayIntentBits, Collection, Partials } = require('discord.js');
 const config = require('./config.json');
 
 const client = new Client({
   intents: [
     GatewayIntentBits.Guilds,
     GatewayIntentBits.GuildMessages,
-    GatewayIntentBits.MessageContent
-  ]
+    GatewayIntentBits.MessageContent,
+    // --- MUDANÇA 2: Adicionar a permissão para ver reações ---
+    GatewayIntentBits.GuildMessageReactions
+  ],
+  // --- MUDANÇA 3: Habilitar a leitura de 'partials' para reações ---
+  // Isso permite que o bot processe eventos em mensagens que não estão no cache
+  partials: [Partials.Message, Partials.Channel, Partials.Reaction],
 });
 
 client.commands = new Collection();

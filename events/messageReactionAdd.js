@@ -1,30 +1,34 @@
-// Arquivo: events/messageReactionAdd.js
+// Arquivo: events/messageReactionAdd.js (com uma pequena melhoria)
 
 const oai = require('../core/oai_interface');
-// --- MUDANÇA 1: Importar o arquivo de configuração ---
 const config = require('../config.json');
 
-// --- MUDANÇA 2: Usar o valor do config.json ---
 const VICA_EMOJI_ID = config.discord.reactionEmojiId;
 
 module.exports = {
   name: 'messageReactionAdd',
   async execute(reaction, user) {
+    // Garante que temos as informações completas da reação
+    if (reaction.partial) {
+      try {
+        await reaction.fetch();
+      } catch (error) {
+        console.error('Falha ao buscar a reação completa:', error);
+        return;
+      }
+    }
+    
     // Ignora reações de bots
     if (user.bot) return;
 
-    // --- MUDANÇA 3: Adicionada uma verificação de segurança ---
-    // Se o ID do emoji não estiver configurado, a função não faz nada.
     if (!VICA_EMOJI_ID || reaction.emoji.id !== VICA_EMOJI_ID) {
       return;
     }
 
     try {
-      // Garante que temos as informações completas da mensagem
       if (reaction.message.partial) await reaction.message.fetch();
       const message = reaction.message;
 
-      // Ignora reações em mensagens de bots
       if (message.author.bot) return;
 
       const guildId = message.guild.id;
