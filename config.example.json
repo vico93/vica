@@ -1,7 +1,8 @@
 {
   "discord": {
     "token": "SEU_DISCORD_BOT_TOKEN",
-    "clientId": "SEU_CLIENT_ID"
+    "clientId": "SEU_CLIENT_ID",
+    "reactionEmojiId": "EMOJI_ID_DE_REACAO"
   },
   "openai": {
     "base_url": "https://sua.api.openai.compativel/responses",
