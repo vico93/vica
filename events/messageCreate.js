@@ -78,7 +78,7 @@ module.exports = {
     try {
       await message.channel.sendTyping();
       
-      const prompt = message.content.replace(/<@!?\d+>/g, '').trim();
+      let prompt = message.content.replace(/<@!?\d+>/g, '').trim();
 
       // --- VERIFICAÇÃO DE IMAGENS ---
       let imageUrl = null;
@@ -88,7 +88,16 @@ module.exports = {
           imageUrl = attachment.url;
         }
       }
-      // --- FIM DA VERIFICAÇÃO ---
+      
+      // --- LÓGICA ATUALIZADA PARA MENSAGEM SÓ COM IMAGEM ---
+      // Se não há texto NEM imagem, não faz nada
+      if (!prompt && !imageUrl) return;
+
+      // Se não há texto, mas HÁ uma imagem, cria um prompt padrão
+      if (!prompt && imageUrl) {
+        prompt = "Em anexo...";
+      }
+      // --- FIM DA LÓGICA ATUALIZADA ---
 
       // Chama a função contextual passando a URL da imagem (ou null)
       const textoResposta = await oai.gerarRespostaContextual(guildId, canalId, usuarioId, prompt, imageUrl);
