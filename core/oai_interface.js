@@ -33,7 +33,7 @@ async function gerarPerguntaViaAPI(promptUsuario = null) {
     { role: 'system', content: systemPrompt },
     {
       role: 'user',
-      content: promptUsuario || 'Nossos comerciais, por favor!',
+      content: promptUsuario || '/perguntar acionado!',
     },
   ];
   try {
