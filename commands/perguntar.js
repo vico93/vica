@@ -56,7 +56,7 @@ module.exports = {
     const respostaFinal = `${mencionar ? `${mencionar} ` : ''}${pergunta}`;
     await interaction.editReply(({
       content: respostaFinal,
-      allowedMentions: mencao ? { parse: ['everyone', 'roles', 'users'] } : {}, // Habilita menções
+      allowedMentions: mencionar ? { parse: ['everyone', 'roles', 'users'] } : {}, // Habilita menções
     }));
   }
 };
