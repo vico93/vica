@@ -4,10 +4,10 @@ const fs = require('fs');
 const path = require('path');
 const OpenAI = require('openai');
 const config = require('../config.json');
-// --- MUDANÇA AQUI: Voltando a importar do arquivo único ---
 const database = require('../core/database');
 
-// --- FUNÇÃO ÚNICA PARA CARREGAR O PROMPT ---
+// Carrega o system prompt do arquivo system_prompt.txt
+// Se não conseguir ler o arquivo, retorna um prompt padrão
 async function carregarSystemPrompt() {
   const filePath = path.join(__dirname, '..', 'data', 'system_prompt.txt');
   try {
@@ -26,9 +26,7 @@ const openai = new OpenAI({
 
 // Função do comando /perguntar
 async function gerarPerguntaViaAPI(promptUsuario = null) {
-  // Usando o prompt principal unificado
   const systemPrompt = await carregarSystemPrompt();
-
   const messages = [
     { role: 'system', content: systemPrompt },
     {
@@ -52,10 +50,9 @@ async function gerarPerguntaViaAPI(promptUsuario = null) {
   }
 }
 
-// Função para resposta contextual
-async function gerarRespostaContextual(guildId, canalId, usuarioId, mensagemUsuario) {
+// Função para gerar uma resposta à partir da API
+async function gerarRespostaContextual(guildId, canalId, usuarioId, mensagemUsuario, imageUrl = null) {
   const systemPrompt = await carregarSystemPrompt();
-  
   const historico = await database.buscarHistoricoConversa(guildId, canalId, usuarioId);
 
   const messages = [
@@ -66,7 +63,22 @@ async function gerarRespostaContextual(guildId, canalId, usuarioId, mensagemUsua
     messages.push({ role: 'user', content: msg });
   }
 
-  messages.push({ role: 'user', content: mensagemUsuario });
+  // Monta o conteúdo da mensagem atual do usuário
+  const userMessageContent = [];
+  // Adiciona a parte de texto
+  userMessageContent.push({ type: 'text', text: mensagemUsuario });
+
+  // Se houver uma URL de imagem, adiciona a parte de imagem
+  if (imageUrl) {
+    userMessageContent.push({
+      type: 'image_url',
+      image_url: { url: imageUrl },
+    });
+    console.log(`[DEBUG] Enviando imagem para a IA: ${imageUrl}`);
+  }
+
+  // Adiciona o conteúdo completo (texto e/ou imagem) à lista de mensagens
+  messages.push({ role: 'user', content: userMessageContent });
 
   try {
     const response = await openai.chat.completions.create({
@@ -80,7 +92,7 @@ async function gerarRespostaContextual(guildId, canalId, usuarioId, mensagemUsua
     
     return content.trim();
   } catch (error) {
-    console.error('[ERRO] Não consegui gerar uma pergunta pela API da OpenAI:', error.message);
+    console.error('[ERRO] Não consegui gerar uma resposta pela API da OpenAI:', error.message);
     throw error;
   }
 }
