@@ -4,10 +4,10 @@ const fs = require('fs');
 const path = require('path');
 const OpenAI = require('openai');
 const config = require('../config.json');
-// Importa o database para buscar o histórico de conversas
-const database = require('./database');
+// --- MUDANÇA AQUI: Voltando a importar do arquivo único ---
+const database = require('../core/database');
 
-// Carrega o prompt do sistema para o chatbot
+// --- FUNÇÃO ÚNICA PARA CARREGAR O PROMPT ---
 async function carregarSystemPrompt() {
   const filePath = path.join(__dirname, '..', 'data', 'system_prompt.txt');
   try {
@@ -19,18 +19,6 @@ async function carregarSystemPrompt() {
   }
 }
 
-// Carrega o prompt do sistema para o comando /perguntar
-async function carregarSystemPromptPerguntar() {
-  const filePath = path.join(__dirname, '..', 'data', 'system_prompt_perguntar.txt');
-  try {
-    const prompt = await fs.promises.readFile(filePath, 'utf-8');
-    return prompt.trim();
-  } catch (err) {
-    console.error('[ERRO] Não foi possível ler system_prompt_perguntar.txt:', err);
-    return 'Sua única função é gerar perguntas. Sua resposta deve ser apenas e exclusivamente a pergunta gerada.';
-  }
-}
-
 const openai = new OpenAI({
   apiKey: config.openai.api_key,
   baseURL: config.openai.base_url,
@@ -38,10 +26,15 @@ const openai = new OpenAI({
 
 // Função do comando /perguntar
 async function gerarPerguntaViaAPI(promptUsuario = null) {
-  const systemPrompt = await carregarSystemPromptPerguntar();
+  // Usando o prompt principal unificado
+  const systemPrompt = await carregarSystemPrompt();
+
   const messages = [
     { role: 'system', content: systemPrompt },
-    { role: 'user', content: promptUsuario || 'Gere uma pergunta interessante para uma conversa descontraída.' },
+    {
+      role: 'user',
+      content: promptUsuario || 'Nossos comerciais, por favor!',
+    },
   ];
   try {
     const response = await openai.chat.completions.create({
@@ -54,32 +47,25 @@ async function gerarPerguntaViaAPI(promptUsuario = null) {
     if (!content) throw new Error('A API não retornou conteúdo na resposta.');
     return content.trim();
   } catch (error) {
-    console.error('[ERRO] Falha na API em gerarPerguntaViaAPI:', error.message);
+    console.error('[ERRO] Não consegui gerar uma pergunta pela API da OpenAI:', error.message);
     throw error;
   }
 }
 
-// Função para resposta contextual (COM MEMÓRIA)
+// Função para resposta contextual
 async function gerarRespostaContextual(guildId, canalId, usuarioId, mensagemUsuario) {
   const systemPrompt = await carregarSystemPrompt();
   
-  // 1. Busca o histórico de mensagens do usuário no banco de dados
   const historico = await database.buscarHistoricoConversa(guildId, canalId, usuarioId);
 
-  // 2. Monta o array de mensagens para a API
   const messages = [
     { role: 'system', content: systemPrompt }
   ];
 
-  // 3. Adiciona as mensagens antigas do histórico
   for (const msg of historico) {
-    // Adicionamos a mensagem do usuário
     messages.push({ role: 'user', content: msg });
-    // Futuramente, poderíamos salvar a resposta da Vica e adicioná-la aqui
-    // como { role: 'assistant', content: respostaDaVica } para um contexto ainda melhor.
   }
 
-  // 4. Adiciona a mensagem atual que disparou o evento
   messages.push({ role: 'user', content: mensagemUsuario });
 
   try {
@@ -92,10 +78,9 @@ async function gerarRespostaContextual(guildId, canalId, usuarioId, mensagemUsua
     const content = response?.choices?.[0]?.message?.content;
     if (!content) throw new Error('A API não retornou conteúdo na resposta.');
     
-    // Retorna apenas o texto, já que a Chat Completions API não tem 'response_id'
     return content.trim();
   } catch (error) {
-    console.error('[ERRO] Falha na API em gerarRespostaContextual:', error.message);
+    console.error('[ERRO] Não consegui gerar uma pergunta pela API da OpenAI:', error.message);
     throw error;
   }
 }
