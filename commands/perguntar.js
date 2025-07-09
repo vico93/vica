@@ -2,6 +2,10 @@
 
 const { SlashCommandBuilder } = require('discord.js');
 const oai = require('../core/oai_interface');
+// --- CORREÇÃO AQUI: Adicionando os módulos 'fs' e 'path' ---
+const fs = require('fs');
+const path = require('path');
+// ---------------------------------------------------------
 
 module.exports = {
   data: new SlashCommandBuilder()
@@ -15,14 +19,12 @@ module.exports = {
           { name: 'IA', value: 'ia' },
           { name: 'Banco de Perguntas', value: 'banco' }
         ))
-    // --- MUDANÇA AQUI: de addUserOption para addMentionableOption ---
     .addMentionableOption(option =>
-      option.setName('mencionar') // Nome do argumento alterado de "alvo" para "mencionar"
+      option.setName('mencionar')
         .setDescription('Mencione um usuário, cargo ou @everyone para direcionar a pergunta.')
         .setRequired(false)),
 
   async execute(interaction) {
-    // --- MUDANÇA AQUI: de getUser('alvo') para getMentionable('mencionar') ---
     const mencionar = interaction.options.getMentionable('mencionar');
     const fonte = interaction.options.getString('fonte');
 
@@ -33,6 +35,7 @@ module.exports = {
     if (fonte === 'banco') {
       try {
         const filePath = path.join(__dirname, '..', 'data', 'perguntas.txt');
+        // Usamos readFileSync aqui pois é uma operação simples e rápida no contexto de um comando.
         const perguntas = fs.readFileSync(filePath, 'utf-8').split('\n').filter(Boolean);
         pergunta = perguntas[Math.floor(Math.random() * perguntas.length)];
       } catch (err) {
@@ -50,8 +53,6 @@ module.exports = {
       return interaction.editReply('Fonte inválida.');
     }
 
-    // --- MUDANÇA AQUI: A forma de montar a resposta final ---
-    // O objeto "mentionable" já é convertido para a menção correta automaticamente
     const respostaFinal = `${mencionar ? `${mencionar} ` : ''}${pergunta}`;
     await interaction.editReply(respostaFinal);
   }
