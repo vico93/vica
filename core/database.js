@@ -1,293 +1,150 @@
-// Arquivo: core/database.js
-
-const sqlite3 = require('sqlite3').verbose();
-const path = require('path');
+// core/database.js  (v2 – performance edition)
+const Database = require('better-sqlite3');
+const path     = require('path');
 
 const dbPath = path.join(__dirname, '..', 'data', 'database.db');
+const db     = new Database(dbPath);
 
-const db = new sqlite3.Database(dbPath, (err) => {
-  if (err) {
-    console.error('[DB] Erro ao conectar ao SQLite:', err.message);
-  } else {
-    console.log('[DB] Conectado ao SQLite em', dbPath);
-  }
-});
+// Performance tuning
+db.pragma('journal_mode = WAL');
+db.pragma('synchronous  = NORMAL');
 
-db.serialize(() => {
-  db.run(`
-    CREATE TABLE IF NOT EXISTS mensagens (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      guild_id TEXT NOT NULL,
-      canal_id TEXT NOT NULL,
-      usuario_id TEXT NOT NULL,
-      conteudo TEXT NOT NULL,
-      timestamp INTEGER NOT NULL,
-      response_id TEXT
-    )
-  `);
-  db.run(`
-    CREATE TABLE IF NOT EXISTS rank_xp (
-      guild_id TEXT NOT NULL,
-      usuario_id TEXT NOT NULL,
-      xp INTEGER DEFAULT 0,
-      nivel INTEGER DEFAULT 0,
-      total_mensagens INTEGER DEFAULT 0,
-      ultima_mensagem_timestamp INTEGER DEFAULT 0,
-      PRIMARY KEY (guild_id, usuario_id)
-    )
-  `);
-  db.run(`
-    CREATE TABLE IF NOT EXISTS blacklist_chatbot_canais (
-      guild_id TEXT NOT NULL,
-      canal_id TEXT NOT NULL,
-      PRIMARY KEY (guild_id, canal_id)
-    )
-  `);
-  db.run(`
-    CREATE TABLE IF NOT EXISTS blacklist_xp_canais (
-      guild_id TEXT NOT NULL,
-      canal_id TEXT NOT NULL,
-      PRIMARY KEY (guild_id, canal_id)
-    )
-  `);
-  db.run(`
-    CREATE TABLE IF NOT EXISTS rank_role_multipliers (
-      guild_id TEXT NOT NULL,
-      role_id TEXT NOT NULL,
-      multiplier REAL NOT NULL,
-      PRIMARY KEY (guild_id, role_id)
-    )
-  `);
-});
+// ------------------------------------------------------------------
+// Schema (run once, safe to re-run)
+// ------------------------------------------------------------------
+db.exec(`
+CREATE TABLE IF NOT EXISTS mensagens (
+  id      INTEGER PRIMARY KEY AUTOINCREMENT,
+  guild_id TEXT NOT NULL,
+  canal_id TEXT NOT NULL,
+  usuario_id TEXT NOT NULL,
+  conteudo TEXT NOT NULL,
+  timestamp INTEGER NOT NULL,
+  response_id TEXT
+);
 
-// --- Chatbot Blacklist Functions ---
-function chatbotCanalNaBlacklist(guildId, canalId) {
-  return new Promise((resolve, reject) => {
-    const query = `SELECT 1 FROM blacklist_chatbot_canais WHERE guild_id = ? AND canal_id = ? LIMIT 1`;
-    db.get(query, [guildId, canalId], (err, row) => err ? reject(err) : resolve(!!row));
-  });
-}
-function chatbotAdicionarCanal(guildId, canalId) {
-  return new Promise((resolve, reject) => {
-    const query = `INSERT OR IGNORE INTO blacklist_chatbot_canais (guild_id, canal_id) VALUES (?, ?)`;
-    db.run(query, [guildId, canalId], function(err) { err ? reject(err) : resolve(this.changes) });
-  });
-}
-function chatbotRemoverCanal(guildId, canalId) {
-  return new Promise((resolve, reject) => {
-    const query = `DELETE FROM blacklist_chatbot_canais WHERE guild_id = ? AND canal_id = ?`;
-    db.run(query, [guildId, canalId], function(err) { err ? reject(err) : resolve(this.changes) });
-  });
-}
-function chatbotListarCanais(guildId) {
-  return new Promise((resolve, reject) => {
-    const query = `SELECT canal_id FROM blacklist_chatbot_canais WHERE guild_id = ?`;
-    db.all(query, [guildId], (err, rows) => err ? reject(err) : resolve(rows));
-  });
-}
+CREATE TABLE IF NOT EXISTS rank_xp (
+  guild_id  TEXT NOT NULL,
+  usuario_id TEXT NOT NULL,
+  xp        INTEGER DEFAULT 0,
+  nivel     INTEGER DEFAULT 0,
+  total_mensagens INTEGER DEFAULT 0,
+  ultima_mensagem_timestamp INTEGER DEFAULT 0,
+  PRIMARY KEY (guild_id, usuario_id)
+);
 
-// --- XP Blacklist Functions ---
-function xpCanalNaBlacklist(guildId, canalId) {
-  return new Promise((resolve, reject) => {
-    const query = `SELECT 1 FROM blacklist_xp_canais WHERE guild_id = ? AND canal_id = ? LIMIT 1`;
-    db.get(query, [guildId, canalId], (err, row) => err ? reject(err) : resolve(!!row));
-  });
-}
-function xpAdicionarCanal(guildId, canalId) {
-  return new Promise((resolve, reject) => {
-    const query = `INSERT OR IGNORE INTO blacklist_xp_canais (guild_id, canal_id) VALUES (?, ?)`;
-    db.run(query, [guildId, canalId], function(err) { err ? reject(err) : resolve(this.changes) });
-  });
-}
-function xpRemoverCanal(guildId, canalId) {
-  return new Promise((resolve, reject) => {
-    const query = `DELETE FROM blacklist_xp_canais WHERE guild_id = ? AND canal_id = ?`;
-    db.run(query, [guildId, canalId], function(err) { err ? reject(err) : resolve(this.changes) });
-  });
-}
-function xpListarCanais(guildId) {
-  return new Promise((resolve, reject) => {
-    const query = `SELECT canal_id FROM blacklist_xp_canais WHERE guild_id = ?`;
-    db.all(query, [guildId], (err, rows) => err ? reject(err) : resolve(rows));
-  });
-}
+CREATE TABLE IF NOT EXISTS blacklist_chatbot_canais (
+  guild_id TEXT NOT NULL,
+  canal_id TEXT NOT NULL,
+  PRIMARY KEY (guild_id, canal_id)
+);
 
-// --- XP Multiplier Functions ---
-function definirMultiplicadorRole(guildId, roleId, multiplier) {
-    return new Promise((resolve, reject) => {
-        const query = `INSERT INTO rank_role_multipliers (guild_id, role_id, multiplier) VALUES (?, ?, ?)
-                       ON CONFLICT(guild_id, role_id) DO UPDATE SET multiplier = excluded.multiplier`;
-        db.run(query, [guildId, roleId, multiplier], function(err) { err ? reject(err) : resolve(this.changes) });
-    });
-}
-function removerMultiplicadorRole(guildId, roleId) {
-    return new Promise((resolve, reject) => {
-        const query = `DELETE FROM rank_role_multipliers WHERE guild_id = ? AND role_id = ?`;
-        db.run(query, [guildId, roleId], function(err) { err ? reject(err) : resolve(this.changes) });
-    });
-}
-function listarMultiplicadoresRole(guildId) {
-    return new Promise((resolve, reject) => {
-        const query = `SELECT role_id, multiplier FROM rank_role_multipliers WHERE guild_id = ?`;
-        db.all(query, [guildId], (err, rows) => err ? reject(err) : resolve(rows));
-    });
-}
-function buscarMultiplicadoresParaUsuario(guildId, roleIds) {
-    return new Promise((resolve, reject) => {
-        if (roleIds.length === 0) return resolve([]);
-        const placeholders = roleIds.map(() => '?').join(',');
-        const query = `SELECT multiplier FROM rank_role_multipliers WHERE guild_id = ? AND role_id IN (${placeholders})`;
-        db.all(query, [guildId, ...roleIds], (err, rows) => err ? reject(err) : resolve(rows.map(r => r.multiplier)));
-    });
-}
+CREATE TABLE IF NOT EXISTS blacklist_xp_canais (
+  guild_id TEXT NOT NULL,
+  canal_id TEXT NOT NULL,
+  PRIMARY KEY (guild_id, canal_id)
+);
 
-// --- Ranking Functions ---
-function buscarUsuarioXP(guildId, usuarioId) {
-  return new Promise((resolve, reject) => {
-    const query = `SELECT * FROM rank_xp WHERE guild_id = ? AND usuario_id = ?`;
-    db.get(query, [guildId, usuarioId], (err, row) => {
-      if (err) reject(err);
-      else resolve(row);
-    });
-  });
-}
+CREATE TABLE IF NOT EXISTS rank_role_multipliers (
+  guild_id  TEXT NOT NULL,
+  role_id   TEXT NOT NULL,
+  multiplier REAL NOT NULL,
+  PRIMARY KEY (guild_id, role_id)
+);
+`);
 
-function atualizarUsuarioXP(guildId, usuarioId, xpAdicional, timestamp) {
-  return new Promise(async (resolve, reject) => {
-    try {
-      const insertQuery = `INSERT OR IGNORE INTO rank_xp (guild_id, usuario_id) VALUES (?, ?)`;
-      await new Promise((res, rej) => db.run(insertQuery, [guildId, usuarioId], (err) => err ? rej(err) : res()));
+// ------------------------------------------------------------------
+// Prepared statements
+// ------------------------------------------------------------------
+const stmts = {
+  // Chatbot blacklist
+  chatbotExists : db.prepare(`SELECT 1 FROM blacklist_chatbot_canais WHERE guild_id=? AND canal_id=? LIMIT 1`),
+  chatbotAdd    : db.prepare(`INSERT OR IGNORE INTO blacklist_chatbot_canais (guild_id,canal_id) VALUES (?,?)`),
+  chatbotDel    : db.prepare(`DELETE FROM blacklist_chatbot_canais WHERE guild_id=? AND canal_id=?`),
+  chatbotList   : db.prepare(`SELECT canal_id FROM blacklist_chatbot_canais WHERE guild_id=?`),
 
-      const usuarioAtual = await buscarUsuarioXP(guildId, usuarioId);
-      const novoXp = usuarioAtual.xp + xpAdicional;
-      const novoNivel = Math.floor(novoXp / 1000);
+  // XP blacklist
+  xpExists : db.prepare(`SELECT 1 FROM blacklist_xp_canais WHERE guild_id=? AND canal_id=? LIMIT 1`),
+  xpAdd    : db.prepare(`INSERT OR IGNORE INTO blacklist_xp_canais (guild_id,canal_id) VALUES (?,?)`),
+  xpDel    : db.prepare(`DELETE FROM blacklist_xp_canais WHERE guild_id=? AND canal_id=?`),
+  xpList   : db.prepare(`SELECT canal_id FROM blacklist_xp_canais WHERE guild_id=?`),
 
-      const updateQuery = `
-        UPDATE rank_xp
-        SET
-          xp = ?,
-          nivel = ?,
-          total_mensagens = total_mensagens + 1,
-          ultima_mensagem_timestamp = ?
-        WHERE guild_id = ? AND usuario_id = ?
-      `;
-      db.run(updateQuery, [novoXp, novoNivel, timestamp, guildId, usuarioId], function(err) {
-        if (err) {
-          reject(err);
-        } else {
-          resolve({ levelUp: novoNivel > usuarioAtual.nivel, novoNivel: novoNivel });
-        }
-      });
-    } catch (err) {
-      reject(err);
-    }
-  });
-}
+  // Multipliers
+  multSet   : db.prepare(`INSERT INTO rank_role_multipliers (guild_id,role_id,multiplier) VALUES (?,?,?)
+                         ON CONFLICT(guild_id,role_id) DO UPDATE SET multiplier=excluded.multiplier`),
+  multDel   : db.prepare(`DELETE FROM rank_role_multipliers WHERE guild_id=? AND role_id=?`),
+  multList  : db.prepare(`SELECT role_id,multiplier FROM rank_role_multipliers WHERE guild_id=?`),
+  multByIds : db.prepare(`SELECT multiplier FROM rank_role_multipliers WHERE guild_id=? AND role_id IN (SELECT value FROM json_each(?))`),
 
-function buscarRank(guildId, limit = 10) {
-    return new Promise((resolve, reject) => {
-        const query = `
-            SELECT usuario_id, xp, nivel 
-            FROM rank_xp 
-            WHERE guild_id = ? 
-            ORDER BY xp DESC 
-            LIMIT ?
-        `;
-        db.all(query, [guildId, limit], (err, rows) => {
-            if (err) reject(err);
-            else resolve(rows);
-        });
-    });
-}
-
-function definirXP(guildId, usuarioId, novoXp) {
-    return new Promise(async (resolve, reject) => {
-        try {
-            const insertQuery = `INSERT OR IGNORE INTO rank_xp (guild_id, usuario_id) VALUES (?, ?)`;
-            await new Promise((res, rej) => db.run(insertQuery, [guildId, usuarioId], (err) => err ? rej(err) : res()));
-
-            const novoNivel = Math.floor(novoXp / 1000);
-            const updateQuery = `UPDATE rank_xp SET xp = ?, nivel = ? WHERE guild_id = ? AND usuario_id = ?`;
-            
-            db.run(updateQuery, [novoXp, novoNivel, guildId, usuarioId], function(err) {
-                if (err) reject(err);
-                else resolve(this.changes);
-            });
-        } catch (err) {
-            reject(err);
-        }
-    });
-}
-
-// --- NOVA FUNÇÃO PARA RESETAR O RANKING ---
-function resetarXP(guildId) {
-    return new Promise((resolve, reject) => {
-        // Simplesmente deleta todos os registros da tabela para o servidor especificado
-        const query = `DELETE FROM rank_xp WHERE guild_id = ?`;
-        db.run(query, [guildId], function(err) {
-            if (err) reject(err);
-            else resolve(this.changes); // Retorna o número de usuários resetados
-        });
-    });
-}
-
-
-// --- Message Functions ---
-function inserirMensagem(guildId, canalId, usuarioId, conteudo, timestamp) {
-  return new Promise((resolve, reject) => {
-    const query = `
-      INSERT INTO mensagens (guild_id, canal_id, usuario_id, conteudo, timestamp)
-      VALUES (?, ?, ?, ?, ?)
-    `;
-    db.run(query, [guildId, canalId, usuarioId, conteudo, timestamp], function(err) {
-      if (err) reject(err);
-      else resolve(this.lastID);
-    });
-  });
-}
-
-function buscarHistoricoConversa(guildId, canalId, usuarioId, limit = 3) {
-  return new Promise((resolve, reject) => {
-    const query = `
-      SELECT conteudo FROM mensagens
-      WHERE guild_id = ? AND canal_id = ? AND usuario_id = ?
-      ORDER BY timestamp DESC
-      LIMIT ?
-    `;
-    db.all(query, [guildId, canalId, usuarioId, limit], (err, rows) => {
-      if (err) {
-        reject(err);
-      } else {
-        resolve(rows.map(r => r.conteudo).reverse());
-      }
-    });
-  });
-}
-
-
-module.exports = {
-  // Chatbot
-  chatbotCanalNaBlacklist,
-  chatbotAdicionarCanal,
-  chatbotRemoverCanal,
-  chatbotListarCanais,
   // XP
-  xpCanalNaBlacklist,
-  xpAdicionarCanal,
-  xpRemoverCanal,
-  xpListarCanais,
-  // Multiplicadores
-  definirMultiplicadorRole,
-  removerMultiplicadorRole,
-  listarMultiplicadoresRole,
-  buscarMultiplicadoresParaUsuario,
-  // Ranking
-  buscarUsuarioXP,
-  atualizarUsuarioXP,
-  buscarRank,
-  definirXP,
-  resetarXP, // <-- Exportando a nova função
+  xpGet        : db.prepare(`SELECT * FROM rank_xp WHERE guild_id=? AND usuario_id=?`),
+  xpUpsert     : db.prepare(`INSERT INTO rank_xp (guild_id,usuario_id,xp,nivel,ultima_mensagem_timestamp)
+                               VALUES (?,?,?,?,?)
+                             ON CONFLICT(guild_id,usuario_id) DO UPDATE
+                               SET xp = xp + excluded.xp,
+                                   nivel = excluded.nivel,
+                                   total_mensagens = total_mensagens + 1,
+                                   ultima_mensagem_timestamp = excluded.ultima_mensagem_timestamp`),
+  xpSet        : db.prepare(`INSERT INTO rank_xp (guild_id,usuario_id,xp,nivel)
+                             VALUES (?,?,?,?) ON CONFLICT(guild_id,usuario_id) DO UPDATE
+                             SET xp=excluded.xp, nivel=excluded.nivel`),
+  xpResetGuild : db.prepare(`DELETE FROM rank_xp WHERE guild_id=?`),
+  rankTop      : db.prepare(`SELECT usuario_id,xp,nivel FROM rank_xp WHERE guild_id=? ORDER BY xp DESC LIMIT ?`),
+
   // Mensagens
-  inserirMensagem,
-  buscarHistoricoConversa,
+  msgInsert : db.prepare(`INSERT INTO mensagens (guild_id,canal_id,usuario_id,conteudo,timestamp) VALUES (?,?,?,?,?)`),
+  msgHistory: db.prepare(`SELECT conteudo FROM mensagens WHERE guild_id=? AND canal_id=? AND usuario_id=? ORDER BY timestamp DESC LIMIT ?`)
+};
+
+// ------------------------------------------------------------------
+// Helper wrappers (same API as before)
+// ------------------------------------------------------------------
+module.exports = {
+  // Chatbot blacklist
+  chatbotCanalNaBlacklist : (g,c) => !!stmts.chatbotExists.get(g,c),
+  chatbotAdicionarCanal   : (g,c) => stmts.chatbotAdd.run(g,c).changes,
+  chatbotRemoverCanal     : (g,c) => stmts.chatbotDel.run(g,c).changes,
+  chatbotListarCanais     : (g)   => stmts.chatbotList.all(g),
+
+  // XP blacklist
+  xpCanalNaBlacklist : (g,c) => !!stmts.xpExists.get(g,c),
+  xpAdicionarCanal   : (g,c) => stmts.xpAdd.run(g,c).changes,
+  xpRemoverCanal     : (g,c) => stmts.xpDel.run(g,c).changes,
+  xpListarCanais     : (g)   => stmts.xpList.all(g),
+
+  // Multipliers
+  definirMultiplicadorRole  : (g,r,m) => stmts.multSet.run(g,r,m).changes,
+  removerMultiplicadorRole  : (g,r)   => stmts.multDel.run(g,r).changes,
+  listarMultiplicadoresRole : (g)     => stmts.multList.all(g),
+  buscarMultiplicadoresParaUsuario(g, roleIds) {
+    if (!roleIds.length) return [];
+    const rows = stmts.multByIds.all(g, JSON.stringify(roleIds));
+    return rows.map(r => r.multiplier);
+  },
+
+  // XP
+  buscarUsuarioXP(g,u) { return stmts.xpGet.get(g,u) || null; },
+  async atualizarUsuarioXP(g,u,xpAdd,ts) {
+    const row = stmts.xpGet.get(g,u);
+    const oldLvl = row ? row.nivel : 0;
+    const newXp  = (row ? row.xp : 0) + xpAdd;
+    const newLvl = Math.floor(newXp / 1000);
+    stmts.xpUpsert.run(g,u,xpAdd,newLvl,ts);
+    return { levelUp: newLvl > oldLvl, novoNivel: newLvl };
+  },
+  definirXP(g,u,xp) {
+    const lvl = Math.floor(xp / 1000);
+    stmts.xpSet.run(g,u,xp,lvl);
+  },
+  resetarXP(g) { return stmts.xpResetGuild.run(g).changes; },
+  buscarRank(g,limit=10) { return stmts.rankTop.all(g,limit); },
+
+  // Mensagens
+  inserirMensagem(g,c,u,txt,ts) { return stmts.msgInsert.run(g,c,u,txt,ts).lastInsertRowid; },
+  buscarHistoricoConversa(g,c,u,l=3) {
+    return stmts.msgHistory.all(g,c,u,l).map(r=>r.conteudo).reverse();
+  },
+
+  // Graceful close helper
+  close() { db.close(); }
 };

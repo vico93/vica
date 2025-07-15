@@ -1,11 +1,8 @@
-// Arquivo: commands/perguntar.js
+// commands/perguntar.js  (performance-refactored)
 
 const { SlashCommandBuilder } = require('discord.js');
-const oai = require('../core/oai_interface');
-// --- CORREÇÃO AQUI: Adicionando os módulos 'fs' e 'path' ---
-const fs = require('fs');
-const path = require('path');
-// ---------------------------------------------------------
+const oai         = require('../core/oai_interface');
+const { perguntas } = require('../core/static_data');   // pre-loaded list
 
 module.exports = {
   data: new SlashCommandBuilder()
@@ -26,22 +23,15 @@ module.exports = {
 
   async execute(interaction) {
     const mencionar = interaction.options.getMentionable('mencionar');
-    const fonte = interaction.options.getString('fonte');
+    const fonte     = interaction.options.getString('fonte');
 
     await interaction.deferReply();
 
     let pergunta;
 
     if (fonte === 'banco') {
-      try {
-        const filePath = path.join(__dirname, '..', 'data', 'perguntas.txt');
-        // Usamos readFileSync aqui pois é uma operação simples e rápida no contexto de um comando.
-        const perguntas = fs.readFileSync(filePath, 'utf-8').split('\n').filter(Boolean);
-        pergunta = perguntas[Math.floor(Math.random() * perguntas.length)];
-      } catch (err) {
-        console.error('Erro ao ler perguntas.txt:', err);
-        return interaction.editReply('Desculpa, tive um bug aqui e não consegui pensar em nada... 😓');
-      }
+      // perguntas já está em memória – nenhum I/O síncrono aqui
+      pergunta = perguntas[Math.floor(Math.random() * perguntas.length)];
     } else if (fonte === 'ia') {
       try {
         pergunta = await oai.gerarPerguntaViaAPI();
@@ -54,9 +44,9 @@ module.exports = {
     }
 
     const respostaFinal = `${mencionar ? `${mencionar} ` : ''}${pergunta}`;
-    await interaction.editReply(({
+    await interaction.editReply({
       content: respostaFinal,
-      allowedMentions: mencionar ? { parse: ['everyone', 'roles', 'users'] } : {}, // Habilita menções
-    }));
+      allowedMentions: mencionar ? { parse: ['everyone', 'roles', 'users'] } : {}
+    });
   }
 };

@@ -1,54 +1,52 @@
-// Arquivo: bot.js
+// bot.js  (graceful-shutdown addition)
 
-const fs = require('fs');
+const fs   = require('fs');
 const path = require('path');
-// --- MUDANÇA 1: Importar 'Partials' ---
 const { Client, GatewayIntentBits, Collection, Partials } = require('discord.js');
-const config = require('./config.json');
+const config   = require('./config.json');
+const database = require('./core/database');   // for graceful close
 
 const client = new Client({
   intents: [
     GatewayIntentBits.Guilds,
     GatewayIntentBits.GuildMessages,
     GatewayIntentBits.MessageContent,
-    // --- MUDANÇA 2: Adicionar a permissão para ver reações ---
     GatewayIntentBits.GuildMessageReactions
   ],
-  // --- MUDANÇA 3: Habilitar a leitura de 'partials' para reações ---
-  // Isso permite que o bot processe eventos em mensagens que não estão no cache
-  partials: [Partials.Message, Partials.Channel, Partials.Reaction],
+  partials: [Partials.Message, Partials.Channel, Partials.Reaction]
 });
 
 client.commands = new Collection();
 
-// Carregar comandos
+// ------------------  command loader  ------------------
 const commandsPath = path.join(__dirname, 'commands');
-const commandFiles = fs.readdirSync(commandsPath).filter(file => file.endsWith('.js'));
-
+const commandFiles = fs.readdirSync(commandsPath).filter(f => f.endsWith('.js'));
 for (const file of commandFiles) {
-  const filePath = path.join(commandsPath, file);
-  const command = require(filePath);
-  if ('data' in command && 'execute' in command) {
-    client.commands.set(command.data.name, command);
-  } else {
-    console.warn(`[AVISO] O comando em ${filePath} está faltando "data" ou "execute".`);
-  }
+  const cmd = require(path.join(commandsPath, file));
+  if ('data' in cmd && 'execute' in cmd) client.commands.set(cmd.data.name, cmd);
 }
 
-// Carregar eventos
+// ------------------  event loader  ------------------
 const eventsPath = path.join(__dirname, 'events');
 if (fs.existsSync(eventsPath)) {
-  const eventFiles = fs.readdirSync(eventsPath).filter(file => file.endsWith('.js'));
-
+  const eventFiles = fs.readdirSync(eventsPath).filter(f => f.endsWith('.js'));
   for (const file of eventFiles) {
-    const filePath = path.join(eventsPath, file);
-    const event = require(filePath);
-    if (event.once) {
-      client.once(event.name, (...args) => event.execute(...args, client));
-    } else {
-      client.on(event.name, (...args) => event.execute(...args, client));
-    }
+    const event = require(path.join(eventsPath, file));
+    if (event.once) client.once(event.name, (...args) => event.execute(...args, client));
+    else            client.on (event.name, (...args) => event.execute(...args, client));
   }
 }
 
+// ------------------  login  ------------------
 client.login(config.discord.token);
+
+// ------------------  graceful shutdown  ------------------
+process.on('SIGINT',  closeResources);
+process.on('SIGTERM', closeResources);
+
+function closeResources() {
+  console.log('\nGracefully shutting down...');
+  database.close();      // flush WAL
+  client.destroy();
+  process.exit(0);
+}
