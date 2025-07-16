@@ -1,6 +1,6 @@
 /*
 **  caminho: events/messageReactionAdd.js
-**  últimaMod: 16/07/2025 22:24
+**  últimaMod: 16/07/2025 22:35
 **  autor: Vico
 **  colaboração: ChatGPT, Gemini, Kimi AI
 */
@@ -14,8 +14,9 @@
   4. Remover a reação do usuário para evitar spam (opcional).
 */
 
-const oai    = require('../core/oai_interface');
-const config = require('../config.json');
+const oai      = require('../core/oai_interface');
+const database = require('../core/database');   // <-- linha adicionada
+const config   = require('../config.json');
 
 const VICA_EMOJI_ID = config.discord.reactionEmojiId;
 
@@ -71,7 +72,7 @@ module.exports = {
 
       await message.reply({ content: resposta, failIfNotExists: false });
 
-      // Remove a reação para evitar spam
+      // Remove reação para evitar spam
       try {
         await reaction.users.remove(user.id);
       } catch {
