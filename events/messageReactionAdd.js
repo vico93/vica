@@ -1,4 +1,18 @@
-// events/messageReactionAdd.js  (performance-refactored)
+/*
+**  caminho: events/messageReactionAdd.js
+**  últimaMod: 16/07/2025 22:24
+**  autor: Vico
+**  colaboração: ChatGPT, Gemini, Kimi AI
+*/
+
+/*
+  Evento disparado quando alguém reage com o emoji configurado.
+  Responsabilidades:
+  1. Ignorar bots e emojis errados;
+  2. Verificar blacklist do canal;
+  3. Gerar resposta via IA (respeitando imagem ou texto);
+  4. Remover a reação do usuário para evitar spam (opcional).
+*/
 
 const oai    = require('../core/oai_interface');
 const config = require('../config.json');
@@ -8,22 +22,21 @@ const VICA_EMOJI_ID = config.discord.reactionEmojiId;
 module.exports = {
   name: 'messageReactionAdd',
   async execute(reaction, user) {
-    // 1. Make sure we have a full reaction object
+    // Garante objeto completo
     if (reaction.partial) {
       try {
         await reaction.fetch();
       } catch (err) {
-        console.error('Falha ao buscar reação parcial:', err);
+        console.error('[VICA][REACTION] Falha ao buscar reação parcial:', err);
         return;
       }
     }
 
-    // 2. Ignore bot reactions & wrong emoji
+    // Filtros básicos
     if (user.bot) return;
     if (!VICA_EMOJI_ID || reaction.emoji.id !== VICA_EMOJI_ID) return;
 
     try {
-      // 3. Ensure full message
       const message = reaction.message.partial
         ? await reaction.message.fetch()
         : reaction.message;
@@ -34,7 +47,9 @@ module.exports = {
       const canalId  = message.channel.id;
       const usuarioId = message.author.id;
 
-      // 4. Build prompt & image handling
+      // Respeita blacklist
+      if (database.chatbotCanalNaBlacklist(guildId, canalId)) return;
+
       let prompt = message.content;
       let imageUrl = null;
 
@@ -44,24 +59,26 @@ module.exports = {
       }
 
       if (!prompt && imageUrl) prompt = 'Em anexo...';
-      if (!prompt && !imageUrl) return; // nothing to process
+      if (!prompt && !imageUrl) return;
 
-      console.log(`[REACTION] Gatilho de reação por ${user.tag} na msg de ${message.author.tag}`);
+      console.log(`[VICA][REACTION] Gatilho por ${user.tag} na msg de ${message.author.tag}`);
 
       await message.channel.sendTyping();
 
-      const replyText = await oai.gerarRespostaContextual(
+      const resposta = await oai.gerarRespostaContextual(
         guildId, canalId, usuarioId, prompt, imageUrl
       );
 
-      await message.reply({ content: replyText, failIfNotExists: false });
+      await message.reply({ content: resposta, failIfNotExists: false });
 
-      // Optional: remove the trigger reaction to prevent spam
+      // Remove a reação para evitar spam
       try {
         await reaction.users.remove(user.id);
-      } catch { /* ignore if missing permissions */ }
+      } catch {
+        /* ignora se faltar permissão */
+      }
     } catch (err) {
-      console.error('[REACTION] Falha ao processar reação:', err);
+      console.error('[VICA][REACTION] Falha ao processar reação:', err);
     }
   }
 };

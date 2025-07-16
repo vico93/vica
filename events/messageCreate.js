@@ -1,75 +1,87 @@
-// events/messageCreate.js  (performance-refactored)
+/*
+**  caminho: events/messageCreate.js
+**  últimaMod: 16/07/2025 22:23
+**  autor: Vico
+**  colaboração: ChatGPT, Gemini, Kimi AI
+*/
+
+/*
+  Evento disparado sempre que uma mensagem é enviada em algum canal.
+  Responsabilidades:
+  1. Conceder XP ao autor (se canal não estiver na blacklist e respeitar cooldown);
+  2. Armazenar a mensagem no histórico para o chatbot;
+  3. Verificar se a VICA foi mencionada ou se a mensagem respondeu à VICA;
+  4. Gerar resposta via IA (respeitando blacklist) e enviar.
+*/
 
 const oai      = require('../core/oai_interface');
 const database = require('../core/database');
 
-// ------------------------------------------------------------------
-// XP helpers
-// ------------------------------------------------------------------
+/* ----------------------------------------------------------
+   Cooldown local em memória (guildId:userId -> timestamp)
+---------------------------------------------------------- */
+const cooldownMap = new Map();
+const COOLDOWN_MS = 5_000;
 
-// Simple TTL map (guildId+userId -> timestamp)
-const cooldown = new Map();
-const COOLDOWN_MS = 5000;
-
-// Strips repeated chars so "heeeeeey" counts as 4 chars
+/* ----------------------------------------------------------
+   Helpers
+---------------------------------------------------------- */
+// Remove caracteres repetidos para evitar spam
 function removerRepetidos(str) {
   return str.toLowerCase().replace(/(.)\1+/g, '$1');
 }
 
-// Returns earned XP or 0 if message is too short / on cooldown
-function calculateXP(message) {
-  const txt = removerRepetidos(message.content);
-  if (txt.length <= 12 || message.content.length <= 5) return 0;
-
-  const min = Math.ceil(txt.length / 7);
-  const max = Math.ceil(txt.length / 4);
-  let earned = Math.floor(Math.random() * (max - min + 1)) + min;
-  return Math.min(earned, 35); // cap
+// Calcula XP baseado no texto limpo
+function calcularXP(textoLimpo) {
+  const min = Math.ceil(textoLimpo.length / 7);
+  const max = Math.ceil(textoLimpo.length / 4);
+  let ganho = Math.floor(Math.random() * (max - min + 1)) + min;
+  return Math.min(ganho, 35); // teto
 }
 
-// ------------------------------------------------------------------
-// Main handler
-// ------------------------------------------------------------------
+/* ----------------------------------------------------------
+   Exporta o handler
+---------------------------------------------------------- */
 module.exports = {
   name: 'messageCreate',
   async execute(message, client) {
+    // Ignora bots e mensagens em DM
     if (message.author.bot || !message.guild) return;
 
     const guildId  = message.guild.id;
     const canalId  = message.channel.id;
     const usuarioId = message.author.id;
 
-    // ----------------------------------------------------------------
-    // 1. XP logic
-    // ----------------------------------------------------------------
+    /* ---------------- XP ---------------- */
     if (!database.xpCanalNaBlacklist(guildId, canalId)) {
-      const key = guildId + usuarioId;
+      const key = `${guildId}:${usuarioId}`;
       const now = Date.now();
 
-      if (!cooldown.has(key) || now - cooldown.get(key) > COOLDOWN_MS) {
-        let xpEarned = calculateXP(message);
-        if (xpEarned) {
+      if (!cooldownMap.has(key) || now - cooldownMap.get(key) > COOLDOWN_MS) {
+        const textoLimpo = removerRepetidos(message.content);
+        if (message.content.length > 5 && textoLimpo.length > 12) {
+          let xpGanho = calcularXP(textoLimpo);
+
           const roleIds = Array.from(message.member.roles.cache.keys());
-          const mults   = database.buscarMultiplicadoresParaUsuario(guildId, roleIds);
-          const mult    = mults.length ? Math.max(...mults) : 1;
-          xpEarned = Math.ceil(xpEarned * mult);
+          const multiplicadores = database.buscarMultiplicadoresParaUsuario(guildId, roleIds);
+          const multiplicadorFinal = multiplicadores.length ? Math.max(...multiplicadores) : 1;
+          xpGanho = Math.ceil(xpGanho * multiplicadorFinal);
 
           const { levelUp, novoNivel } = database.atualizarUsuarioXP(
-            guildId, usuarioId, xpEarned, now
+            guildId, usuarioId, xpGanho, now
           );
+
           if (levelUp) {
-            message.channel.send(
+            await message.channel.send(
               `🎉 Parabéns, <@${usuarioId}>! Você avançou para o nível **${novoNivel}**!`
             );
           }
         }
-        cooldown.set(key, now);
+        cooldownMap.set(key, now);
       }
     }
 
-    // ----------------------------------------------------------------
-    // 2. Persist message for chatbot context
-    // ----------------------------------------------------------------
+    /* ---------------- Histórico da IA ---------------- */
     try {
       database.inserirMensagem(
         guildId,
@@ -79,51 +91,48 @@ module.exports = {
         message.createdTimestamp
       );
     } catch (err) {
-      console.error('[DB] Falha ao inserir mensagem:', err);
+      console.error('[VICA][DB] Falha ao inserir mensagem:', err, '| Conteúdo:', message.content.slice(0, 100));
     }
 
-    // ----------------------------------------------------------------
-    // 3. Chatbot trigger (mention or reply)
-    // ----------------------------------------------------------------
+    /* ---------------- Chatbot ---------------- */
     if (database.chatbotCanalNaBlacklist(guildId, canalId)) return;
 
     const botId = client.user.id;
-    const foiMencionadoDiretamente = message.mentions.has(botId);
-    let foiRespondidoComMention = false;
+    const mencionadoDireto = message.mentions.has(botId);
+    let respondeuBot = false;
 
     if (message.reference?.messageId) {
       try {
         const replied = await message.channel.messages.fetch(message.reference.messageId);
-        foiRespondidoComMention = replied.author.id === botId;
-      } catch { /* ignore fetch errors */ }
+        respondeuBot = replied.author.id === botId;
+      } catch {
+        // ignora erro de fetch
+      }
     }
 
-    if (!foiMencionadoDiretamente && !foiRespondidoComMention) return;
+    if (!mencionadoDireto && !respondeuBot) return;
 
     try {
       await message.channel.sendTyping();
 
-      // Build prompt
       let prompt = message.content.replace(/<@!?\d+>/g, '').trim();
-
-      // Handle images
       let imageUrl = null;
+
       if (message.attachments.size) {
         const att = message.attachments.first();
         if (att.contentType?.startsWith('image/')) imageUrl = att.url;
       }
 
-      // If only an image was sent, use placeholder prompt
       if (!prompt && imageUrl) prompt = 'Em anexo...';
-      if (!prompt && !imageUrl) return; // nothing to do
+      if (!prompt && !imageUrl) return;
 
-      const replyText = await oai.gerarRespostaContextual(
+      const resposta = await oai.gerarRespostaContextual(
         guildId, canalId, usuarioId, prompt, imageUrl
       );
 
-      await message.reply({ content: replyText, failIfNotExists: false });
+      await message.reply({ content: resposta, failIfNotExists: false });
     } catch (err) {
-      console.error('[CHATBOT] Falha ao responder:', err);
+      console.error('[VICA][CHATBOT] Falha ao responder:', err);
       await message.reply({
         content: 'Deu um tilt aqui nos meus circuitos, não consegui processar sua mensagem. 😢',
         failIfNotExists: false
