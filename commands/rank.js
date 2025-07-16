@@ -47,34 +47,26 @@ module.exports = {
       /* --------- Pódio (TOP 4) --------- */
       const podiumLines = [];
       for (let i = 0; i < Math.min(4, ranking.length); i++) {
-        const user = ranking[i];
-        const membro = await interaction.guild.members
-          .fetch(user.usuario_id)
-          .catch(() => null);
-        const nome = membro?.displayName || 'Usuário Desconhecido';
-        podiumLines.push(
-          `${medalhas[i]} **${nome}** ・ **${user.xp} XP** ・ Nível **${user.nivel}**`
-        );
+      const user = ranking[i];
+      podiumLines.push(
+          `${medalhas[i]} <@${user.usuario_id}> ・ **${user.xp} XP** ・ Nível **${user.nivel}**`
+      );
       }
       const podiumText = podiumLines.join('\n');
 
-      /* --------- “Também figuram” (5-10) --------- */
-      let tambemText = '';
-      if (ranking.length > 4) {
-        const restLines = [];
-        const icones = ['5️⃣', '6️⃣', '7️⃣', '8️⃣', '9️⃣', '🔟'];
-        for (let i = 4; i < ranking.length; i++) {
-          const user = ranking[i];
-          const membro = await interaction.guild.members
-            .fetch(user.usuario_id)
-            .catch(() => null);
-          const nome = membro?.displayName || 'Usuário Desconhecido';
-          restLines.push(
-            `${icones[i - 4]} **${nome}** ・ **${user.xp} XP** ・ Nível **${user.nivel}**`
-          );
-        }
-        tambemText = restLines.join('\n');
+    /* --------- “Também figuram” (5-10) --------- */
+    let tambemText = '';
+    if (ranking.length > 4) {
+      const restLines = [];
+      const icones = ['5️⃣', '6️⃣', '7️⃣', '8️⃣', '9️⃣', '🔟'];
+      for (let i = 4; i < ranking.length; i++) {
+        const user = ranking[i];
+        restLines.push(
+          `${icones[i - 4]} <@${user.usuario_id}> ・ **${user.xp} XP** ・ Nível **${user.nivel}**`
+        );
       }
+      tambemText = restLines.join('\n');
+    }
 
       /* --------- Monta o embed --------- */
       const embed = new EmbedBuilder()
