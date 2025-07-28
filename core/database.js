@@ -1,8 +1,8 @@
 /*
-**  caminho: core/database.js
-**  últimaMod: 16/07/2025 22:22
-**  autor: Vico
-**  colaboração: ChatGPT, Gemini, Kimi AI
+** caminho: core/database.js
+** últimaMod: 16/07/2025 22:22
+** autor: Vico
+** colaboração: ChatGPT, Gemini, Kimi AI
 */
 
 /*
@@ -108,6 +108,8 @@ const stmts = {
                             ON CONFLICT(guild_id, usuario_id) DO UPDATE
                               SET xp=excluded.xp, nivel=excluded.nivel`),
   xpResetGuild: db.prepare('DELETE FROM rank_xp WHERE guild_id=?'),
+  // --- NOVA STATEMENT ---
+  xpDelUser:    db.prepare('DELETE FROM rank_xp WHERE guild_id=? AND usuario_id=?'),
   rankTop:      db.prepare('SELECT usuario_id, xp, nivel FROM rank_xp WHERE guild_id=? ORDER BY xp DESC LIMIT ?'),
 
   /* --- Mensagens para histórico da IA --- */
@@ -155,6 +157,8 @@ module.exports = {
     stmts.xpSet.run(g, u, xp, lv);
   },
   resetarXP: (g) => stmts.xpResetGuild.run(g).changes,
+  // --- NOVA FUNÇÃO ---
+  removerUsuarioXP: (g, u) => stmts.xpDelUser.run(g, u).changes,
   buscarRank: (g, limit = 10) => stmts.rankTop.all(g, limit),
 
   // mensagens
