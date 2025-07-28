@@ -1,8 +1,8 @@
 /*
-**  caminho: events/messageCreate.js
-**  últimaMod: 16/07/2025 22:23
-**  autor: Vico
-**  colaboração: ChatGPT, Gemini, Kimi AI
+** caminho: events/messageCreate.js
+** últimaMod: 16/07/2025 22:23
+** autor: Vico
+** colaboração: ChatGPT, Gemini, Kimi AI
 */
 
 /*
@@ -72,9 +72,27 @@ module.exports = {
           );
 
           if (levelUp) {
-            await message.channel.send(
-              `🎉 Parabéns, <@${usuarioId}>! Você avançou para o nível **${novoNivel}**!`
-            );
+            // --- LÓGICA DE CANAL DE SISTEMA ---
+            const systemChannelId = database.getSystemChannel(guildId);
+            let targetChannel = message.channel; // Padrão: canal atual
+
+            if (systemChannelId) {
+              const foundChannel = message.guild.channels.cache.get(systemChannelId);
+              if (foundChannel) {
+                targetChannel = foundChannel; // Se encontrou o canal configurado, usa ele
+              } else {
+                console.warn(`[AVISO] Canal de sistema (${systemChannelId}) não encontrado no servidor ${guildId}. Usando canal de origem.`);
+              }
+            }
+            
+            try {
+              await targetChannel.send(
+                `🎉 Parabéns, <@${usuarioId}>! Você avançou para o nível **${novoNivel}**!`
+              );
+            } catch (err) {
+              console.error(`[ERRO] Falha ao enviar mensagem de level up no canal ${targetChannel.id}:`, err);
+            }
+            // --- FIM DA LÓGICA ---
           }
         }
         cooldownMap.set(key, now);

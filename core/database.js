@@ -67,6 +67,12 @@ CREATE TABLE IF NOT EXISTS rank_role_multipliers (
   multiplier REAL NOT NULL,
   PRIMARY KEY (guild_id, role_id)
 );
+
+-- NOVA TABELA PARA CONFIGURAÇÕES DO SERVIDOR --
+CREATE TABLE IF NOT EXISTS guild_settings (
+  guild_id TEXT PRIMARY KEY,
+  system_channel_id TEXT
+);
 `);
 
 /* ----------------------------------------------------------
@@ -108,13 +114,18 @@ const stmts = {
                             ON CONFLICT(guild_id, usuario_id) DO UPDATE
                               SET xp=excluded.xp, nivel=excluded.nivel`),
   xpResetGuild: db.prepare('DELETE FROM rank_xp WHERE guild_id=?'),
-  // --- NOVA STATEMENT ---
   xpDelUser:    db.prepare('DELETE FROM rank_xp WHERE guild_id=? AND usuario_id=?'),
   rankTop:      db.prepare('SELECT usuario_id, xp, nivel FROM rank_xp WHERE guild_id=? ORDER BY xp DESC LIMIT ?'),
 
   /* --- Mensagens para histórico da IA --- */
   msgInsert:  db.prepare('INSERT INTO mensagens (guild_id, canal_id, usuario_id, conteudo, timestamp) VALUES (?, ?, ?, ?, ?)'),
-  msgHistory: db.prepare('SELECT conteudo FROM mensagens WHERE guild_id=? AND canal_id=? AND usuario_id=? ORDER BY timestamp DESC LIMIT ?')
+  msgHistory: db.prepare('SELECT conteudo FROM mensagens WHERE guild_id=? AND canal_id=? AND usuario_id=? ORDER BY timestamp DESC LIMIT ?'),
+  
+  /* --- NOVAS STATEMENTS PARA CONFIGURAÇÕES DO SERVIDOR --- */
+  settingsGetChannel: db.prepare('SELECT system_channel_id FROM guild_settings WHERE guild_id = ?'),
+  settingsSetChannel: db.prepare(`INSERT INTO guild_settings (guild_id, system_channel_id)
+                                  VALUES (?, ?)
+                                  ON CONFLICT(guild_id) DO UPDATE SET system_channel_id = excluded.system_channel_id`)
 };
 
 /* ----------------------------------------------------------
@@ -157,7 +168,6 @@ module.exports = {
     stmts.xpSet.run(g, u, xp, lv);
   },
   resetarXP: (g) => stmts.xpResetGuild.run(g).changes,
-  // --- NOVA FUNÇÃO ---
   removerUsuarioXP: (g, u) => stmts.xpDelUser.run(g, u).changes,
   buscarRank: (g, limit = 10) => stmts.rankTop.all(g, limit),
 
@@ -165,6 +175,14 @@ module.exports = {
   inserirMensagem: (g, c, u, txt, ts) => stmts.msgInsert.run(g, c, u, txt, ts).lastInsertRowid,
   buscarHistoricoConversa: (g, c, u, l = 3) =>
     stmts.msgHistory.all(g, c, u, l).map(r => r.conteudo).reverse(),
+
+  // --- NOVAS FUNÇÕES EXPORTADAS ---
+  // configurações do servidor
+  getSystemChannel: (g) => {
+    const row = stmts.settingsGetChannel.get(g);
+    return row ? row.system_channel_id : null;
+  },
+  setSystemChannel: (g, c) => stmts.settingsSetChannel.run(g, c).changes,
 
   // helper para graceful shutdown
   close: () => db.close()
