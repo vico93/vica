@@ -88,6 +88,21 @@ CREATE TABLE IF NOT EXISTS guild_settings (
   guild_id TEXT PRIMARY KEY,
   system_channel_id TEXT
 );
+
+-- TABELA DE MEMÓRIAS DE USUÁRIO (por guild) --
+CREATE TABLE IF NOT EXISTS user_memories (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  guild_id TEXT NOT NULL,
+  user_id TEXT NOT NULL,
+  fact TEXT NOT NULL,
+  fact_key TEXT NOT NULL,
+  confidence REAL,
+  source_message_id TEXT,
+  created_at INTEGER NOT NULL,
+  UNIQUE (guild_id, user_id, fact_key) ON CONFLICT IGNORE
+);
+CREATE INDEX IF NOT EXISTS idx_user_memories_guild_user_created
+  ON user_memories (guild_id, user_id, created_at DESC);
 `);
 })();
 
@@ -141,7 +156,17 @@ const stmts = {
   settingsGetChannel: db.prepare('SELECT system_channel_id FROM guild_settings WHERE guild_id = ?'),
   settingsSetChannel: db.prepare(`INSERT INTO guild_settings (guild_id, system_channel_id)
                                   VALUES (?, ?)
-                                  ON CONFLICT(guild_id) DO UPDATE SET system_channel_id = excluded.system_channel_id`)
+                                  ON CONFLICT(guild_id) DO UPDATE SET system_channel_id = excluded.system_channel_id`),
+
+  /* --- MEMÓRIAS DE USUÁRIO --- */
+  memInsert: db.prepare(`INSERT OR IGNORE INTO user_memories
+                         (guild_id, user_id, fact, fact_key, confidence, source_message_id, created_at)
+                         VALUES (?, ?, ?, ?, ?, ?, ?)`),
+  memList:   db.prepare(`SELECT id, fact, confidence, source_message_id, created_at
+                         FROM user_memories
+                         WHERE guild_id = ? AND user_id = ?
+                         ORDER BY created_at DESC
+                         LIMIT ? OFFSET ?`)
 };
 
 /* ----------------------------------------------------------
@@ -199,6 +224,21 @@ module.exports = {
     return row ? row.system_channel_id : null;
   },
   setSystemChannel: (g, c) => stmts.settingsSetChannel.run(g, c).changes,
+
+  // memórias de usuário (por guild)
+  adicionarMemoriaUsuario: (g, u, fact, opts = {}) => {
+    const { confidence = null, sourceMessageId = null, createdAt = Date.now() } = opts || {};
+    const factKey = String(fact ?? '')
+      .normalize('NFKD')
+      .replace(/[\u0300-\u036f]/g, '')
+      .toLowerCase()
+      .replace(/\s+/g, ' ')
+      .trim();
+    const res = stmts.memInsert.run(g, u, fact, factKey, confidence, sourceMessageId, createdAt);
+    return { inserted: res.changes > 0, duplicate: res.changes === 0, id: res.lastInsertRowid };
+  },
+  listarMemoriasUsuario: (g, u, limit = 20, offset = 0) =>
+    stmts.memList.all(g, u, limit, offset),
 
   // helper para graceful shutdown
   close: () => db.close()
