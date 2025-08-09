@@ -7,7 +7,7 @@ module.exports = {
     data: new SlashCommandBuilder()
         .setName('config')
         .setDescription('Configurações avançadas da Vica.')
-        .setDefaultMemberPermissions(PermissionsBitField.Flags.ManageGuild)
+        .setDefaultMemberPermissions(PermissionsBitField.Flags.Administrator)
         .setDMPermission(false)
         // Grupo de comandos para a blacklist do CHATBOT
         .addSubcommandGroup(group => group
@@ -52,11 +52,26 @@ module.exports = {
                 .addChannelOption(opt => opt.setName('canal').setDescription('O canal de texto desejado.').setRequired(true).addChannelTypes(ChannelType.GuildText)))
             .addSubcommand(sub => sub
                 .setName('clear_sistema')
-                .setDescription('Limpa o canal de sistema (mensagens voltarão a ser enviadas no canal de origem).'))),
+                .setDescription('Limpa o canal de sistema (mensagens voltarão a ser enviadas no canal de origem).')))
+        // Subcomando raiz para inspeção de memórias
+        .addSubcommand(sub => sub
+            .setName('dump_memories')
+            .setDescription('Lista as memórias salvas de um usuário.')
+            .addUserOption(opt => opt
+                .setName('usuario')
+                .setDescription('O usuário alvo.')
+                .setRequired(true)
+            )),
+
 
     async execute(interaction) {
-        const group = interaction.options.getSubcommandGroup();
-        const subcommand = interaction.options.getSubcommand();
+        const group = interaction.options.getSubcommandGroup(false);
+        const subcommand = interaction.options.getSubcommand(false);
+
+        // Defesa extra: garantir que apenas administradores executem /config
+        if (!interaction.memberPermissions?.has(PermissionsBitField.Flags.Administrator)) {
+            return interaction.reply({ content: '⛔ Este comando é restrito a administradores do servidor.', flags: [MessageFlags.Ephemeral] });
+        }
 
         try {
             // Lógica para o grupo "blacklist_chatbot"
@@ -134,22 +149,32 @@ module.exports = {
                     return interaction.reply({ content: `💥 **O ranking de XP do servidor foi completamente resetado!** ${membrosResetados} membros foram afetados.`, flags: [MessageFlags.Ephemeral] });
                 }
             }
+// --- NOVA LÓGICA PARA GERENCIAR CANAIS DO SISTEMA ---
+if (group === 'canais') {
+    if (subcommand === 'set_sistema') {
+        const canal = interaction.options.getChannel('canal');
+        database.setSystemChannel(interaction.guild.id, canal.id);
+        return interaction.reply({ content: `✅ Beleza! De agora em diante, enviarei mensagens de sistema (como level up) no canal ${canal}.`, flags: [MessageFlags.Ephemeral] });
+    }
+    if (subcommand === 'clear_sistema') {
+        // Passando null para limpar a configuração
+        database.setSystemChannel(interaction.guild.id, null);
+        return interaction.reply({ content: `👍 Canal de sistema limpo. As mensagens de sistema voltarão a ser enviadas nos canais onde acontecem.`, flags: [MessageFlags.Ephemeral] });
+    }
+}
 
-            // --- NOVA LÓGICA PARA GERENCIAR CANAIS DO SISTEMA ---
-            if (group === 'canais') {
-                if (subcommand === 'set_sistema') {
-                    const canal = interaction.options.getChannel('canal');
-                    database.setSystemChannel(interaction.guild.id, canal.id);
-                    return interaction.reply({ content: `✅ Beleza! De agora em diante, enviarei mensagens de sistema (como level up) no canal ${canal}.`, flags: [MessageFlags.Ephemeral] });
-                }
-                if (subcommand === 'clear_sistema') {
-                    // Passando null para limpar a configuração
-                    database.setSystemChannel(interaction.guild.id, null);
-                    return interaction.reply({ content: `👍 Canal de sistema limpo. As mensagens de sistema voltarão a ser enviadas nos canais onde acontecem.`, flags: [MessageFlags.Ephemeral] });
-                }
-            }
+// --- SUBCOMANDO RAIZ: dump_memories ---
+if (!group && subcommand === 'dump_memories') {
+    const usuario = interaction.options.getUser('usuario');
+    const mems = database.listarMemoriasUsuario(interaction.guild.id, usuario.id, 50, 0);
+    if (!mems || mems.length === 0) {
+        return interaction.reply({ content: 'ainda nada encontrado!', flags: [MessageFlags.Ephemeral] });
+    }
+    const lista = mems.map(m => `- ${m.fact}`).join('\n');
+    return interaction.reply({ content: `🧠 Memórias de ${usuario}:\n${lista}`, flags: [MessageFlags.Ephemeral] });
+}
 
-        } catch (err) {
+} catch (err) {
             console.error(`[CONFIG] Erro no comando /config:`, err);
             return interaction.reply({ content: '❌ Ocorreu um erro ao executar esta configuração.', flags: [MessageFlags.Ephemeral] });
         }
