@@ -55,12 +55,27 @@ module.exports = {
                 .setDescription('Limpa o canal de sistema (mensagens voltarão a ser enviadas no canal de origem).')))
         // Subcomando raiz para inspeção de memórias
         .addSubcommand(sub => sub
-            .setName('dump_memories')
+            .setName('list_memories')
             .setDescription('Lista as memórias salvas de um usuário.')
             .addUserOption(opt => opt
                 .setName('usuario')
                 .setDescription('O usuário alvo.')
                 .setRequired(true)
+            ))
+        // Subcomando raiz para adicionar memória
+        .addSubcommand(sub => sub
+            .setName('add_memories')
+            .setDescription('Adiciona uma memória de longo prazo para um usuário.')
+            .addUserOption(opt => opt
+                .setName('usuario')
+                .setDescription('O usuário alvo.')
+                .setRequired(true)
+            )
+            .addStringOption(opt => opt
+                .setName('memoria')
+                .setDescription('O conteúdo da memória a ser salva.')
+                .setRequired(true)
+                .setMaxLength(500)
             )),
 
 
@@ -163,15 +178,37 @@ if (group === 'canais') {
     }
 }
 
-// --- SUBCOMANDO RAIZ: dump_memories ---
-if (!group && subcommand === 'dump_memories') {
+// --- SUBCOMANDO RAIZ: list_memories ---
+if (!group && subcommand === 'list_memories') {
     const usuario = interaction.options.getUser('usuario');
     const mems = database.listarMemoriasUsuario(interaction.guild.id, usuario.id, 50, 0);
     if (!mems || mems.length === 0) {
-        return interaction.reply({ content: 'ainda nada encontrado!', flags: [MessageFlags.Ephemeral] });
+        // Preferir apelido (displayName) quando possível
+        const member = interaction.guild?.members?.cache?.get(usuario.id) || null;
+        const apelido = member?.displayName || usuario.username;
+        return interaction.reply({ content: `ℹ️ Usuário **${apelido}** ainda não tem memórias de longo prazo salvas!`, flags: [MessageFlags.Ephemeral] });
     }
     const lista = mems.map(m => `- ${m.fact}`).join('\n');
     return interaction.reply({ content: `🧠 Memórias de ${usuario}:\n${lista}`, flags: [MessageFlags.Ephemeral] });
+}
+
+// --- SUBCOMANDO RAIZ: add_memories ---
+if (!group && subcommand === 'add_memories') {
+    const usuario = interaction.options.getUser('usuario');
+    const memoria = interaction.options.getString('memoria');
+    if (!memoria || !memoria.trim()) {
+        return interaction.reply({ content: '❌ A memória não pode estar vazia.', flags: [MessageFlags.Ephemeral] });
+    }
+    const r = database.adicionarMemoriaUsuario(
+        interaction.guild.id,
+        usuario.id,
+        memoria.trim(),
+        { sourceMessageId: interaction.id, createdAt: Date.now() }
+    );
+    if (r.duplicate) {
+        return interaction.reply({ content: `ℹ️ Esta memória já existia para ${usuario} e não foi duplicada.`, flags: [MessageFlags.Ephemeral] });
+    }
+    return interaction.reply({ content: `✅ Memória adicionada para ${usuario}.`, flags: [MessageFlags.Ephemeral] });
 }
 
 } catch (err) {
