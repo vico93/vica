@@ -26,17 +26,32 @@ db.pragma('journal_mode = WAL');      // concorrente e rápido
 db.pragma('synchronous = NORMAL');    // commits mais rápidos
 
 /* ----------------------------------------------------------
-   Criação de tabelas (idempotente)
+   Criação de tabelas (idempotente) + migração para novo esquema de mensagens
 ---------------------------------------------------------- */
-db.exec(`
+(() => {
+  // Se a tabela 'mensagens' antiga existir (com coluna 'conteudo'), derruba para recriar no novo formato
+  try {
+    const cols = db.prepare('PRAGMA table_info(mensagens)').all();
+    const hasConteudo = cols.some(c => c.name === 'conteudo');
+    const missingMessageId = cols.length > 0 && !cols.some(c => c.name === 'message_id');
+    if (hasConteudo || missingMessageId) {
+      console.warn('[DB] Migrando tabela mensagens -> utilizando message_id (resetando dados antigos).');
+      db.exec('DROP TABLE IF EXISTS mensagens');
+    }
+  } catch (e) {
+    // tabela ainda não existe
+  }
+
+  db.exec(`
 CREATE TABLE IF NOT EXISTS mensagens (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   guild_id TEXT NOT NULL,
   canal_id TEXT NOT NULL,
   usuario_id TEXT NOT NULL,
-  conteudo TEXT NOT NULL,
+  message_id TEXT NOT NULL,
   timestamp INTEGER NOT NULL,
-  response_id TEXT
+  response_id TEXT,
+  UNIQUE (guild_id, canal_id, message_id) ON CONFLICT IGNORE
 );
 
 CREATE TABLE IF NOT EXISTS rank_xp (
@@ -74,6 +89,7 @@ CREATE TABLE IF NOT EXISTS guild_settings (
   system_channel_id TEXT
 );
 `);
+})();
 
 /* ----------------------------------------------------------
    Prepared statements
@@ -117,9 +133,9 @@ const stmts = {
   xpDelUser:    db.prepare('DELETE FROM rank_xp WHERE guild_id=? AND usuario_id=?'),
   rankTop:      db.prepare('SELECT usuario_id, xp, nivel FROM rank_xp WHERE guild_id=? ORDER BY xp DESC LIMIT ?'),
 
-  /* --- Mensagens para histórico da IA --- */
-  msgInsert:  db.prepare('INSERT INTO mensagens (guild_id, canal_id, usuario_id, conteudo, timestamp) VALUES (?, ?, ?, ?, ?)'),
-  msgHistory: db.prepare('SELECT conteudo FROM mensagens WHERE guild_id=? AND canal_id=? AND usuario_id=? ORDER BY timestamp DESC LIMIT ?'),
+  /* --- Mensagens para histórico da IA (agora armazena message_id) --- */
+  msgInsert:  db.prepare('INSERT OR IGNORE INTO mensagens (guild_id, canal_id, usuario_id, message_id, timestamp) VALUES (?, ?, ?, ?, ?)'),
+  msgHistory: db.prepare('SELECT message_id FROM mensagens WHERE guild_id=? AND canal_id=? AND usuario_id=? ORDER BY timestamp DESC LIMIT ?'),
   
   /* --- NOVAS STATEMENTS PARA CONFIGURAÇÕES DO SERVIDOR --- */
   settingsGetChannel: db.prepare('SELECT system_channel_id FROM guild_settings WHERE guild_id = ?'),
@@ -171,10 +187,10 @@ module.exports = {
   removerUsuarioXP: (g, u) => stmts.xpDelUser.run(g, u).changes,
   buscarRank: (g, limit = 10) => stmts.rankTop.all(g, limit),
 
-  // mensagens
-  inserirMensagem: (g, c, u, txt, ts) => stmts.msgInsert.run(g, c, u, txt, ts).lastInsertRowid,
+  // mensagens (salvando IDs do Discord)
+  inserirMensagem: (g, c, u, messageId, ts) => stmts.msgInsert.run(g, c, u, messageId, ts).lastInsertRowid,
   buscarHistoricoConversa: (g, c, u, l = 3) =>
-    stmts.msgHistory.all(g, c, u, l).map(r => r.conteudo).reverse(),
+    stmts.msgHistory.all(g, c, u, l).map(r => r.message_id).reverse(),
 
   // --- NOVAS FUNÇÕES EXPORTADAS ---
   // configurações do servidor

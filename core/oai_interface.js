@@ -50,17 +50,38 @@ async function gerarPerguntaViaAPI(promptUsuario = null) {
   }
 }
 
-// Função para gerar uma resposta à partir da API
-async function gerarRespostaContextual(guildId, canalId, usuarioId, mensagemUsuario, imageUrl = null) {
+ // Função para gerar uma resposta à partir da API
+async function gerarRespostaContextual(guildId, canalId, usuarioId, mensagemUsuario, imageUrl = null, channel = null) {
   const systemPrompt = await carregarSystemPrompt();
-  const historico = await database.buscarHistoricoConversa(guildId, canalId, usuarioId);
+  // Agora o histórico retorna IDs de mensagens do Discord
+  const historicoIds = await database.buscarHistoricoConversa(guildId, canalId, usuarioId);
 
   const messages = [
     { role: 'system', content: systemPrompt }
   ];
 
-  for (const msg of historico) {
-    messages.push({ role: 'user', content: msg });
+  // Se tivermos o channel, buscamos o conteúdo atual das mensagens por ID
+  let historicoTextos = [];
+  if (channel && typeof channel.messages?.fetch === 'function') {
+    try {
+      const fetched = await Promise.all(
+        historicoIds.map(async (id) => {
+          try {
+            const m = await channel.messages.fetch(id);
+            return m?.content || null;
+          } catch {
+            return null;
+          }
+        })
+      );
+      historicoTextos = fetched.filter(Boolean);
+    } catch (e) {
+      console.warn('[WARN] Falha ao buscar histórico por IDs, seguindo sem histórico.', e?.message || e);
+    }
+  }
+
+  for (const txt of historicoTextos) {
+    messages.push({ role: 'user', content: txt });
   }
 
   // Monta o conteúdo da mensagem atual do usuário

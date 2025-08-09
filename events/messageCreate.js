@@ -105,11 +105,11 @@ module.exports = {
         guildId,
         canalId,
         usuarioId,
-        message.content,
+        message.id,
         message.createdTimestamp
       );
     } catch (err) {
-      console.error('[VICA][DB] Falha ao inserir mensagem:', err, '| Conteúdo:', message.content.slice(0, 100));
+      console.error('[VICA][DB] Falha ao inserir mensagem:', err, '| ID:', message.id);
     }
 
     /* ---------------- Chatbot ---------------- */
@@ -145,7 +145,7 @@ module.exports = {
       if (!prompt && !imageUrl) return;
 
       const resposta = await oai.gerarRespostaContextual(
-        guildId, canalId, usuarioId, prompt, imageUrl
+        guildId, canalId, usuarioId, prompt, imageUrl, message.channel
       );
 
       await message.reply({ content: resposta, failIfNotExists: false });
