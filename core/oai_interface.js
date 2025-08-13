@@ -88,6 +88,50 @@ async function gerarPerguntaViaAPI(promptUsuario = null) {
   }
 }
 
+// Função para gerar parabéns por cargo via API
+async function gerarParabensCargoViaAPI(guildId, userId, promptUsuario, roleName) {
+  const systemPrompt = await carregarSystemPrompt();
+  const messages = [
+    { role: 'system', content: systemPrompt },
+    {
+      role: 'user',
+      content: promptUsuario,
+    },
+  ];
+  
+  try {
+    const response = await openai.chat.completions.create({
+      model: config.openai.model,
+      messages,
+      temperature: 0.8,
+      max_tokens: config.settings.maxTokens,
+    });
+    const content = response?.choices?.[0]?.message?.content;
+    if (!content) throw new Error('A API não retornou conteúdo na resposta.');
+
+    // Processa tags VICA de memória e remove-as do texto final
+    const { cleaned } = processVicaMemoryTags(content, { guildId });
+    
+    // Adiciona automaticamente uma memória sobre o usuário estar no cargo
+    if (roleName && userId) {
+      try {
+        const memoria = `Está no cargo ${roleName}`;
+        database.adicionarMemoriaUsuario(guildId, userId, memoria, {
+          createdAt: Date.now()
+        });
+        console.log(`[ROLE-CONGRATS][MEM] Memória adicionada para usuário ${userId}: ${memoria}`);
+      } catch (memError) {
+        console.error('[ROLE-CONGRATS][MEM] Erro ao salvar memória do cargo:', memError);
+      }
+    }
+    
+    return cleaned.trim();
+  } catch (error) {
+    console.error('[ERRO] Não consegui gerar parabéns pela API da OpenAI:', error.message);
+    throw error;
+  }
+}
+
  // Função para gerar uma resposta à partir da API
  async function gerarRespostaContextual(guildId, canalId, usuarioId, mensagemUsuario, imageUrl = null, channel = null, sourceMessageId = null) {
    const systemPrompt = await carregarSystemPrompt();
@@ -161,4 +205,5 @@ async function gerarPerguntaViaAPI(promptUsuario = null) {
 module.exports = {
   gerarPerguntaViaAPI,
   gerarRespostaContextual,
+  gerarParabensCargoViaAPI,
 };

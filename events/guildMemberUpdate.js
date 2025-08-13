@@ -97,24 +97,36 @@ module.exports = {
       // Prepara o prompt substituindo {USER} pelo nome do usuário
       const promptText = config.prompt.replace(/{USER}/g, newMember.displayName);
 
-      console.log(`[ROLE-CONGRATS] Gerando parabéns para ${newMember.user.tag} no servidor ${newMember.guild.name}`);
+      // Busca o nome do cargo para a memória
+      const role = newMember.guild.roles.cache.get(config.roleId);
+      const roleName = role ? role.name : 'cargo desconhecido';
 
-      // Gera resposta via OpenAI
+      console.log(`[ROLE-CONGRATS] Gerando parabéns para ${newMember.user.tag} no servidor ${newMember.guild.name} (cargo: ${roleName})`);
+
+      // Gera resposta via OpenAI usando a função dedicada
       let congratsMessage;
       try {
-        congratsMessage = await oai.gerarRespostaContextual(
+        congratsMessage = await oai.gerarParabensCargoViaAPI(
           guildId,
-          targetChannel.id,
           newMember.id,
           promptText,
-          null,
-          targetChannel,
-          null
+          roleName
         );
       } catch (oaiError) {
         console.error('[ROLE-CONGRATS] Erro na API OpenAI, usando mensagem de fallback:', oaiError);
         // Fallback simples se a OpenAI falhar
         congratsMessage = `🎉 Parabéns, <@${newMember.id}>, pelo novo cargo!`;
+        
+        // Mesmo com fallback, adiciona a memória do cargo
+        try {
+          const memoria = `Está no cargo ${roleName}`;
+          database.adicionarMemoriaUsuario(guildId, newMember.id, memoria, {
+            createdAt: Date.now()
+          });
+          console.log(`[ROLE-CONGRATS][MEM] Memória de fallback adicionada para usuário ${newMember.id}: ${memoria}`);
+        } catch (memError) {
+          console.error('[ROLE-CONGRATS][MEM] Erro ao salvar memória de fallback:', memError);
+        }
       }
 
       // Envia a mensagem
