@@ -42,6 +42,25 @@ db.pragma('synchronous = NORMAL');    // commits mais rápidos
     // tabela ainda não existe
   }
 
+  // Migração para adicionar colunas de role congrats na tabela guild_settings
+  try {
+    const settingsCols = db.prepare('PRAGMA table_info(guild_settings)').all();
+    const hasRoleCongratsRole = settingsCols.some(c => c.name === 'role_congrats_role_id');
+    const hasRoleCongratsPrompt = settingsCols.some(c => c.name === 'role_congrats_prompt');
+    
+    if (settingsCols.length > 0 && (!hasRoleCongratsRole || !hasRoleCongratsPrompt)) {
+      console.warn('[DB] Migrando tabela guild_settings -> adicionando colunas role_congrats.');
+      if (!hasRoleCongratsRole) {
+        db.exec('ALTER TABLE guild_settings ADD COLUMN role_congrats_role_id TEXT');
+      }
+      if (!hasRoleCongratsPrompt) {
+        db.exec('ALTER TABLE guild_settings ADD COLUMN role_congrats_prompt TEXT');
+      }
+    }
+  } catch (e) {
+    // tabela ainda não existe, será criada abaixo
+  }
+
   db.exec(`
 CREATE TABLE IF NOT EXISTS mensagens (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -86,7 +105,9 @@ CREATE TABLE IF NOT EXISTS rank_role_multipliers (
 -- NOVA TABELA PARA CONFIGURAÇÕES DO SERVIDOR --
 CREATE TABLE IF NOT EXISTS guild_settings (
   guild_id TEXT PRIMARY KEY,
-  system_channel_id TEXT
+  system_channel_id TEXT,
+  role_congrats_role_id TEXT,
+  role_congrats_prompt TEXT
 );
 
 -- TABELA DE MEMÓRIAS DE USUÁRIO (por guild) --
@@ -158,6 +179,18 @@ const stmts = {
                                   VALUES (?, ?)
                                   ON CONFLICT(guild_id) DO UPDATE SET system_channel_id = excluded.system_channel_id`),
 
+  /* --- STATEMENTS PARA ROLE CONGRATS --- */
+  settingsGetRoleCongrats: db.prepare('SELECT role_congrats_role_id, role_congrats_prompt FROM guild_settings WHERE guild_id = ?'),
+  settingsSetRoleCongrats: db.prepare(`INSERT INTO guild_settings (guild_id, role_congrats_role_id, role_congrats_prompt)
+                                       VALUES (?, ?, ?)
+                                       ON CONFLICT(guild_id) DO UPDATE SET
+                                         role_congrats_role_id = excluded.role_congrats_role_id,
+                                         role_congrats_prompt = excluded.role_congrats_prompt`),
+  settingsClearRoleCongrats: db.prepare(`UPDATE guild_settings SET
+                                         role_congrats_role_id = NULL,
+                                         role_congrats_prompt = NULL
+                                         WHERE guild_id = ?`),
+
   /* --- MEMÓRIAS DE USUÁRIO --- */
   memInsert: db.prepare(`INSERT OR IGNORE INTO user_memories
                          (guild_id, user_id, fact, fact_key, confidence, source_message_id, created_at)
@@ -224,6 +257,20 @@ module.exports = {
     return row ? row.system_channel_id : null;
   },
   setSystemChannel: (g, c) => stmts.settingsSetChannel.run(g, c).changes,
+
+  // configurações de role congrats
+  getRoleCongratsConfig: (g) => {
+    const row = stmts.settingsGetRoleCongrats.get(g);
+    if (!row || !row.role_congrats_role_id || !row.role_congrats_prompt) {
+      return null;
+    }
+    return {
+      roleId: row.role_congrats_role_id,
+      prompt: row.role_congrats_prompt
+    };
+  },
+  setRoleCongratsConfig: (g, roleId, prompt) => stmts.settingsSetRoleCongrats.run(g, roleId, prompt).changes,
+  clearRoleCongratsConfig: (g) => stmts.settingsClearRoleCongrats.run(g).changes,
 
   // memórias de usuário (por guild)
   adicionarMemoriaUsuario: (g, u, fact, opts = {}) => {

@@ -53,6 +53,21 @@ module.exports = {
             .addSubcommand(sub => sub
                 .setName('clear_sistema')
                 .setDescription('Limpa o canal de sistema (mensagens voltarão a ser enviadas no canal de origem).')))
+        // Grupo de comandos para parabéns por cargo
+        .addSubcommandGroup(group => group
+            .setName('role_congrats')
+            .setDescription('Gerencia parabéns automáticos quando usuários recebem cargos específicos.')
+            .addSubcommand(sub => sub
+                .setName('set')
+                .setDescription('Configura parabéns automáticos para um cargo específico.')
+                .addRoleOption(opt => opt.setName('cargo').setDescription('O cargo que ativará os parabéns.').setRequired(true))
+                .addStringOption(opt => opt.setName('prompt').setDescription('Prompt para a IA (use {USER} para o nome do usuário).').setRequired(true).setMaxLength(500)))
+            .addSubcommand(sub => sub
+                .setName('clear')
+                .setDescription('Remove a configuração de parabéns por cargo.'))
+            .addSubcommand(sub => sub
+                .setName('show')
+                .setDescription('Mostra a configuração atual de parabéns por cargo.')))
         // Subcomando raiz para inspeção de memórias
         .addSubcommand(sub => sub
             .setName('list_memories')
@@ -209,6 +224,50 @@ if (!group && subcommand === 'add_memories') {
         return interaction.reply({ content: `ℹ️ Esta memória já existia para ${usuario} e não foi duplicada.`, flags: [MessageFlags.Ephemeral] });
     }
     return interaction.reply({ content: `✅ Memória adicionada para ${usuario}.`, flags: [MessageFlags.Ephemeral] });
+}
+
+// --- LÓGICA PARA ROLE CONGRATS ---
+if (group === 'role_congrats') {
+    if (subcommand === 'set') {
+        const cargo = interaction.options.getRole('cargo');
+        const prompt = interaction.options.getString('prompt');
+        
+        if (!prompt || !prompt.trim()) {
+            return interaction.reply({ content: '❌ O prompt não pode estar vazio.', flags: [MessageFlags.Ephemeral] });
+        }
+        
+        database.setRoleCongratsConfig(interaction.guild.id, cargo.id, prompt.trim());
+        return interaction.reply({
+            content: `✅ Configuração salva! Quando alguém receber o cargo ${cargo}, enviarei uma mensagem de parabéns usando o prompt informado. Use \`{USER}\` no prompt para mencionar o nome do usuário.`,
+            flags: [MessageFlags.Ephemeral]
+        });
+    }
+    
+    if (subcommand === 'clear') {
+        database.clearRoleCongratsConfig(interaction.guild.id);
+        return interaction.reply({
+            content: `👍 Configuração de parabéns por cargo foi limpa.`,
+            flags: [MessageFlags.Ephemeral]
+        });
+    }
+    
+    if (subcommand === 'show') {
+        const config = database.getRoleCongratsConfig(interaction.guild.id);
+        if (!config) {
+            return interaction.reply({
+                content: 'ℹ️ Não há configuração de parabéns por cargo definida para este servidor.',
+                flags: [MessageFlags.Ephemeral]
+            });
+        }
+        
+        const role = interaction.guild.roles.cache.get(config.roleId);
+        const roleMention = role ? role.toString() : `<@&${config.roleId}> (cargo não encontrado)`;
+        
+        return interaction.reply({
+            content: `**🎉 Configuração de parabéns por cargo:**\n**Cargo alvo:** ${roleMention}\n**Prompt:** ${config.prompt}`,
+            flags: [MessageFlags.Ephemeral]
+        });
+    }
 }
 
 } catch (err) {
