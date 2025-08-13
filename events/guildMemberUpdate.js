@@ -94,8 +94,9 @@ module.exports = {
         return;
       }
 
-      // Prepara o prompt substituindo {USER} pelo nome do usuário
-      const promptText = config.prompt.replace(/{USER}/g, newMember.displayName);
+      // Prepara o prompt substituindo {USER} pelo nome do usuário com ID
+      const userInfo = `${newMember.displayName}, ID ${newMember.id}`;
+      const promptText = config.prompt.replace(/{USER}/g, userInfo);
 
       // Busca o nome do cargo para a memória
       const role = newMember.guild.roles.cache.get(config.roleId);
