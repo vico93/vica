@@ -29,7 +29,7 @@ const client = new Client({
     GatewayIntentBits.GuildMessageReactions,
     GatewayIntentBits.GuildMembers
   ],
-  partials: [Partials.Message, Partials.Channel, Partials.Reaction]
+  partials: [Partials.Message, Partials.Channel, Partials.Reaction, Partials.GuildMember]
 });
 
 client.commands = new Collection();
@@ -56,11 +56,17 @@ const eventsPath = path.join(__dirname, 'events');
 if (fs.existsSync(eventsPath)) {
   const eventFiles = fs.readdirSync(eventsPath).filter(f => f.endsWith('.js'));
   for (const file of eventFiles) {
-    const event = require(path.join(eventsPath, file));
-    if (event.once) {
-      client.once(event.name, (...args) => event.execute(...args, client));
-    } else {
-      client.on(event.name, (...args) => event.execute(...args, client));
+    const eventPath = path.join(eventsPath, file);
+    const event = require(eventPath);
+    try {
+      if (event.once) {
+        client.once(event.name, (...args) => event.execute(...args, client));
+      } else {
+        client.on(event.name, (...args) => event.execute(...args, client));
+      }
+      console.log(`[VICA][EVT] Registrado evento "${event.name}" de ${file}`);
+    } catch (e) {
+      console.error(`[VICA][EVT] Falha ao registrar evento de ${file}:`, e);
     }
   }
 }

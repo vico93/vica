@@ -23,6 +23,11 @@ module.exports = {
     // Ignora bots
     if (newMember.user.bot) return;
 
+    // Log inicial de debug para confirmar disparo do evento
+    try {
+      console.log(`[ROLE-CONGRATS][DEBUG] guildMemberUpdate fired user=${newMember.id} guild=${newMember.guild?.id} oldRoles=${oldMember.roles.cache.size} newRoles=${newMember.roles.cache.size}`);
+    } catch {}
+
     // Ignora se não há mudança nos cargos
     if (oldMember.roles.cache.size === newMember.roles.cache.size) {
       // Verifica se realmente não houve mudança nos cargos
@@ -44,15 +49,25 @@ module.exports = {
     
     // Busca configuração de parabéns por cargo
     const config = database.getRoleCongratsConfig(guildId);
-    if (!config) return;
+    if (!config) {
+      console.log(`[ROLE-CONGRATS][DEBUG] No role_congrats config for guild ${guildId}; skipping.`);
+      return;
+    }
 
     // Detecta cargos adicionados
     const oldRoleIds = new Set(oldMember.roles.cache.keys());
     const newRoleIds = new Set(newMember.roles.cache.keys());
     const addedRoleIds = [...newRoleIds].filter(roleId => !oldRoleIds.has(roleId));
 
+    // Debug: lista de cargos adicionados e o cargo alvo
+    try {
+      console.log(`[ROLE-CONGRATS][DEBUG] Added roles: ${addedRoleIds.join(', ') || '(none)'} | target=${config.roleId}`);
+    } catch {}
+
     // Verifica se o cargo configurado está entre os adicionados
-    if (!addedRoleIds.includes(config.roleId)) return;
+    if (!addedRoleIds.includes(config.roleId)) {
+      return;
+    }
 
     try {
       // Determina o canal de destino
