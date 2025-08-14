@@ -47,9 +47,9 @@ module.exports = {
 
     const guildId = newMember.guild.id;
     
-    // Busca configuração de parabéns por cargo
-    const config = database.getRoleCongratsConfig(guildId);
-    if (!config) {
+    // Busca configurações de parabéns por cargo (agora pode haver várias)
+    const configs = database.listRoleCongratsConfigs(guildId);
+    if (!configs || configs.length === 0) {
       console.log(`[ROLE-CONGRATS][DEBUG] No role_congrats config for guild ${guildId}; skipping.`);
       return;
     }
@@ -59,15 +59,15 @@ module.exports = {
     const newRoleIds = new Set(newMember.roles.cache.keys());
     const addedRoleIds = [...newRoleIds].filter(roleId => !oldRoleIds.has(roleId));
 
-    // Debug: lista de cargos adicionados e o cargo alvo
+
+    // Debug: lista de cargos adicionados
     try {
-      console.log(`[ROLE-CONGRATS][DEBUG] Added roles: ${addedRoleIds.join(', ') || '(none)'} | target=${config.roleId}`);
+      console.log(`[ROLE-CONGRATS][DEBUG] Added roles: ${addedRoleIds.join(', ') || '(none)'} | configured_count=${configs.length}`);
     } catch {}
 
-    // Verifica se o cargo configurado está entre os adicionados
-    if (!addedRoleIds.includes(config.roleId)) {
-      return;
-    }
+    // Filtra configurações cujo roleId aparece entre os cargos adicionados
+    const matchedConfigs = configs.filter(c => addedRoleIds.includes(c.roleId));
+    if (matchedConfigs.length === 0) return; // nada a fazer
 
     try {
       // Determina o canal de destino
@@ -109,44 +109,45 @@ module.exports = {
         return;
       }
 
-      // Prepara o prompt substituindo {USER} pelo nome do usuário com ID
+      // Para evitar mensagens duplicadas quando múltiplos cargos configurados compartilham o mesmo prompt,
+      // agrupe os prompts por texto e envie apenas uma mensagem por prompt.
       const userInfo = `${newMember.displayName}, ID ${newMember.id}`;
-      const promptText = config.prompt.replace(/{USER}/g, userInfo);
+      const promptsToSend = new Map(); // promptText -> { roleName, promptText }
 
-      // Busca o nome do cargo para a memória
-      const role = newMember.guild.roles.cache.get(config.roleId);
-      const roleName = role ? role.name : 'cargo desconhecido';
-
-      console.log(`[ROLE-CONGRATS] Gerando parabéns para ${newMember.user.tag} no servidor ${newMember.guild.name} (cargo: ${roleName})`);
-
-      // Gera resposta via OpenAI usando a função dedicada
-      let congratsMessage;
-      try {
-        congratsMessage = await oai.gerarParabensCargoViaAPI(
-          guildId,
-          newMember.id,
-          promptText,
-          roleName
-        );
-      } catch (oaiError) {
-        console.error('[ROLE-CONGRATS] Erro na API OpenAI, usando mensagem de fallback:', oaiError);
-        // Fallback simples se a OpenAI falhar
-        congratsMessage = `🎉 Parabéns, <@${newMember.id}>, pelo novo cargo!`;
-        
-        // Mesmo com fallback, adiciona a memória do cargo
-        try {
-          const memoria = `Está no cargo ${roleName}`;
-          database.adicionarMemoriaUsuario(guildId, newMember.id, memoria, {
-            createdAt: Date.now()
-          });
-          console.log(`[ROLE-CONGRATS][MEM] Memória de fallback adicionada para usuário ${newMember.id}: ${memoria}`);
-        } catch (memError) {
-          console.error('[ROLE-CONGRATS][MEM] Erro ao salvar memória de fallback:', memError);
+      for (const cfg of matchedConfigs) {
+        const promptText = String(cfg.prompt || '').replace(/{USER}/g, userInfo);
+        const role = newMember.guild.roles.cache.get(cfg.roleId);
+        const roleName = role ? role.name : 'cargo desconhecido';
+        // Only keep first roleName for this prompt
+        if (!promptsToSend.has(promptText)) {
+          promptsToSend.set(promptText, { roleName, promptText });
         }
       }
 
-      // Envia a mensagem
-      await targetChannel.send(congratsMessage);
+      for (const { roleName, promptText } of promptsToSend.values()) {
+        console.log(`[ROLE-CONGRATS] Gerando parabéns para ${newMember.user.tag} no servidor ${newMember.guild.name} (cargo: ${roleName})`);
+        let congratsMessage;
+        try {
+          congratsMessage = await oai.gerarParabensCargoViaAPI(
+            guildId,
+            newMember.id,
+            promptText,
+            roleName
+          );
+        } catch (oaiError) {
+          console.error('[ROLE-CONGRATS] Erro na API OpenAI, usando mensagem de fallback:', oaiError);
+          congratsMessage = `🎉 Parabéns, <@${newMember.id}>, pelo novo cargo!`;
+          // Ainda tenta salvar memória
+          try {
+            const memoria = `Está no cargo ${roleName}`;
+            database.adicionarMemoriaUsuario(guildId, newMember.id, memoria, { createdAt: Date.now() });
+            console.log(`[ROLE-CONGRATS][MEM] Memória de fallback adicionada para usuário ${newMember.id}: ${memoria}`);
+          } catch (memError) {
+            console.error('[ROLE-CONGRATS][MEM] Erro ao salvar memória de fallback:', memError);
+          }
+        }
+        await targetChannel.send(congratsMessage);
+      }
 
     } catch (error) {
       console.error(`[ROLE-CONGRATS] Erro ao processar parabéns para ${newMember.user.tag}:`, error);

@@ -124,6 +124,20 @@ CREATE TABLE IF NOT EXISTS user_memories (
 );
 CREATE INDEX IF NOT EXISTS idx_user_memories_guild_user_created
   ON user_memories (guild_id, user_id, created_at DESC);
+
+-- TABELA PARA MÚLTIPLAS CONFIGURAÇÕES DE PARABÉNS POR CARGO --
+CREATE TABLE IF NOT EXISTS role_congrats (
+  guild_id TEXT NOT NULL,
+  role_id  TEXT NOT NULL,
+  prompt   TEXT NOT NULL,
+  PRIMARY KEY (guild_id, role_id)
+);
+
+-- Migrações: se existir configuração legada em guild_settings, copie para role_congrats
+INSERT OR IGNORE INTO role_congrats (guild_id, role_id, prompt)
+  SELECT guild_id, role_congrats_role_id, role_congrats_prompt
+  FROM guild_settings
+  WHERE role_congrats_role_id IS NOT NULL AND role_congrats_prompt IS NOT NULL;
 `);
 })();
 
@@ -190,6 +204,14 @@ const stmts = {
                                          role_congrats_role_id = NULL,
                                          role_congrats_prompt = NULL
                                          WHERE guild_id = ?`),
+
+  /* --- NOVA TABELA: MULTIPLAS CONFIGS role_congrats --- */
+  rcInsert:   db.prepare(`INSERT INTO role_congrats (guild_id, role_id, prompt)
+                         VALUES (?, ?, ?)
+                         ON CONFLICT(guild_id, role_id) DO UPDATE SET prompt=excluded.prompt`),
+  rcDelete:   db.prepare('DELETE FROM role_congrats WHERE guild_id=? AND role_id=?'),
+  rcDeleteAll:db.prepare('DELETE FROM role_congrats WHERE guild_id=?'),
+  rcList:     db.prepare('SELECT role_id, prompt FROM role_congrats WHERE guild_id=?'),
 
   /* --- MEMÓRIAS DE USUÁRIO --- */
   memInsert: db.prepare(`INSERT OR IGNORE INTO user_memories
@@ -259,7 +281,10 @@ module.exports = {
   setSystemChannel: (g, c) => stmts.settingsSetChannel.run(g, c).changes,
 
   // configurações de role congrats
+  // retorna a primeira configuração (compatibilidade) — prefer lista via listRoleCongratsConfigs
   getRoleCongratsConfig: (g) => {
+    const rows = stmts.rcList.all(g);
+    if (rows && rows.length > 0) return { roleId: rows[0].role_id, prompt: rows[0].prompt };
     const row = stmts.settingsGetRoleCongrats.get(g);
     if (!row || !row.role_congrats_role_id || !row.role_congrats_prompt) {
       return null;
@@ -269,8 +294,37 @@ module.exports = {
       prompt: row.role_congrats_prompt
     };
   },
-  setRoleCongratsConfig: (g, roleId, prompt) => stmts.settingsSetRoleCongrats.run(g, roleId, prompt).changes,
-  clearRoleCongratsConfig: (g) => stmts.settingsClearRoleCongrats.run(g).changes,
+  // lista todas as configurações de parabéns por cargo para uma guild
+  listRoleCongratsConfigs: (g) => {
+    const rows = stmts.rcList.all(g);
+    if (rows && rows.length > 0) return rows.map(r => ({ roleId: r.role_id, prompt: r.prompt }));
+    // fallback para configuração legada em guild_settings
+    const legacy = stmts.settingsGetRoleCongrats.get(g);
+    if (legacy && legacy.role_congrats_role_id && legacy.role_congrats_prompt) {
+      return [{ roleId: legacy.role_congrats_role_id, prompt: legacy.role_congrats_prompt }];
+    }
+    return [];
+  },
+  setRoleCongratsConfig: (g, roleId, prompt) => stmts.rcInsert.run(g, roleId, prompt).changes,
+  // clearRoleCongratsConfig(g) -> limpa todas; clearRoleCongratsConfig(g, roleId) -> remove só o role
+  clearRoleCongratsConfig: (g, roleId = null) => {
+    if (roleId) return stmts.rcDelete.run(g, roleId).changes;
+    return stmts.rcDeleteAll.run(g).changes;
+  },
+
+  // Segurança: helper manual para remover colunas legadas de guild_settings.
+  // Não é chamado automaticamente — execute manualmente se tiver certeza de que os dados foram migrados.
+  // Retorna { removed: true/false, reason }
+  removeLegacyRoleCongratsColumnsIfSafe: () => {
+    try {
+      const count = db.prepare('SELECT COUNT(1) as c FROM guild_settings WHERE role_congrats_role_id IS NOT NULL OR role_congrats_prompt IS NOT NULL').get().c;
+      if (count > 0) return { removed: false, reason: 'Existing legacy rows still present' };
+      // SQLite doesn't support DROP COLUMN easily; user must rebuild table — return instruction
+      return { removed: false, reason: 'Manual schema cleanup required: drop columns by recreating guild_settings table. See docs.' };
+    } catch (e) {
+      return { removed: false, reason: String(e) };
+    }
+  },
 
   // memórias de usuário (por guild)
   adicionarMemoriaUsuario: (g, u, fact, opts = {}) => {

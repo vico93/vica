@@ -235,38 +235,49 @@ if (group === 'role_congrats') {
         if (!prompt || !prompt.trim()) {
             return interaction.reply({ content: '❌ O prompt não pode estar vazio.', flags: [MessageFlags.Ephemeral] });
         }
-        
-        database.setRoleCongratsConfig(interaction.guild.id, cargo.id, prompt.trim());
+        const trimmed = prompt.trim();
+        if (trimmed.length < 5) return interaction.reply({ content: '❌ O prompt é muito curto — escreva pelo menos 5 caracteres.', flags: [MessageFlags.Ephemeral] });
+        if (trimmed.length > 500) return interaction.reply({ content: '❌ O prompt é muito longo — máximo de 500 caracteres.', flags: [MessageFlags.Ephemeral] });
+
+        // Detect if we're updating an existing entry for this role
+        const existing = database.listRoleCongratsConfigs(interaction.guild.id).find(c => c.roleId === cargo.id);
+        const wasUpdate = !!existing;
+
+        database.setRoleCongratsConfig(interaction.guild.id, cargo.id, trimmed);
+
+        const total = database.listRoleCongratsConfigs(interaction.guild.id).length;
+
         return interaction.reply({
-            content: `✅ Configuração salva! Quando alguém receber o cargo ${cargo}, enviarei uma mensagem de parabéns usando o prompt informado. Use \`{USER}\` no prompt para mencionar o nome do usuário.`,
+            content: `✅ Configuração ${wasUpdate ? 'atualizada' : 'salva'}! Quando alguém receber o cargo ${cargo}, enviarei uma mensagem de parabéns usando o prompt informado. Use \`{USER}\` no prompt para mencionar o nome do usuário.\n\nℹ️ Agora existem **${total}** configurações de parabéns por cargo neste servidor.`,
             flags: [MessageFlags.Ephemeral]
         });
     }
     
     if (subcommand === 'clear') {
+        // Allow optional role argument to clear only one; if none provided, clear all
+        const roleToClear = interaction.options.getRole('cargo');
+        if (roleToClear) {
+            database.clearRoleCongratsConfig(interaction.guild.id, roleToClear.id);
+            return interaction.reply({ content: `👍 Configuração de parabéns para o cargo ${roleToClear} foi removida.`, flags: [MessageFlags.Ephemeral] });
+        }
         database.clearRoleCongratsConfig(interaction.guild.id);
-        return interaction.reply({
-            content: `👍 Configuração de parabéns por cargo foi limpa.`,
-            flags: [MessageFlags.Ephemeral]
-        });
+        return interaction.reply({ content: `👍 Todas as configurações de parabéns por cargo foram limpas.`, flags: [MessageFlags.Ephemeral] });
     }
     
     if (subcommand === 'show') {
-        const config = database.getRoleCongratsConfig(interaction.guild.id);
-        if (!config) {
-            return interaction.reply({
-                content: 'ℹ️ Não há configuração de parabéns por cargo definida para este servidor.',
-                flags: [MessageFlags.Ephemeral]
-            });
+        const configs = database.listRoleCongratsConfigs(interaction.guild.id);
+        if (!configs || configs.length === 0) {
+            return interaction.reply({ content: 'ℹ️ Não há configuração de parabéns por cargo definida para este servidor.', flags: [MessageFlags.Ephemeral] });
         }
-        
-        const role = interaction.guild.roles.cache.get(config.roleId);
-        const roleMention = role ? role.toString() : `<@&${config.roleId}> (cargo não encontrado)`;
-        
-        return interaction.reply({
-            content: `**🎉 Configuração de parabéns por cargo:**\n**Cargo alvo:** ${roleMention}\n**Prompt:** ${config.prompt}`,
-            flags: [MessageFlags.Ephemeral]
+
+        const lines = configs.map(c => {
+            const role = interaction.guild.roles.cache.get(c.roleId);
+            const roleMention = role ? role.toString() : `<@&${c.roleId}> (cargo não encontrado)`;
+            const prompt = c.prompt.length > 300 ? c.prompt.slice(0, 297) + '...' : c.prompt;
+            return `**${roleMention}** — ${prompt}`;
         });
+
+        return interaction.reply({ content: `**🎉 Configurações de parabéns por cargo:**\n${lines.join('\n')}`, flags: [MessageFlags.Ephemeral] });
     }
 }
 
