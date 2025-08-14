@@ -19,3 +19,4 @@ Thumbs.db
 # Dados sensíveis e arquivos de configuração local
 /config.json
 /data/
+/.github/instructions
