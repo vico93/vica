@@ -20,6 +20,14 @@ try {
     process.exit(0);
   }
 
+  // Ensure the new table exists in case this script is run standalone
+  db.exec(`CREATE TABLE IF NOT EXISTS role_congrats (
+    guild_id TEXT NOT NULL,
+    role_id  TEXT NOT NULL,
+    prompt   TEXT NOT NULL,
+    PRIMARY KEY (guild_id, role_id)
+  )`);
+
   const rows = db.prepare("SELECT guild_id, role_congrats_role_id AS role_id, role_congrats_prompt AS prompt FROM guild_settings WHERE role_congrats_role_id IS NOT NULL OR role_congrats_prompt IS NOT NULL").all();
   if (!rows || rows.length === 0) {
     console.log('No legacy rows with non-null values found.');
