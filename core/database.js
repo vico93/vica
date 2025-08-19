@@ -138,11 +138,21 @@ INSERT OR IGNORE INTO role_congrats (guild_id, role_id, prompt)
   SELECT guild_id, role_congrats_role_id, role_congrats_prompt
   FROM guild_settings
   WHERE role_congrats_role_id IS NOT NULL AND role_congrats_prompt IS NOT NULL;
+
+-- TABELA DE MEMÓRIAS DA GUILD --
+CREATE TABLE IF NOT EXISTS guild_memories (
+ id INTEGER PRIMARY KEY AUTOINCREMENT,
+ guild_id TEXT NOT NULL,
+ fact TEXT NOT NULL,
+ created_at INTEGER NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_guild_memories_guild_created
+ ON guild_memories (guild_id, created_at DESC);
 `);
 })();
 
 /* ----------------------------------------------------------
-   Prepared statements
+  Prepared statements
 ---------------------------------------------------------- */
 const stmts = {
   /* --- Chatbot blacklist --- */
@@ -221,11 +231,16 @@ const stmts = {
                          FROM user_memories
                          WHERE guild_id = ? AND user_id = ?
                          ORDER BY created_at DESC
-                         LIMIT ? OFFSET ?`)
+                         LIMIT ? OFFSET ?`),
+ 
+ /* --- MEMÓRIAS DE GUILD --- */
+ guildMemInsert: db.prepare('INSERT INTO guild_memories (guild_id, fact, created_at) VALUES (?, ?, ?)'),
+ guildMemList:   db.prepare('SELECT id, fact, created_at FROM guild_memories WHERE guild_id = ? ORDER BY created_at DESC'),
+ guildMemDelete: db.prepare('DELETE FROM guild_memories WHERE guild_id = ? AND id = ?')
 };
 
 /* ----------------------------------------------------------
-   Exportações públicas (mesma assinatura da versão antiga)
+  Exportações públicas (mesma assinatura da versão antiga)
 ---------------------------------------------------------- */
 module.exports = {
   // blacklist chatbot
@@ -341,6 +356,14 @@ module.exports = {
   listarMemoriasUsuario: (g, u, limit = 20, offset = 0) =>
     stmts.memList.all(g, u, limit, offset),
 
-  // helper para graceful shutdown
-  close: () => db.close()
+ // memórias da guild
+ adicionarMemoriaGuild: (g, fact) => {
+   const res = stmts.guildMemInsert.run(g, fact, Date.now());
+   return { id: res.lastInsertRowid, changes: res.changes };
+ },
+ listarMemoriasGuild: (g) => stmts.guildMemList.all(g),
+ removerMemoriaGuild: (g, id) => stmts.guildMemDelete.run(g, id).changes,
+
+ // helper para graceful shutdown
+ close: () => db.close()
 };

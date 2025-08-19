@@ -134,7 +134,19 @@ async function gerarParabensCargoViaAPI(guildId, userId, promptUsuario, roleName
 
  // Função para gerar uma resposta à partir da API
  async function gerarRespostaContextual(guildId, canalId, usuarioId, mensagemUsuario, imageUrl = null, channel = null, sourceMessageId = null) {
-   const systemPrompt = await carregarSystemPrompt();
+   let systemPrompt = await carregarSystemPrompt();
+   
+   // Carrega memórias da guild e injeta no system prompt
+   try {
+     const guildMems = database.listarMemoriasGuild(guildId);
+     if (guildMems && guildMems.length > 0) {
+       const memoriasTexto = guildMems.map(m => `- ${m.fact}`).join('\n');
+       systemPrompt += `\n\n**Memórias sobre este servidor (use-as para guiar suas respostas):**\n${memoriasTexto}`;
+     }
+   } catch (e) {
+     console.error('[OAI] Erro ao buscar memórias da guild:', e);
+   }
+
    // Agora o histórico retorna IDs de mensagens do Discord
    const historicoIds = await database.buscarHistoricoConversa(guildId, canalId, usuarioId);
 

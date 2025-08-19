@@ -1,6 +1,6 @@
 // Arquivo: commands/config.js
 
-const { SlashCommandBuilder, PermissionsBitField, MessageFlags, ChannelType } = require('discord.js');
+const { SlashCommandBuilder, PermissionsBitField, MessageFlags, ChannelType, ActionRowBuilder, StringSelectMenuBuilder, ComponentType } = require('discord.js');
 const database = require('../core/database');
 
 module.exports = {
@@ -91,11 +91,25 @@ module.exports = {
                 .setDescription('O conteúdo da memória a ser salva.')
                 .setRequired(true)
                 .setMaxLength(500)
-            )),
+            ))
+       // --- NOVO GRUPO PARA MEMÓRIAS DA GUILD ---
+       .addSubcommandGroup(group => group
+           .setName('guild_memories')
+           .setDescription('Gerencia as memórias de longo prazo do servidor.')
+           .addSubcommand(sub => sub
+               .setName('set')
+               .setDescription('Adiciona ou atualiza uma memória do servidor.')
+               .addStringOption(opt => opt.setName('memoria').setDescription('O fato a ser lembrado sobre o servidor.').setRequired(true).setMaxLength(1000)))
+           .addSubcommand(sub => sub
+               .setName('list')
+               .setDescription('Lista todas as memórias do servidor.'))
+           .addSubcommand(sub => sub
+               .setName('delete')
+               .setDescription('Remove uma memória específica do servidor.'))),
 
 
-    async execute(interaction) {
-        const group = interaction.options.getSubcommandGroup(false);
+   async execute(interaction) {
+       const group = interaction.options.getSubcommandGroup(false);
         const subcommand = interaction.options.getSubcommand(false);
 
         // Defesa extra: garantir que apenas administradores executem /config
@@ -279,6 +293,77 @@ if (group === 'role_congrats') {
 
         return interaction.reply({ content: `**🎉 Configurações de parabéns por cargo:**\n${lines.join('\n')}`, flags: [MessageFlags.Ephemeral] });
     }
+}
+
+// --- LÓGICA PARA GUILD MEMORIES ---
+if (group === 'guild_memories') {
+   if (subcommand === 'set') {
+       const memoria = interaction.options.getString('memoria');
+       database.adicionarMemoriaGuild(interaction.guild.id, memoria.trim());
+       return interaction.reply({ content: '✅ Memória do servidor salva com sucesso!', flags: [MessageFlags.Ephemeral] });
+   }
+
+   if (subcommand === 'list') {
+       const mems = database.listarMemoriasGuild(interaction.guild.id);
+       if (!mems || mems.length === 0) {
+           return interaction.reply({ content: 'ℹ️ O servidor ainda não possui memórias de longo prazo.', flags: [MessageFlags.Ephemeral] });
+       }
+       const lista = mems.map((m, i) => `${i + 1}. \`${m.fact.slice(0, 150)}\``).join('\n');
+       return interaction.reply({ content: `**🧠 Memórias do Servidor:**\n${lista}`, flags: [MessageFlags.Ephemeral] });
+   }
+
+   if (subcommand === 'delete') {
+       const mems = database.listarMemoriasGuild(interaction.guild.id);
+       if (!mems || mems.length === 0) {
+           return interaction.reply({ content: 'ℹ️ Não há memórias para remover.', flags: [MessageFlags.Ephemeral] });
+       }
+
+       const options = mems.map(m => ({
+           label: m.fact.slice(0, 100), // Limita o label para 100 caracteres
+           value: m.id.toString(),
+           description: `ID: ${m.id}`
+       }));
+
+       const selectMenu = new StringSelectMenuBuilder()
+           .setCustomId('delete_guild_memory')
+           .setPlaceholder('Selecione uma memória para apagar')
+           .addOptions(options.slice(0, 25)); // Limita a 25 opções por menu
+
+       const row = new ActionRowBuilder().addComponents(selectMenu);
+
+       const reply = await interaction.reply({
+           content: 'Selecione a memória do servidor que você deseja apagar:',
+           components: [row],
+           flags: [MessageFlags.Ephemeral]
+       });
+
+       const collector = reply.createMessageComponentCollector({
+           componentType: ComponentType.StringSelect,
+           time: 60000 // 60 segundos
+       });
+
+       collector.on('collect', i => {
+           if (i.user.id !== interaction.user.id) {
+               return i.reply({ content: '⛔ Apenas quem executou o comando pode interagir aqui.', ephemeral: true });
+           }
+           
+           const memoryId = parseInt(i.values[0], 10);
+           const changes = database.removerMemoriaGuild(interaction.guild.id, memoryId);
+
+           if (changes > 0) {
+               i.update({ content: '✅ Memória removida com sucesso!', components: [] });
+           } else {
+               i.update({ content: '⚠️ A memória não foi encontrada ou já havia sido removida.', components: [] });
+           }
+       });
+
+       collector.on('end', collected => {
+           if (collected.size === 0) {
+               interaction.editReply({ content: '⏰ O tempo para selecionar uma memória expirou.', components: [] });
+           }
+       });
+       return;
+   }
 }
 
 } catch (err) {
