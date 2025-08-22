@@ -35,6 +35,8 @@ const salvarMemoriaFunction = {
 // Se não conseguir ler o arquivo, retorna um prompt padrão
 async function carregarSystemPrompt() {
   const filePath = path.join(__dirname, '..', 'data', 'system_prompt.txt');
+  const MAX_PROMPT_LENGTH = 3000; // Limite aproximado para evitar problemas com tokens
+
   try {
     let prompt = await fs.promises.readFile(filePath, 'utf-8');
     prompt = prompt.trim();
@@ -50,7 +52,15 @@ async function carregarSystemPrompt() {
       timeZone: 'America/Sao_Paulo'
     });
     const datetimeString = `São ${formattedTime} do dia ${formattedDate}.`;
-    prompt += `\n\n${datetimeString}`;
+
+    // Verifica se adicionar a data/hora não excederá o limite
+    const newPrompt = prompt + `\n\n${datetimeString}`;
+    if (newPrompt.length <= MAX_PROMPT_LENGTH) {
+      prompt = newPrompt;
+      console.log(`[DEBUG][OAI] Datetime added to system prompt (${datetimeString})`);
+    } else {
+      console.warn(`[WARN][OAI] System prompt too long (${newPrompt.length} chars), skipping datetime addition`);
+    }
 
     return prompt;
   } catch (err) {
@@ -207,7 +217,7 @@ async function gerarParabensCargoViaAPI(guildId, userId, promptUsuario, roleName
  // Função para gerar uma resposta à partir da API
  async function gerarRespostaContextual(guildId, canalId, usuarioId, mensagemUsuario, imageUrl = null, channel = null, sourceMessageId = null) {
    let systemPrompt = await carregarSystemPrompt();
-   
+
    // Carrega memórias da guild e injeta no system prompt
    try {
      const guildMems = database.listarMemoriasGuild(guildId);
@@ -218,6 +228,10 @@ async function gerarParabensCargoViaAPI(guildId, userId, promptUsuario, roleName
    } catch (e) {
      console.error('[OAI] Erro ao buscar memórias da guild:', e);
    }
+
+   // Debug: Log system prompt length and content
+   console.log(`[DEBUG][OAI] System prompt length: ${systemPrompt.length} characters`);
+   console.log(`[DEBUG][OAI] System prompt preview: ${systemPrompt.substring(0, 200)}...`);
 
    // Agora o histórico retorna IDs de mensagens do Discord
    const historicoIds = await database.buscarHistoricoConversa(guildId, canalId, usuarioId);
@@ -268,6 +282,15 @@ async function gerarParabensCargoViaAPI(guildId, userId, promptUsuario, roleName
    messages.push({ role: 'user', content: userMessageContent });
 
    try {
+     // Debug: Log the full request details
+     console.log(`[DEBUG][OAI] API Request - Model: ${config.openai.model}, Max tokens: ${config.settings.maxTokens}`);
+     console.log(`[DEBUG][OAI] Messages count: ${messages.length}`);
+     messages.forEach((msg, idx) => {
+       if (msg.role === 'system') {
+         console.log(`[DEBUG][OAI] System message length: ${msg.content.length} chars`);
+       }
+     });
+
      const response = await openai.chat.completions.create({
        model: config.openai.model,
        messages,
@@ -275,6 +298,16 @@ async function gerarParabensCargoViaAPI(guildId, userId, promptUsuario, roleName
        max_tokens: config.settings.maxTokens,
        tools: [salvarMemoriaFunction],
        tool_choice: 'auto',
+     });
+
+     // Debug: Log API response structure
+     console.log(`[DEBUG][OAI] API Response received:`, {
+       choices: response?.choices?.length,
+       firstChoice: response?.choices?.[0] ? {
+         message: !!response.choices[0].message,
+         content: response.choices[0].message?.content ? 'present' : 'empty',
+         toolCalls: response.choices[0].message?.tool_calls?.length || 0
+       } : 'none'
      });
 
      const message = response?.choices?.[0]?.message;
@@ -297,7 +330,10 @@ async function gerarParabensCargoViaAPI(guildId, userId, promptUsuario, roleName
        }
      }
 
-     if (!content) throw new Error('A API não retornou conteúdo na resposta.');
+     if (!content) {
+       console.error(`[DEBUG][OAI] Empty content detected. Full response:`, JSON.stringify(response, null, 2));
+       throw new Error('A API não retornou conteúdo na resposta.');
+     }
 
      // Remove qualquer referência a ferramentas do conteúdo final
      const cleaned = content.trim();
