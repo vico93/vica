@@ -35,7 +35,6 @@ const salvarMemoriaFunction = {
 // Se não conseguir ler o arquivo, retorna um prompt padrão
 async function carregarSystemPrompt() {
   const filePath = path.join(__dirname, '..', 'data', 'system_prompt.txt');
-  const MAX_PROMPT_LENGTH = 3000; // Limite aproximado para evitar problemas com tokens
 
   try {
     let prompt = await fs.promises.readFile(filePath, 'utf-8');
@@ -53,14 +52,7 @@ async function carregarSystemPrompt() {
     });
     const datetimeString = `São ${formattedTime} do dia ${formattedDate}.`;
 
-    // Verifica se adicionar a data/hora não excederá o limite
-    const newPrompt = prompt + `\n\n${datetimeString}`;
-    if (newPrompt.length <= MAX_PROMPT_LENGTH) {
-      prompt = newPrompt;
-      console.log(`[DEBUG][OAI] Datetime added to system prompt (${datetimeString})`);
-    } else {
-      console.warn(`[WARN][OAI] System prompt too long (${newPrompt.length} chars), skipping datetime addition`);
-    }
+    prompt += `\n\n${datetimeString}`;
 
     return prompt;
   } catch (err) {
@@ -229,9 +221,6 @@ async function gerarParabensCargoViaAPI(guildId, userId, promptUsuario, roleName
      console.error('[OAI] Erro ao buscar memórias da guild:', e);
    }
 
-   // Debug: Log system prompt length and content
-   console.log(`[DEBUG][OAI] System prompt length: ${systemPrompt.length} characters`);
-   console.log(`[DEBUG][OAI] System prompt preview: ${systemPrompt.substring(0, 200)}...`);
 
    // Agora o histórico retorna IDs de mensagens do Discord
    const historicoIds = await database.buscarHistoricoConversa(guildId, canalId, usuarioId);
