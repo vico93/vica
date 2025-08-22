@@ -25,6 +25,7 @@
     "better-sqlite3": "^12.2.0",
     "discord.js": "^14.21.0",
     "minimist": "^1.2.8",
+    "node-fetch": "^2.7.0",
     "openai": "^5.8.2",
     "sqlite3": "^5.1.7"
   }
