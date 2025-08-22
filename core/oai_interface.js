@@ -74,17 +74,11 @@ const customFetch = async (url, options = {}) => {
   // Only add Authorization header if it exists and is not empty
   if (options.headers?.Authorization && options.headers.Authorization.trim() !== '') {
     minimalHeaders['Authorization'] = options.headers.Authorization;
-    console.log('[DEBUG] Authorization header found:', options.headers.Authorization.substring(0, 20) + '...');
   } else {
     // If no Authorization header, construct it from config
     const config = require('../config.json');
     if (config.openai?.api_key) {
       minimalHeaders['Authorization'] = `Bearer ${config.openai.api_key}`;
-      console.log('[DEBUG] Authorization header constructed from config');
-    } else {
-      console.log('[DEBUG] No Authorization header found in options.headers');
-      console.log('[DEBUG] Available headers:', Object.keys(options.headers || {}));
-      console.log('[DEBUG] No API key found in config');
     }
   }
 
@@ -94,10 +88,6 @@ const customFetch = async (url, options = {}) => {
     headers: minimalHeaders,
   };
 
-  console.log('[DEBUG] Final headers being sent:', Object.keys(minimalHeaders));
-  console.log('[DEBUG] Request URL:', url);
-  console.log('[DEBUG] Request method:', options.method);
-  console.log('[DEBUG] Request body:', options.body);
 
   return fetch(url, cleanOptions);
 };
@@ -154,7 +144,6 @@ async function gerarParabensCargoViaAPI(guildId, userId, promptUsuario, roleName
       { role: 'user', content: 'Hello!' }
     ];
 
-    console.log('[DEBUG] Using shortened system prompt...');
 
     const response = await openai.chat.completions.create({
       model: config.openai.model,
@@ -336,7 +325,6 @@ async function gerarParabensCargoViaAPI(guildId, userId, promptUsuario, roleName
      }
 
      if (!content) {
-       console.error(`[DEBUG][OAI] API Error - Empty content. Response:`, JSON.stringify(response, null, 2));
        throw new Error('A API não retornou conteúdo na resposta.');
      }
 
