@@ -36,8 +36,23 @@ const salvarMemoriaFunction = {
 async function carregarSystemPrompt() {
   const filePath = path.join(__dirname, '..', 'data', 'system_prompt.txt');
   try {
-    const prompt = await fs.promises.readFile(filePath, 'utf-8');
-    return prompt.trim();
+    let prompt = await fs.promises.readFile(filePath, 'utf-8');
+    prompt = prompt.trim();
+
+    // Adiciona data e hora atual ao system prompt
+    const now = new Date();
+    const formattedTime = now.toLocaleTimeString('pt-BR', {
+      timeZone: 'America/Sao_Paulo',
+      hour: '2-digit',
+      minute: '2-digit'
+    });
+    const formattedDate = now.toLocaleDateString('pt-BR', {
+      timeZone: 'America/Sao_Paulo'
+    });
+    const datetimeString = `São ${formattedTime} do dia ${formattedDate}.`;
+    prompt += `\n\n${datetimeString}`;
+
+    return prompt;
   } catch (err) {
     console.error('[ERRO] Não foi possível ler system_prompt.txt:', err);
     return 'Você é uma IA que responde a mensagens de forma criativa e útil.';
