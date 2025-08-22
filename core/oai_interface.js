@@ -271,15 +271,6 @@ async function gerarParabensCargoViaAPI(guildId, userId, promptUsuario, roleName
    messages.push({ role: 'user', content: userMessageContent });
 
    try {
-     // Debug: Log the full request details
-     console.log(`[DEBUG][OAI] API Request - Model: ${config.openai.model}, Max tokens: ${config.settings.maxTokens}`);
-     console.log(`[DEBUG][OAI] Messages count: ${messages.length}`);
-     messages.forEach((msg, idx) => {
-       if (msg.role === 'system') {
-         console.log(`[DEBUG][OAI] System message length: ${msg.content.length} chars`);
-       }
-     });
-
      const response = await openai.chat.completions.create({
        model: config.openai.model,
        messages,
@@ -287,16 +278,6 @@ async function gerarParabensCargoViaAPI(guildId, userId, promptUsuario, roleName
        max_tokens: config.settings.maxTokens,
        tools: [salvarMemoriaFunction],
        tool_choice: 'auto',
-     });
-
-     // Debug: Log API response structure
-     console.log(`[DEBUG][OAI] API Response received:`, {
-       choices: response?.choices?.length,
-       firstChoice: response?.choices?.[0] ? {
-         message: !!response.choices[0].message,
-         content: response.choices[0].message?.content ? 'present' : 'empty',
-         toolCalls: response.choices[0].message?.tool_calls?.length || 0
-       } : 'none'
      });
 
      const message = response?.choices?.[0]?.message;
@@ -320,7 +301,7 @@ async function gerarParabensCargoViaAPI(guildId, userId, promptUsuario, roleName
      }
 
      if (!content) {
-       console.error(`[DEBUG][OAI] Empty content detected. Full response:`, JSON.stringify(response, null, 2));
+       console.error(`[DEBUG][OAI] API Error - Empty content. Response:`, JSON.stringify(response, null, 2));
        throw new Error('A API não retornou conteúdo na resposta.');
      }
 
