@@ -11,6 +11,26 @@ const OpenAI = require('openai');
 const config = require('../config.json');
 const database = require('../core/database');
 
+// Define a função para salvar memórias de longo prazo
+const salvarMemoriaFunction = {
+  name: 'salvar_memoria',
+  description: 'Salva uma memória de longo prazo sobre um usuário do Discord baseada em fatos estáveis, como preferências, hábitos ou marcos pessoais. Use apenas para informações valiosas e não sensíveis.',
+  parameters: {
+    type: 'object',
+    properties: {
+      user_id: {
+        type: 'string',
+        description: 'O ID numérico do usuário no Discord (ex: "171003562363584513").'
+      },
+      fato: {
+        type: 'string',
+        description: 'Um fato curto em português sobre o usuário (máx. ~200 caracteres, sem quebras de linha). Ex: "Gosta de maçãs", "Torcedor do São Paulo".'
+      }
+    },
+    required: ['user_id', 'fato']
+  }
+};
+
 // Carrega o system prompt do arquivo system_prompt.txt
 // Se não conseguir ler o arquivo, retorna um prompt padrão
 async function carregarSystemPrompt() {
@@ -29,43 +49,6 @@ const openai = new OpenAI({
   baseURL: config.openai.base_url,
 });
 
-/**
- * Processa tags de memória no formato:
- *   <VICA!salvar_memoria(USER_ID, 'FATO')!>
- * - USER_ID: numérico (string de dígitos)
- * - FATO: texto curto entre aspas simples; aspas internas devem ser escapadas como \'
- * Remove as tags do texto final e salva as memórias no banco.
- * Retorna { cleaned, count }.
- */
-function processVicaMemoryTags(rawText, ctx) {
-  try {
-    if (typeof rawText !== 'string') return { cleaned: rawText, count: 0 };
-    const tagRegex = /<\s*VICA!salvar_memoria\s*\(\s*(\d{5,})\s*,\s*'((?:\\'|[^'])*)'\s*\)\s*!>/g;
-    let match;
-    let count = 0;
-
-    while ((match = tagRegex.exec(rawText)) !== null) {
-      const userId = match[1];
-      const fact = match[2].replace(/\\'/g, "'");
-      try {
-        const r = database.adicionarMemoriaUsuario(ctx.guildId, userId, fact, {
-          sourceMessageId: ctx.sourceMessageId
-        });
-        console.log(`[VICA][MEM] salvar_memoria guild=${ctx.guildId} user=${userId} fact="${fact}" inserted=${r.inserted} duplicate=${r.duplicate}`);
-      } catch (e) {
-        console.error('[VICA][MEM][ERRO] Falha ao salvar memória:', e?.message || e);
-      }
-      count++;
-    }
-
-    tagRegex.lastIndex = 0;
-    const cleaned = rawText.replace(tagRegex, "").trim();
-    return { cleaned, count };
-  } catch (e) {
-    console.error('[VICA][MEM][ERRO] Parser de tags falhou:', e?.message || e);
-    return { cleaned: rawText, count: 0 };
-  }
-}
  
 // Função do comando /perguntar
 async function gerarPerguntaViaAPI(promptUsuario = null) {
@@ -110,13 +93,32 @@ async function gerarParabensCargoViaAPI(guildId, userId, promptUsuario, roleName
       messages,
       temperature: 0.8,
       max_tokens: config.settings.maxTokens,
+      tools: [salvarMemoriaFunction],
+      tool_choice: 'auto',
     });
-    const content = response?.choices?.[0]?.message?.content;
+
+    const message = response?.choices?.[0]?.message;
+    let content = message?.content || '';
+
+    // Processa chamadas de ferramentas (function calls)
+    if (message?.tool_calls) {
+      for (const toolCall of message.tool_calls) {
+        if (toolCall.function.name === 'salvar_memoria') {
+          try {
+            const args = JSON.parse(toolCall.function.arguments);
+            const result = database.adicionarMemoriaUsuario(guildId, args.user_id, args.fato, {
+              createdAt: Date.now()
+            });
+            console.log(`[ROLE-CONGRATS][TOOL] salvar_memoria guild=${guildId} user=${args.user_id} fact="${args.fato}" inserted=${result.inserted} duplicate=${result.duplicate}`);
+          } catch (e) {
+            console.error('[ROLE-CONGRATS][TOOL][ERRO] Falha ao processar chamada de ferramenta salvar_memoria:', e?.message || e);
+          }
+        }
+      }
+    }
+
     if (!content) throw new Error('A API não retornou conteúdo na resposta.');
 
-    // Processa tags VICA de memória e remove-as do texto final
-    const { cleaned } = processVicaMemoryTags(content, { guildId });
-    
     // Adiciona automaticamente uma memória sobre o usuário estar no cargo
     if (roleName && userId) {
       try {
@@ -129,8 +131,8 @@ async function gerarParabensCargoViaAPI(guildId, userId, promptUsuario, roleName
         console.error('[ROLE-CONGRATS][MEM] Erro ao salvar memória do cargo:', memError);
       }
     }
-    
-    return cleaned.trim();
+
+    return content.trim();
   } catch (error) {
     console.error('[ERRO] Não consegui gerar parabéns pela API da OpenAI:', error.message);
     throw error;
@@ -154,14 +156,33 @@ async function gerarParabensCargoViaAPI(guildId, userId, promptUsuario, roleName
        messages,
        temperature: 0.8,
        max_tokens: config.settings.maxTokens,
+       tools: [salvarMemoriaFunction],
+       tool_choice: 'auto',
      });
-     const content = response?.choices?.[0]?.message?.content;
+ 
+     const message = response?.choices?.[0]?.message;
+     let content = message?.content || '';
+ 
+     // Processa chamadas de ferramentas (function calls)
+     if (message?.tool_calls) {
+       for (const toolCall of message.tool_calls) {
+         if (toolCall.function.name === 'salvar_memoria') {
+           try {
+             const args = JSON.parse(toolCall.function.arguments);
+             const result = database.adicionarMemoriaUsuario(guildId, args.user_id, args.fato, {
+               createdAt: Date.now()
+             });
+             console.log(`[WELCOME][TOOL] salvar_memoria guild=${guildId} user=${args.user_id} fact="${args.fato}" inserted=${result.inserted} duplicate=${result.duplicate}`);
+           } catch (e) {
+             console.error('[WELCOME][TOOL][ERRO] Falha ao processar chamada de ferramenta salvar_memoria:', e?.message || e);
+           }
+         }
+       }
+     }
+ 
      if (!content) throw new Error('A API não retornou conteúdo na resposta.');
  
-     // Processa tags VICA de memória e remove-as do texto final
-     const { cleaned } = processVicaMemoryTags(content, { guildId });
- 
-     return cleaned.trim();
+     return content.trim();
    } catch (error) {
      console.error(`[ERRO] Não consegui gerar mensagem de ${messageType} pela API da OpenAI:`, error.message);
      throw error;
@@ -237,13 +258,35 @@ async function gerarParabensCargoViaAPI(guildId, userId, promptUsuario, roleName
        messages,
        temperature: 0.8,
        max_tokens: config.settings.maxTokens,
+       tools: [salvarMemoriaFunction],
+       tool_choice: 'auto',
      });
-     const content = response?.choices?.[0]?.message?.content;
+
+     const message = response?.choices?.[0]?.message;
+     let content = message?.content || '';
+
+     // Processa chamadas de ferramentas (function calls)
+     if (message?.tool_calls) {
+       for (const toolCall of message.tool_calls) {
+         if (toolCall.function.name === 'salvar_memoria') {
+           try {
+             const args = JSON.parse(toolCall.function.arguments);
+             const result = database.adicionarMemoriaUsuario(guildId, args.user_id, args.fato, {
+               sourceMessageId
+             });
+             console.log(`[VICA][TOOL] salvar_memoria guild=${guildId} user=${args.user_id} fact="${args.fato}" inserted=${result.inserted} duplicate=${result.duplicate}`);
+           } catch (e) {
+             console.error('[VICA][TOOL][ERRO] Falha ao processar chamada de ferramenta salvar_memoria:', e?.message || e);
+           }
+         }
+       }
+     }
+
      if (!content) throw new Error('A API não retornou conteúdo na resposta.');
 
-     // Processa tags VICA de memória e remove-as do texto final
-     const { cleaned } = processVicaMemoryTags(content, { guildId, sourceMessageId });
-     return cleaned.trim();
+     // Remove qualquer referência a ferramentas do conteúdo final
+     const cleaned = content.trim();
+     return cleaned;
    } catch (error) {
      console.error('[ERRO] Não consegui gerar uma resposta pela API da OpenAI:', error.message);
      throw error;
