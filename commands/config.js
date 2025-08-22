@@ -1,4 +1,9 @@
-// Arquivo: commands/config.js
+/*
+** caminho: commands/config.js
+** últimaMod: 22/08/2025 01:18
+** autor: Vico
+** colaboração: Gemini, ChatGPT, Roo Sonic
+*/
 
 const { SlashCommandBuilder, PermissionsBitField, MessageFlags, ChannelType, ActionRowBuilder, StringSelectMenuBuilder, ComponentType } = require('discord.js');
 const database = require('../core/database');
@@ -105,10 +110,36 @@ module.exports = {
                .setDescription('Lista todas as memórias do servidor.'))
            .addSubcommand(sub => sub
                .setName('delete')
-               .setDescription('Remove uma memória específica do servidor.'))),
+               .setDescription('Remove uma memória específica do servidor.')))
+
+       // --- NOVO GRUPO PARA MENSAGENS DE BOAS-VINDAS E SAÍDA ---
+       .addSubcommandGroup(group => group
+           .setName('mensagens')
+           .setDescription('Configura as mensagens de boas-vindas e saída do servidor.')
+           .addSubcommand(sub => sub
+               .setName('welcome')
+               .setDescription('Define a mensagem de boas-vindas para novos membros.')
+               .addStringOption(opt => opt.setName('texto').setDescription('A mensagem ou prompt para a IA (use {@USER} para mencionar).').setRequired(true).setMaxLength(1000))
+               .addBooleanOption(opt => opt.setName('isprompt').setDescription('Define se o texto é um prompt para a IA ou uma mensagem fixa.').setRequired(true)))
+           .addSubcommand(sub => sub
+               .setName('leave')
+               .setDescription('Define a mensagem de saída para membros que saem.')
+               .addStringOption(opt => opt.setName('texto').setDescription('A mensagem ou prompt para a IA (use {USER} para o nome).').setRequired(true).setMaxLength(1000))
+               .addBooleanOption(opt => opt.setName('isprompt').setDescription('Define se o texto é um prompt para a IA ou uma mensagem fixa.').setRequired(true)))
+           .addSubcommand(sub => sub
+               .setName('kick')
+               .setDescription('Define a mensagem para membros expulsos.')
+               .addStringOption(opt => opt.setName('texto').setDescription('A mensagem ou prompt para a IA (use {USER} para o nome).').setRequired(true).setMaxLength(1000))
+               .addBooleanOption(opt => opt.setName('isprompt').setDescription('Define se o texto é um prompt para a IA ou uma mensagem fixa.').setRequired(true)))
+           .addSubcommand(sub => sub
+               .setName('ban')
+               .setDescription('Define a mensagem para membros banidos.')
+               .addStringOption(opt => opt.setName('texto').setDescription('A mensagem ou prompt para a IA (use {USER} para o nome).').setRequired(true).setMaxLength(1000))
+               .addBooleanOption(opt => opt.setName('isprompt').setDescription('Define se o texto é um prompt para a IA ou uma mensagem fixa.').setRequired(true)))
+       ),
 
 
-   async execute(interaction) {
+  async execute(interaction) {
        const group = interaction.options.getSubcommandGroup(false);
         const subcommand = interaction.options.getSubcommand(false);
 
@@ -364,6 +395,29 @@ if (group === 'guild_memories') {
        });
        return;
    }
+}
+
+// --- LÓGICA PARA MENSAGENS DE BOAS-VINDAS E SAÍDA ---
+if (group === 'mensagens') {
+    const texto = interaction.options.getString('texto');
+    const isPrompt = interaction.options.getBoolean('isprompt');
+
+    if (subcommand === 'welcome') {
+        database.setWelcomeMessage(interaction.guild.id, texto, isPrompt);
+        return interaction.reply({ content: `✅ Mensagem de boas-vindas configurada. Será enviada no canal de sistema configurado.`, flags: [MessageFlags.Ephemeral] });
+    }
+    if (subcommand === 'leave') {
+        database.setLeaveMessage(interaction.guild.id, texto, isPrompt);
+        return interaction.reply({ content: `✅ Mensagem de saída configurada. Será enviada no canal de sistema configurado.`, flags: [MessageFlags.Ephemeral] });
+    }
+    if (subcommand === 'kick') {
+        database.setKickMessage(interaction.guild.id, texto, isPrompt);
+        return interaction.reply({ content: `✅ Mensagem de expulsão configurada. Será enviada no canal de sistema configurado.`, flags: [MessageFlags.Ephemeral] });
+    }
+    if (subcommand === 'ban') {
+        database.setBanMessage(interaction.guild.id, texto, isPrompt);
+        return interaction.reply({ content: `✅ Mensagem de banimento configurada. Será enviada no canal de sistema configurado.`, flags: [MessageFlags.Ephemeral] });
+    }
 }
 
 } catch (err) {

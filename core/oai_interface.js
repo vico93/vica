@@ -1,4 +1,9 @@
-// Arquivo: core/oai_interface.js
+/*
+** caminho: core/oai_interface.js
+** últimaMod: 22/08/2025 01:18
+** autor: Vico
+** colaboração: Gemini, ChatGPT, Roo Sonic
+*/
 
 const fs = require('fs');
 const path = require('path');
@@ -132,6 +137,37 @@ async function gerarParabensCargoViaAPI(guildId, userId, promptUsuario, roleName
   }
 }
 
+   // Função para gerar mensagens de boas-vindas/saída via API
+ async function gerarMensagemBemVindoViaAPI(guildId, userId, userName, messageType, prompt) {
+   const systemPrompt = await carregarSystemPrompt();
+   const messages = [
+     { role: 'system', content: systemPrompt },
+     {
+       role: 'user',
+       content: prompt.replace(/\{@USER\}/g, `<@${userId}>`).replace(/\{USER\}/g, userName),
+     },
+   ];
+ 
+   try {
+     const response = await openai.chat.completions.create({
+       model: config.openai.model,
+       messages,
+       temperature: 0.8,
+       max_tokens: config.settings.maxTokens,
+     });
+     const content = response?.choices?.[0]?.message?.content;
+     if (!content) throw new Error('A API não retornou conteúdo na resposta.');
+ 
+     // Processa tags VICA de memória e remove-as do texto final
+     const { cleaned } = processVicaMemoryTags(content, { guildId });
+ 
+     return cleaned.trim();
+   } catch (error) {
+     console.error(`[ERRO] Não consegui gerar mensagem de ${messageType} pela API da OpenAI:`, error.message);
+     throw error;
+   }
+ }
+ 
  // Função para gerar uma resposta à partir da API
  async function gerarRespostaContextual(guildId, canalId, usuarioId, mensagemUsuario, imageUrl = null, channel = null, sourceMessageId = null) {
    let systemPrompt = await carregarSystemPrompt();
@@ -218,4 +254,5 @@ module.exports = {
   gerarPerguntaViaAPI,
   gerarRespostaContextual,
   gerarParabensCargoViaAPI,
+  gerarMensagemBemVindoViaAPI,
 };

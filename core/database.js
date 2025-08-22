@@ -2,7 +2,7 @@
 ** caminho: core/database.js
 ** últimaMod: 16/07/2025 22:22
 ** autor: Vico
-** colaboração: ChatGPT, Gemini, Kimi AI
+** colaboração: ChatGPT, Gemini, Kimi AI, Roo Sonic
 */
 
 /*
@@ -106,6 +106,14 @@ CREATE TABLE IF NOT EXISTS rank_role_multipliers (
 CREATE TABLE IF NOT EXISTS guild_settings (
   guild_id TEXT PRIMARY KEY,
   system_channel_id TEXT,
+  welcome_message TEXT,
+  welcome_is_prompt INTEGER DEFAULT 0,
+  leave_message TEXT,
+  leave_is_prompt INTEGER DEFAULT 0,
+  kick_message TEXT,
+  kick_is_prompt INTEGER DEFAULT 0,
+  ban_message TEXT,
+  ban_is_prompt INTEGER DEFAULT 0,
   role_congrats_role_id TEXT,
   role_congrats_prompt TEXT
 );
@@ -236,7 +244,38 @@ const stmts = {
  /* --- MEMÓRIAS DE GUILD --- */
  guildMemInsert: db.prepare('INSERT INTO guild_memories (guild_id, fact, created_at) VALUES (?, ?, ?)'),
  guildMemList:   db.prepare('SELECT id, fact, created_at FROM guild_memories WHERE guild_id = ? ORDER BY created_at DESC'),
- guildMemDelete: db.prepare('DELETE FROM guild_memories WHERE guild_id = ? AND id = ?')
+ guildMemDelete: db.prepare('DELETE FROM guild_memories WHERE guild_id = ? AND id = ?'),
+
+ /* --- Welcome/Leave Messages --- */
+ welcomeSettingsSet: db.prepare(`
+   INSERT INTO guild_settings (guild_id, welcome_message, welcome_is_prompt)
+   VALUES (:guild_id, :message, :is_prompt)
+   ON CONFLICT(guild_id) DO UPDATE SET
+     welcome_message = :message,
+     welcome_is_prompt = :is_prompt
+ `),
+ leaveSettingsSet: db.prepare(`
+   INSERT INTO guild_settings (guild_id, leave_message, leave_is_prompt)
+   VALUES (:guild_id, :message, :is_prompt)
+   ON CONFLICT(guild_id) DO UPDATE SET
+     leave_message = :message,
+     leave_is_prompt = :is_prompt
+ `),
+ kickSettingsSet: db.prepare(`
+   INSERT INTO guild_settings (guild_id, kick_message, kick_is_prompt)
+   VALUES (:guild_id, :message, :is_prompt)
+   ON CONFLICT(guild_id) DO UPDATE SET
+     kick_message = :message,
+     kick_is_prompt = :is_prompt
+ `),
+ banSettingsSet: db.prepare(`
+   INSERT INTO guild_settings (guild_id, ban_message, ban_is_prompt)
+   VALUES (:guild_id, :message, :is_prompt)
+   ON CONFLICT(guild_id) DO UPDATE SET
+     ban_message = :message,
+     ban_is_prompt = :is_prompt
+ `),
+ msgSettingsGet: db.prepare('SELECT welcome_message, welcome_is_prompt, leave_message, leave_is_prompt, kick_message, kick_is_prompt, ban_message, ban_is_prompt FROM guild_settings WHERE guild_id = ?')
 };
 
 /* ----------------------------------------------------------
@@ -364,6 +403,37 @@ module.exports = {
  listarMemoriasGuild: (g) => stmts.guildMemList.all(g),
  removerMemoriaGuild: (g, id) => stmts.guildMemDelete.run(g, id).changes,
 
- // helper para graceful shutdown
- close: () => db.close()
+ // Welcome/Leave messages
+ setWelcomeMessage: (guildId, message, isPrompt) => {
+   return stmts.welcomeSettingsSet.run({
+       guild_id: guildId,
+       message: message,
+       is_prompt: isPrompt ? 1 : 0
+   }).changes;
+ },
+ setLeaveMessage: (guildId, message, isPrompt) => {
+   return stmts.leaveSettingsSet.run({
+       guild_id: guildId,
+       message: message,
+       is_prompt: isPrompt ? 1 : 0
+   }).changes;
+ },
+ setKickMessage: (guildId, message, isPrompt) => {
+   return stmts.kickSettingsSet.run({
+       guild_id: guildId,
+       message: message,
+       is_prompt: isPrompt ? 1 : 0
+   }).changes;
+ },
+ setBanMessage: (guildId, message, isPrompt) => {
+   return stmts.banSettingsSet.run({
+       guild_id: guildId,
+       message: message,
+       is_prompt: isPrompt ? 1 : 0
+   }).changes;
+ },
+ getWelcomeLeaveSettings: (guildId) => stmts.msgSettingsGet.get(guildId) || null,
+
+// helper para graceful shutdown
+close: () => db.close()
 };
