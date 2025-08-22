@@ -47,7 +47,7 @@ db.pragma('synchronous = NORMAL');    // commits mais rápidos
     const settingsCols = db.prepare('PRAGMA table_info(guild_settings)').all();
     const hasRoleCongratsRole = settingsCols.some(c => c.name === 'role_congrats_role_id');
     const hasRoleCongratsPrompt = settingsCols.some(c => c.name === 'role_congrats_prompt');
-    
+
     if (settingsCols.length > 0 && (!hasRoleCongratsRole || !hasRoleCongratsPrompt)) {
       console.warn('[DB] Migrando tabela guild_settings -> adicionando colunas role_congrats.');
       if (!hasRoleCongratsRole) {
@@ -58,6 +58,46 @@ db.pragma('synchronous = NORMAL');    // commits mais rápidos
       }
     }
   } catch (e) {
+    // tabela ainda não existe, será criada abaixo
+  }
+
+  // Migração para adicionar colunas de mensagens de boas-vindas/saída na tabela guild_settings
+  try {
+    const settingsCols = db.prepare('PRAGMA table_info(guild_settings)').all();
+    const hasWelcomeMessage = settingsCols.some(c => c.name === 'welcome_message');
+    const hasWelcomeIsPrompt = settingsCols.some(c => c.name === 'welcome_is_prompt');
+    const hasLeaveMessage = settingsCols.some(c => c.name === 'leave_message');
+    const hasLeaveIsPrompt = settingsCols.some(c => c.name === 'leave_is_prompt');
+    const hasKickMessage = settingsCols.some(c => c.name === 'kick_message');
+    const hasKickIsPrompt = settingsCols.some(c => c.name === 'kick_is_prompt');
+    const hasBanMessage = settingsCols.some(c => c.name === 'ban_message');
+    const hasBanIsPrompt = settingsCols.some(c => c.name === 'ban_is_prompt');
+
+    if (settingsCols.length > 0) {
+      const missingColumns = [];
+      if (!hasWelcomeMessage) missingColumns.push('welcome_message TEXT');
+      if (!hasWelcomeIsPrompt) missingColumns.push('welcome_is_prompt INTEGER DEFAULT 0');
+      if (!hasLeaveMessage) missingColumns.push('leave_message TEXT');
+      if (!hasLeaveIsPrompt) missingColumns.push('leave_is_prompt INTEGER DEFAULT 0');
+      if (!hasKickMessage) missingColumns.push('kick_message TEXT');
+      if (!hasKickIsPrompt) missingColumns.push('kick_is_prompt INTEGER DEFAULT 0');
+      if (!hasBanMessage) missingColumns.push('ban_message TEXT');
+      if (!hasBanIsPrompt) missingColumns.push('ban_is_prompt INTEGER DEFAULT 0');
+
+      if (missingColumns.length > 0) {
+        console.warn('[DB] Migrando tabela guild_settings -> adicionando colunas de mensagens.');
+        for (const column of missingColumns) {
+          try {
+            db.exec(`ALTER TABLE guild_settings ADD COLUMN ${column}`);
+            console.log(`[DB] Adicionada coluna: ${column}`);
+          } catch (colError) {
+            console.error(`[DB] Erro ao adicionar coluna ${column}:`, colError.message);
+          }
+        }
+      }
+    }
+  } catch (e) {
+    console.error('[DB] Erro durante migração das colunas de mensagens:', e.message);
     // tabela ainda não existe, será criada abaixo
   }
 
