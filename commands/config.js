@@ -134,7 +134,7 @@ module.exports = {
            .addSubcommand(sub => sub
                .setName('ban')
                .setDescription('Define a mensagem para membros banidos.')
-               .addStringOption(opt => opt.setName('texto').setDescription('A mensagem ou prompt para a IA (use {USER} para o nome).').setRequired(true).setMaxLength(1000))
+               .addStringOption(opt => opt.setName('texto').setDescription('A mensagem ou prompt para a IA (use {USER} para o nome e {REASON} para o motivo do banimento).').setRequired(true).setMaxLength(1000))
                .addBooleanOption(opt => opt.setName('isprompt').setDescription('Define se o texto é um prompt para a IA ou uma mensagem fixa.').setRequired(true)))
        ),
 

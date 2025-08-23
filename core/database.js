@@ -315,7 +315,8 @@ const stmts = {
      ban_message = :message,
      ban_is_prompt = :is_prompt
  `),
- msgSettingsGet: db.prepare('SELECT welcome_message, welcome_is_prompt, leave_message, leave_is_prompt, kick_message, kick_is_prompt, ban_message, ban_is_prompt FROM guild_settings WHERE guild_id = ?')
+ msgSettingsGet: db.prepare('SELECT welcome_message, welcome_is_prompt, leave_message, leave_is_prompt, kick_message, kick_is_prompt, ban_message, ban_is_prompt FROM guild_settings WHERE guild_id = ?'),
+ banSettingsGet: db.prepare('SELECT ban_message, ban_is_prompt FROM guild_settings WHERE guild_id = ?')
 };
 
 /* ----------------------------------------------------------
@@ -471,6 +472,16 @@ module.exports = {
        message: message,
        is_prompt: isPrompt ? 1 : 0
    }).changes;
+ },
+ getBanMessage: (guildId) => {
+   const row = stmts.banSettingsGet.get(guildId);
+   if (!row || (row.ban_message === null && row.ban_is_prompt === null)) {
+     return null;
+   }
+   return {
+     message: row.ban_message,
+     isPrompt: row.ban_is_prompt === 1
+   };
  },
  getWelcomeLeaveSettings: (guildId) => stmts.msgSettingsGet.get(guildId) || null,
 
