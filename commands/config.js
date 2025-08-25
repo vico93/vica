@@ -30,11 +30,11 @@ const database = require('../core/database');
 // --- CONSTANTES E CONFIGURAÇÕES ---
 const SESSION_TIMEOUT = 15 * 60 * 1000; // 15 minutos
 const CATEGORIES = {
-    CHATBOT: { id: 'chatbot', name: '🗣️ Chatbot Management', desc: 'Gerenciar blacklist do chatbot' },
-    XP_SYSTEM: { id: 'xp_system', name: '💰 XP System Configuration', desc: 'Configurar XP e multiplicadores' },
-    MESSAGES: { id: 'messages', name: '📢 Message & Channel Settings', desc: 'Mensagens e canais do sistema' },
-    MEMORIES: { id: 'memories', name: '🧠 Memory Management', desc: 'Gerenciar memórias do servidor' },
-    USER_CONTROLS: { id: 'user_controls', name: '👥 Manual User Controls', desc: 'Controles manuais de usuário' }
+    CHATBOT: { id: 'chatbot', name: '🗣️ Gerenciamento do Chatbot', desc: 'Gerenciar blacklist do chatbot' },
+    XP_SYSTEM: { id: 'xp_system', name: '💰 Configuração do Sistema XP', desc: 'Configurar XP e multiplicadores' },
+    MESSAGES: { id: 'messages', name: '📢 Configurações de Mensagens e Canais', desc: 'Mensagens e canais do sistema' },
+    MEMORIES: { id: 'memories', name: '🧠 Gerenciamento de Memórias', desc: 'Gerenciar memórias do servidor' },
+    USER_CONTROLS: { id: 'user_controls', name: '👥 Controles Manuais de Usuário', desc: 'Controles manuais de usuário' }
 };
 
 // Mapa de ações para cada categoria
@@ -42,7 +42,7 @@ const CATEGORY_ACTIONS = {
     [CATEGORIES.CHATBOT.id]: ['add_channel', 'remove_channel', 'list_channels', 'back'],
     [CATEGORIES.XP_SYSTEM.id]: ['add_channel', 'remove_channel', 'list_channels', 'set_multiplier', 'remove_multiplier', 'list_multipliers', 'back'],
     [CATEGORIES.MESSAGES.id]: ['set_system_channel', 'clear_system_channel', 'set_role_upgrade', 'delete_role_upgrade', 'list_role_upgrades', 'set_join_leave', 'delete_join_leave', 'list_join_leave', 'back'],
-    [CATEGORIES.MEMORIES.id]: ['list_user_memories', 'add_user_memory', 'list_guild_memories', 'add_guild_memory', 'delete_guild_memory', 'back'],
+    [CATEGORIES.MEMORIES.id]: ['select_memory_type', 'back'],
     [CATEGORIES.USER_CONTROLS.id]: ['set_user_xp', 'reset_all_xp', 'back']
 };
 
@@ -60,7 +60,7 @@ function generateComponentId(userId, type, suffix = '') {
  */
 function createMainDashboardEmbed(guild) {
     const embed = new EmbedBuilder()
-        .setTitle('⚙️ Vica Configuration Dashboard')
+        .setTitle('⚙️ Painel de Configuração da Vica')
         .setDescription('Selecione uma categoria abaixo para gerenciar as configurações do bot.')
         .setColor('#0099FF')
         .setTimestamp();
@@ -93,9 +93,18 @@ function createMainDashboardEmbed(guild) {
 
     // Status das Memórias
     const guildMemories = database.listarMemoriasGuild(guild.id);
+    let userMemories = [];
+    try {
+        if (database.listarMemoriasUsuario) {
+            userMemories = database.listarMemoriasUsuario(guild.id);
+        }
+    } catch (error) {
+        console.log('[CONFIG] Função listarMemoriasUsuario não disponível');
+    }
+
     embed.addFields({
-        name: '🧠 Memory Management',
-        value: `Memórias do servidor: **${guildMemories.length}**`,
+        name: '🧠 Gerenciamento de Memórias',
+        value: `Memórias do servidor: **${guildMemories.length}**\nMemórias de usuários: **${userMemories.length || 'N/A'}**`,
         inline: true
     });
 
@@ -124,6 +133,60 @@ function createCategorySelect(userId) {
             description: category.desc,
             value: category.id
         });
+    });
+
+    return new ActionRowBuilder().addComponents(selectMenu);
+}
+
+/**
+ * Cria o menu de seleção de tipo de memória
+ */
+function createMemoryTypeSelect(userId) {
+    const selectMenu = new StringSelectMenuBuilder()
+        .setCustomId(generateComponentId(userId, 'memory_type_select'))
+        .setPlaceholder('Escolha o tipo de memória para gerenciar...');
+
+    selectMenu.addOptions({
+        label: '🏠 Memórias do Servidor',
+        description: 'Gerenciar memórias compartilhadas do servidor',
+        value: 'guild_memories'
+    });
+
+    selectMenu.addOptions({
+        label: '👤 Memórias de Usuários',
+        description: 'Gerenciar memórias individuais de usuários',
+        value: 'user_memories'
+    });
+
+    return new ActionRowBuilder().addComponents(selectMenu);
+}
+
+/**
+ * Cria o menu de ações para um tipo específico de memória
+ */
+function createMemoryActionsSelect(userId, memoryType) {
+    const selectMenu = new StringSelectMenuBuilder()
+        .setCustomId(generateComponentId(userId, `memory_actions_select_${memoryType}`))
+        .setPlaceholder('Escolha uma ação para executar...');
+
+    const typeLabel = memoryType === 'guild_memories' ? 'do Servidor' : 'de Usuários';
+
+    selectMenu.addOptions({
+        label: `📋 Ver Lista de Memórias ${typeLabel}`,
+        description: 'Listar todas as memórias',
+        value: `list_${memoryType}`
+    });
+
+    selectMenu.addOptions({
+        label: `➕ Adicionar Memória ${typeLabel}`,
+        description: 'Adicionar uma nova memória',
+        value: `add_${memoryType}`
+    });
+
+    selectMenu.addOptions({
+        label: `🗑️ Remover Memória ${typeLabel}`,
+        description: 'Remover uma memória existente',
+        value: `delete_${memoryType}`
     });
 
     return new ActionRowBuilder().addComponents(selectMenu);
@@ -190,10 +253,36 @@ function createCategoryEmbed(categoryId, guild) {
 
         case CATEGORIES.MEMORIES.id:
             const guildMemories = database.listarMemoriasGuild(guild.id);
+            let userMemories = [];
+            try {
+                // Try to get user memories if function exists
+                if (database.listarMemoriasUsuario) {
+                    userMemories = database.listarMemoriasUsuario(guild.id);
+                }
+            } catch (error) {
+                console.log('[CONFIG] Função listarMemoriasUsuario não disponível');
+            }
+
             embed.addFields({
                 name: '📋 Status Atual',
-                value: `Memórias do servidor: **${guildMemories.length}**`
+                value: `Memórias do servidor: **${guildMemories.length}**\nMemórias de usuários: **${userMemories.length || 'N/A'}**`
             });
+
+            if (guildMemories.length > 0) {
+                embed.addFields({
+                    name: '🏠 Memórias do Servidor',
+                    value: guildMemories.slice(0, 3).map(m => `- ${m.titulo || m.conteudo?.substring(0, 30) + '...' || 'Sem título'}`).join('\n') + (guildMemories.length > 3 ? `\n... e mais ${guildMemories.length - 3}` : ''),
+                    inline: true
+                });
+            }
+
+            if (userMemories.length > 0) {
+                embed.addFields({
+                    name: '👤 Memórias de Usuários',
+                    value: userMemories.slice(0, 3).map(m => `- ${m.titulo || m.conteudo?.substring(0, 30) + '...' || 'Sem título'}`).join('\n') + (userMemories.length > 3 ? `\n... e mais ${userMemories.length - 3}` : ''),
+                    inline: true
+                });
+            }
             break;
 
         case CATEGORIES.USER_CONTROLS.id:
@@ -209,10 +298,34 @@ function createCategoryEmbed(categoryId, guild) {
 }
 
 /**
- * Cria botões de ação para uma categoria específica
+ * Cria componentes de ação para uma categoria específica
  */
 function createCategoryButtons(userId, categoryId) {
     const actions = CATEGORY_ACTIONS[categoryId] || [];
+
+    // Tratamento especial para categoria de memórias - retorna dropdowns
+    if (categoryId === CATEGORIES.MEMORIES.id) {
+        const components = [];
+
+        actions.forEach(action => {
+            switch (action) {
+                case 'back':
+                    const backButton = new ButtonBuilder()
+                        .setCustomId(generateComponentId(userId, 'back_to_main'))
+                        .setLabel('⬅️ Voltar')
+                        .setStyle(ButtonStyle.Secondary);
+                    components.push(new ActionRowBuilder().addComponents(backButton));
+                    break;
+                case 'select_memory_type':
+                    components.push(createMemoryTypeSelect(userId));
+                    break;
+            }
+        });
+
+        return components;
+    }
+
+    // Para outras categorias, cria botões normalmente
     const buttons = [];
 
     actions.forEach(action => {
@@ -308,36 +421,6 @@ function createCategoryButtons(userId, categoryId) {
                     .setLabel('📋 Listar Mensagens')
                     .setStyle(ButtonStyle.Primary);
                 break;
-            case 'list_user_memories':
-                button = new ButtonBuilder()
-                    .setCustomId(generateComponentId(userId, 'list_user_memories'))
-                    .setLabel('👤 Memórias de Usuário')
-                    .setStyle(ButtonStyle.Primary);
-                break;
-            case 'add_user_memory':
-                button = new ButtonBuilder()
-                    .setCustomId(generateComponentId(userId, 'add_user_memory'))
-                    .setLabel('➕ Adicionar Memória')
-                    .setStyle(ButtonStyle.Success);
-                break;
-            case 'list_guild_memories':
-                button = new ButtonBuilder()
-                    .setCustomId(generateComponentId(userId, 'list_guild_memories'))
-                    .setLabel('🏠 Memórias do Servidor')
-                    .setStyle(ButtonStyle.Primary);
-                break;
-            case 'add_guild_memory':
-                button = new ButtonBuilder()
-                    .setCustomId(generateComponentId(userId, 'add_guild_memory'))
-                    .setLabel('➕ Memória do Servidor')
-                    .setStyle(ButtonStyle.Success);
-                break;
-            case 'delete_guild_memory':
-                button = new ButtonBuilder()
-                    .setCustomId(generateComponentId(userId, 'delete_guild_memory'))
-                    .setLabel('🗑️ Apagar Memória')
-                    .setStyle(ButtonStyle.Danger);
-                break;
             case 'set_user_xp':
                 button = new ButtonBuilder()
                     .setCustomId(generateComponentId(userId, 'set_user_xp'))
@@ -405,6 +488,23 @@ async function handleButtonClick(interaction) {
         });
     }
 
+    // Botão de voltar aos tipos de memória
+    if (customId === generateComponentId(userId, 'back_to_memory_types')) {
+        const embed = createCategoryEmbed(CATEGORIES.MEMORIES.id, interaction.guild);
+        const memoryTypeSelect = createMemoryTypeSelect(userId);
+        const backButton = new ActionRowBuilder().addComponents(
+            new ButtonBuilder()
+                .setCustomId(generateComponentId(userId, 'back_to_main'))
+                .setLabel('⬅️ Voltar')
+                .setStyle(ButtonStyle.Secondary)
+        );
+
+        return interaction.update({
+            embeds: [embed],
+            components: [memoryTypeSelect, backButton]
+        });
+    }
+
     // Manipular ações específicas de cada categoria
     const categoryId = customId.split('_').pop(); // Extrair categoria do ID
     const action = customId.replace(`_${userId}_`, '').replace(`_${categoryId}`, '').replace(`${userId}_`, '');
@@ -452,21 +552,6 @@ async function handleButtonClick(interaction) {
         case 'list_join_leave':
             await handleListJoinLeave(interaction);
             break;
-        case 'list_user_memories':
-            await handleListUserMemories(interaction);
-            break;
-        case 'add_user_memory':
-            await handleAddUserMemory(interaction);
-            break;
-        case 'list_guild_memories':
-            await handleListGuildMemories(interaction);
-            break;
-        case 'add_guild_memory':
-            await handleAddGuildMemory(interaction);
-            break;
-        case 'delete_guild_memory':
-            await handleDeleteGuildMemory(interaction);
-            break;
         case 'set_user_xp':
             await handleSetUserXP(interaction);
             break;
@@ -476,6 +561,62 @@ async function handleButtonClick(interaction) {
         default:
             await interaction.reply({
                 content: '❌ Ação não reconhecida.',
+                flags: [MessageFlags.Ephemeral]
+            });
+    }
+}
+
+/**
+ * Manipula seleção de tipo de memória
+ */
+async function handleMemoryTypeSelect(interaction) {
+    const memoryType = interaction.values[0];
+    const userId = interaction.user.id;
+
+    const embed = createCategoryEmbed(CATEGORIES.MEMORIES.id, interaction.guild);
+    const actionsSelect = createMemoryActionsSelect(userId, memoryType);
+    const backButton = new ActionRowBuilder().addComponents(
+        new ButtonBuilder()
+            .setCustomId(generateComponentId(userId, 'back_to_memory_types'))
+            .setLabel('⬅️ Voltar aos Tipos')
+            .setStyle(ButtonStyle.Secondary)
+    );
+
+    await interaction.update({
+        embeds: [embed],
+        components: [actionsSelect, backButton]
+    });
+}
+
+/**
+ * Manipula seleção de ação de memória
+ */
+async function handleMemoryActionsSelect(interaction) {
+    const action = interaction.values[0];
+    const userId = interaction.user.id;
+
+    switch (action) {
+        case 'list_guild_memories':
+            await handleListGuildMemories(interaction);
+            break;
+        case 'add_guild_memories':
+            await handleAddGuildMemory(interaction);
+            break;
+        case 'delete_guild_memories':
+            await handleDeleteGuildMemory(interaction);
+            break;
+        case 'list_user_memories':
+            await handleListUserMemories(interaction);
+            break;
+        case 'add_user_memories':
+            await handleAddUserMemory(interaction);
+            break;
+        case 'delete_user_memories':
+            await handleDeleteUserMemory(interaction);
+            break;
+        default:
+            await interaction.reply({
+                content: '❌ Ação de memória não reconhecida.',
                 flags: [MessageFlags.Ephemeral]
             });
     }
@@ -1520,8 +1661,7 @@ module.exports = {
 
             const reply = await interaction.reply({
                 embeds: [embed],
-                components: [selectMenu],
-                flags: [MessageFlags.Ephemeral]
+                components: [selectMenu]
             });
 
             // Configurar coletor de interações com timeout
@@ -1539,7 +1679,16 @@ module.exports = {
 
                 try {
                     if (i.isStringSelectMenu()) {
-                        await handleCategorySelect(i);
+                        const customId = i.customId;
+                        if (customId.includes('category_select')) {
+                            await handleCategorySelect(i);
+                        } else if (customId.includes('memory_type_select')) {
+                            await handleMemoryTypeSelect(i);
+                        } else if (customId.includes('memory_actions_select')) {
+                            await handleMemoryActionsSelect(i);
+                        } else {
+                            await handleCategorySelect(i);
+                        }
                     } else if (i.isButton()) {
                         await handleButtonClick(i);
                     } else if (i.isModalSubmit()) {
