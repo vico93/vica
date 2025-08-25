@@ -1,6 +1,6 @@
 /*
 ** caminho: commands/config.js
-** últimaMod: 22/08/2025 01:18
+** últimaMod: 25/08/2025 12:35
 ** autor: Vico
 ** colaboração: Gemini, ChatGPT, Roo Sonic
 */
@@ -112,30 +112,42 @@ module.exports = {
                .setName('delete')
                .setDescription('Remove uma memória específica do servidor.')))
 
-       // --- NOVO GRUPO PARA MENSAGENS DE BOAS-VINDAS E SAÍDA ---
+       // --- GRUPO PARA MENSAGENS DE ENTRADA E SAÍDA ---
        .addSubcommandGroup(group => group
-           .setName('mensagens')
-           .setDescription('Configura as mensagens de boas-vindas e saída do servidor.')
+           .setName('join_leave_msgs')
+           .setDescription('Gerencia mensagens de boas-vindas e saída do servidor.')
            .addSubcommand(sub => sub
-               .setName('welcome')
-               .setDescription('Define a mensagem de boas-vindas para novos membros.')
-               .addStringOption(opt => opt.setName('texto').setDescription('A mensagem ou prompt para a IA (use {@USER} para mencionar).').setRequired(true).setMaxLength(1000))
+               .setName('list')
+               .setDescription('Lista as mensagens configuradas por tipo.')
+               .addStringOption(opt => opt.setName('type').setDescription('Tipo de mensagem para listar.').setRequired(false)
+                   .addChoices(
+                       { name: 'Welcome', value: 'welcome' },
+                       { name: 'Leave', value: 'leave' },
+                       { name: 'Leave (Kick)', value: 'leave_kick' },
+                       { name: 'Leave (Ban)', value: 'leave_ban' }
+                   )))
+           .addSubcommand(sub => sub
+               .setName('set')
+               .setDescription('Define uma mensagem para um tipo específico.')
+               .addStringOption(opt => opt.setName('type').setDescription('Tipo de mensagem.').setRequired(true)
+                   .addChoices(
+                       { name: 'Welcome', value: 'welcome' },
+                       { name: 'Leave', value: 'leave' },
+                       { name: 'Leave (Kick)', value: 'leave_kick' },
+                       { name: 'Leave (Ban)', value: 'leave_ban' }
+                   ))
+               .addStringOption(opt => opt.setName('texto').setDescription('A mensagem ou prompt para a IA (use {@USER}, {USER}, {REASON}).').setRequired(true).setMaxLength(1000))
                .addBooleanOption(opt => opt.setName('isprompt').setDescription('Define se o texto é um prompt para a IA ou uma mensagem fixa.').setRequired(true)))
            .addSubcommand(sub => sub
-               .setName('leave')
-               .setDescription('Define a mensagem de saída para membros que saem.')
-               .addStringOption(opt => opt.setName('texto').setDescription('A mensagem ou prompt para a IA (use {USER} para o nome).').setRequired(true).setMaxLength(1000))
-               .addBooleanOption(opt => opt.setName('isprompt').setDescription('Define se o texto é um prompt para a IA ou uma mensagem fixa.').setRequired(true)))
-           .addSubcommand(sub => sub
-               .setName('kick')
-               .setDescription('Define a mensagem para membros expulsos.')
-               .addStringOption(opt => opt.setName('texto').setDescription('A mensagem ou prompt para a IA (use {USER} para o nome).').setRequired(true).setMaxLength(1000))
-               .addBooleanOption(opt => opt.setName('isprompt').setDescription('Define se o texto é um prompt para a IA ou uma mensagem fixa.').setRequired(true)))
-           .addSubcommand(sub => sub
-               .setName('ban')
-               .setDescription('Define a mensagem para membros banidos.')
-               .addStringOption(opt => opt.setName('texto').setDescription('A mensagem ou prompt para a IA (use {USER} para o nome e {REASON} para o motivo do banimento).').setRequired(true).setMaxLength(1000))
-               .addBooleanOption(opt => opt.setName('isprompt').setDescription('Define se o texto é um prompt para a IA ou uma mensagem fixa.').setRequired(true)))
+               .setName('delete')
+               .setDescription('Remove uma mensagem configurada.')
+               .addStringOption(opt => opt.setName('type').setDescription('Tipo de mensagem para remover.').setRequired(true)
+                   .addChoices(
+                       { name: 'Welcome', value: 'welcome' },
+                       { name: 'Leave', value: 'leave' },
+                       { name: 'Leave (Kick)', value: 'leave_kick' },
+                       { name: 'Leave (Ban)', value: 'leave_ban' }
+                   )))
        ),
 
 
@@ -397,28 +409,128 @@ if (group === 'guild_memories') {
    }
 }
 
-// --- LÓGICA PARA MENSAGENS DE BOAS-VINDAS E SAÍDA ---
-if (group === 'mensagens') {
-    const texto = interaction.options.getString('texto');
-    const isPrompt = interaction.options.getBoolean('isprompt');
+// --- LÓGICA PARA MENSAGENS DE ENTRADA E SAÍDA ---
+ if (group === 'join_leave_msgs') {
+     const type = interaction.options.getString('type');
+     const texto = interaction.options.getString('texto');
+     const isPrompt = interaction.options.getBoolean('isprompt');
 
-    if (subcommand === 'welcome') {
-        database.setWelcomeMessage(interaction.guild.id, texto, isPrompt);
-        return interaction.reply({ content: `✅ Mensagem de boas-vindas configurada. Será enviada no canal de sistema configurado.`, flags: [MessageFlags.Ephemeral] });
-    }
-    if (subcommand === 'leave') {
-        database.setLeaveMessage(interaction.guild.id, texto, isPrompt);
-        return interaction.reply({ content: `✅ Mensagem de saída configurada. Será enviada no canal de sistema configurado.`, flags: [MessageFlags.Ephemeral] });
-    }
-    if (subcommand === 'kick') {
-        database.setKickMessage(interaction.guild.id, texto, isPrompt);
-        return interaction.reply({ content: `✅ Mensagem de expulsão configurada. Será enviada no canal de sistema configurado.`, flags: [MessageFlags.Ephemeral] });
-    }
-    if (subcommand === 'ban') {
-        database.setBanMessage(interaction.guild.id, texto, isPrompt);
-        return interaction.reply({ content: `✅ Mensagem de banimento configurada. Será enviada no canal de sistema configurado.`, flags: [MessageFlags.Ephemeral] });
-    }
-}
+     if (subcommand === 'list') {
+         const typeNames = {
+             'welcome': 'Welcome',
+             'leave': 'Leave',
+             'leave_kick': 'Leave (Kick)',
+             'leave_ban': 'Leave (Ban)'
+         };
+
+         if (type) {
+             // List specific type
+             const msg = database.getMessageByType(interaction.guild.id, type);
+             if (!msg) {
+                 return interaction.reply({
+                     content: `ℹ️ Nenhuma mensagem configurada para **${typeNames[type]}**.`,
+                     flags: [MessageFlags.Ephemeral]
+                 });
+             }
+
+             const typeDisplay = msg.isPrompt ? 'Prompt para IA' : 'Mensagem fixa';
+             const preview = msg.message.length > 200 ? msg.message.slice(0, 197) + '...' : msg.message;
+
+             return interaction.reply({
+                 content: `**📋 ${typeNames[type]}**\n**Tipo:** ${typeDisplay}\n**Conteúdo:** ${preview}`,
+                 flags: [MessageFlags.Ephemeral]
+             });
+         } else {
+             // List all types
+             const messages = [];
+             for (const [key, name] of Object.entries(typeNames)) {
+                 const msg = database.getMessageByType(interaction.guild.id, key);
+                 if (msg) {
+                     const status = msg.isPrompt ? '🤖 Prompt' : '📝 Fixa';
+                     const preview = msg.message.length > 50 ? msg.message.slice(0, 47) + '...' : msg.message;
+                     messages.push(`**${name}:** ${status} - ${preview}`);
+                 } else {
+                     messages.push(`**${name}:** ❌ Não configurada`);
+                 }
+             }
+
+             if (messages.length === 0) {
+                 return interaction.reply({
+                     content: 'ℹ️ Nenhuma mensagem configurada para este servidor.',
+                     flags: [MessageFlags.Ephemeral]
+                 });
+             }
+
+             return interaction.reply({
+                 content: `**📋 Configurações de Mensagens:**\n${messages.join('\n')}`,
+                 flags: [MessageFlags.Ephemeral]
+             });
+         }
+     }
+
+     if (subcommand === 'set') {
+         if (!texto || !texto.trim()) {
+             return interaction.reply({
+                 content: '❌ O texto da mensagem não pode estar vazio.',
+                 flags: [MessageFlags.Ephemeral]
+             });
+         }
+
+         const trimmed = texto.trim();
+         if (trimmed.length < 5) {
+             return interaction.reply({
+                 content: '❌ A mensagem deve ter pelo menos 5 caracteres.',
+                 flags: [MessageFlags.Ephemeral]
+             });
+         }
+
+         if (trimmed.length > 1000) {
+             return interaction.reply({
+                 content: '❌ A mensagem não pode ter mais de 1000 caracteres.',
+                 flags: [MessageFlags.Ephemeral]
+             });
+         }
+
+         database.setMessageByType(interaction.guild.id, type, trimmed, isPrompt);
+
+         const typeNames = {
+             'welcome': 'boas-vindas',
+             'leave': 'saída',
+             'leave_kick': 'expulsão',
+             'leave_ban': 'banimento'
+         };
+
+         const typeDisplay = isPrompt ? 'prompt para IA' : 'mensagem fixa';
+
+         return interaction.reply({
+             content: `✅ Mensagem de ${typeNames[type]} configurada como ${typeDisplay}. Será enviada no canal de sistema configurado.\n\n💡 **Placeholders disponíveis:** {@USER}, {USER}, {REASON}`,
+             flags: [MessageFlags.Ephemeral]
+         });
+     }
+
+     if (subcommand === 'delete') {
+         const deleted = database.deleteMessageByType(interaction.guild.id, type);
+
+         if (deleted > 0) {
+             const typeNames = {
+                 'welcome': 'boas-vindas',
+                 'leave': 'saída',
+                 'leave_kick': 'expulsão',
+                 'leave_ban': 'banimento'
+             };
+
+             return interaction.reply({
+                 content: `✅ Mensagem de ${typeNames[type]} removida com sucesso.`,
+                 flags: [MessageFlags.Ephemeral]
+             });
+         } else {
+             return interaction.reply({
+                 content: `ℹ️ Nenhuma mensagem de ${type} estava configurada para este servidor.`,
+                 flags: [MessageFlags.Ephemeral]
+             });
+         }
+     }
+ }
 
 } catch (err) {
             console.error(`[CONFIG] Erro no comando /config:`, err);

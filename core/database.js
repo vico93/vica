@@ -316,7 +316,71 @@ const stmts = {
      ban_is_prompt = :is_prompt
  `),
  msgSettingsGet: db.prepare('SELECT welcome_message, welcome_is_prompt, leave_message, leave_is_prompt, kick_message, kick_is_prompt, ban_message, ban_is_prompt FROM guild_settings WHERE guild_id = ?'),
- banSettingsGet: db.prepare('SELECT ban_message, ban_is_prompt FROM guild_settings WHERE guild_id = ?')
+ banSettingsGet: db.prepare('SELECT ban_message, ban_is_prompt FROM guild_settings WHERE guild_id = ?'),
+
+ /* --- GET individual messages --- */
+ welcomeSettingsGet: db.prepare('SELECT welcome_message, welcome_is_prompt FROM guild_settings WHERE guild_id = ?'),
+ leaveSettingsGet: db.prepare('SELECT leave_message, leave_is_prompt FROM guild_settings WHERE guild_id = ?'),
+ kickSettingsGet: db.prepare('SELECT kick_message, kick_is_prompt FROM guild_settings WHERE guild_id = ?'),
+
+ /* --- DELETE messages --- */
+ welcomeSettingsDelete: db.prepare('UPDATE guild_settings SET welcome_message = NULL, welcome_is_prompt = NULL WHERE guild_id = ?'),
+ leaveSettingsDelete: db.prepare('UPDATE guild_settings SET leave_message = NULL, leave_is_prompt = NULL WHERE guild_id = ?'),
+ kickSettingsDelete: db.prepare('UPDATE guild_settings SET kick_message = NULL, kick_is_prompt = NULL WHERE guild_id = ?'),
+ banSettingsDelete: db.prepare('UPDATE guild_settings SET ban_message = NULL, ban_is_prompt = NULL WHERE guild_id = ?'),
+
+ /* --- Generic message handling by type --- */
+ // Get message by type (welcome, leave, leave_kick, leave_ban)
+ getMessageByType: db.prepare(`
+   SELECT
+     CASE ?
+       WHEN 'welcome' THEN welcome_message
+       WHEN 'leave' THEN leave_message
+       WHEN 'leave_kick' THEN kick_message
+       WHEN 'leave_ban' THEN ban_message
+     END as message,
+     CASE ?
+       WHEN 'welcome' THEN welcome_is_prompt
+       WHEN 'leave' THEN leave_is_prompt
+       WHEN 'leave_kick' THEN kick_is_prompt
+       WHEN 'leave_ban' THEN ban_is_prompt
+     END as is_prompt
+   FROM guild_settings
+   WHERE guild_id = ?
+ `),
+
+ // Set message by type
+ setMessageByType: db.prepare(`
+   INSERT INTO guild_settings (guild_id,
+     welcome_message, welcome_is_prompt,
+     leave_message, leave_is_prompt,
+     kick_message, kick_is_prompt,
+     ban_message, ban_is_prompt)
+   VALUES (?, NULL, 0, NULL, 0, NULL, 0, NULL, 0)
+   ON CONFLICT(guild_id) DO UPDATE SET
+     welcome_message = CASE WHEN ? = 'welcome' THEN ? ELSE welcome_message END,
+     welcome_is_prompt = CASE WHEN ? = 'welcome' THEN ? ELSE welcome_is_prompt END,
+     leave_message = CASE WHEN ? = 'leave' THEN ? ELSE leave_message END,
+     leave_is_prompt = CASE WHEN ? = 'leave' THEN ? ELSE leave_is_prompt END,
+     kick_message = CASE WHEN ? = 'leave_kick' THEN ? ELSE kick_message END,
+     kick_is_prompt = CASE WHEN ? = 'leave_kick' THEN ? ELSE kick_is_prompt END,
+     ban_message = CASE WHEN ? = 'leave_ban' THEN ? ELSE ban_message END,
+     ban_is_prompt = CASE WHEN ? = 'leave_ban' THEN ? ELSE ban_is_prompt END
+ `),
+
+ // Delete message by type
+ deleteMessageByType: db.prepare(`
+   UPDATE guild_settings SET
+     welcome_message = CASE WHEN ? = 'welcome' THEN NULL ELSE welcome_message END,
+     welcome_is_prompt = CASE WHEN ? = 'welcome' THEN NULL ELSE welcome_is_prompt END,
+     leave_message = CASE WHEN ? = 'leave' THEN NULL ELSE leave_message END,
+     leave_is_prompt = CASE WHEN ? = 'leave' THEN NULL ELSE leave_is_prompt END,
+     kick_message = CASE WHEN ? = 'leave_kick' THEN NULL ELSE kick_message END,
+     kick_is_prompt = CASE WHEN ? = 'leave_kick' THEN NULL ELSE kick_is_prompt END,
+     ban_message = CASE WHEN ? = 'leave_ban' THEN NULL ELSE ban_message END,
+     ban_is_prompt = CASE WHEN ? = 'leave_ban' THEN NULL ELSE ban_is_prompt END
+   WHERE guild_id = ?
+ `)
 };
 
 /* ----------------------------------------------------------
@@ -484,6 +548,70 @@ module.exports = {
    };
  },
  getWelcomeLeaveSettings: (guildId) => stmts.msgSettingsGet.get(guildId) || null,
+
+ // Individual message getters
+ getWelcomeMessage: (guildId) => {
+   const row = stmts.welcomeSettingsGet.get(guildId);
+   if (!row || (row.welcome_message === null && row.welcome_is_prompt === null)) {
+     return null;
+   }
+   return {
+     message: row.welcome_message,
+     isPrompt: row.welcome_is_prompt === 1
+   };
+ },
+ getLeaveMessage: (guildId) => {
+   const row = stmts.leaveSettingsGet.get(guildId);
+   if (!row || (row.leave_message === null && row.leave_is_prompt === null)) {
+     return null;
+   }
+   return {
+     message: row.leave_message,
+     isPrompt: row.leave_is_prompt === 1
+   };
+ },
+ getKickMessage: (guildId) => {
+   const row = stmts.kickSettingsGet.get(guildId);
+   if (!row || (row.kick_message === null && row.kick_is_prompt === null)) {
+     return null;
+   }
+   return {
+     message: row.kick_message,
+     isPrompt: row.kick_is_prompt === 1
+   };
+ },
+
+ // Delete functions
+ deleteWelcomeMessage: (guildId) => stmts.welcomeSettingsDelete.run(guildId).changes,
+ deleteLeaveMessage: (guildId) => stmts.leaveSettingsDelete.run(guildId).changes,
+ deleteKickMessage: (guildId) => stmts.kickSettingsDelete.run(guildId).changes,
+ deleteBanMessage: (guildId) => stmts.banSettingsDelete.run(guildId).changes,
+
+ // Generic message functions by type
+ getMessageByType: (guildId, type) => {
+   const row = stmts.getMessageByType.get(type, type, guildId);
+   if (!row || (row.message === null && row.is_prompt === null)) {
+     return null;
+   }
+   return {
+     message: row.message,
+     isPrompt: row.is_prompt === 1
+   };
+ },
+ setMessageByType: (guildId, type, message, isPrompt) => {
+   return stmts.setMessageByType.run(
+     guildId,
+     type, message, isPrompt ? 1 : 0,
+     type, message, isPrompt ? 1 : 0,
+     type, message, isPrompt ? 1 : 0,
+     type, message, isPrompt ? 1 : 0
+   ).changes;
+ },
+ deleteMessageByType: (guildId, type) => {
+   return stmts.deleteMessageByType.run(
+     type, type, type, type, type, type, type, type, guildId
+   ).changes;
+ },
 
 // helper para graceful shutdown
 close: () => db.close()

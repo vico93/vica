@@ -1,56 +1,64 @@
 /*
 ** path: events/guildBanAdd.js
-** lastMod: 23/08/2025 12:44
+** lastMod: 25/08/2025 15:39
 ** author: Vico
 ** collaboration: Roo Sonic
 */
 
+const { AuditLogEvent } = require('discord.js');
 const database = require('../core/database');
 const oai_interface = require('../core/oai_interface');
 
 module.exports = {
-  name: 'guildBanAdd',
-  async execute(ban) {
+  name: 'GuildAuditLogEntryCreate',
+  async execute(auditLog) {
+    // Only process ban events
+    if (auditLog.action !== AuditLogEvent.MemberBanAdd) return;
+
     // Ignore events from guilds where the bot might not be fully ready
-    if (!ban.guild) return;
+    if (!auditLog.guild) return;
 
     try {
       // Get ban message configuration
-      const config = database.getBanMessage(ban.guild.id);
+      const config = database.getBanMessage(auditLog.guild.id);
       if (!config || !config.message) return;
 
       // Get system channel
-      const systemChannelId = database.getSystemChannel(ban.guild.id);
+      const systemChannelId = database.getSystemChannel(auditLog.guild.id);
       if (!systemChannelId) {
-        console.warn(`[WARN] No system channel configured for guild ${ban.guild.name}`);
+        console.warn(`[WARN] No system channel configured for guild ${auditLog.guild.name}`);
         return;
       }
 
-      const channel = ban.guild.channels.cache.get(systemChannelId);
+      const channel = auditLog.guild.channels.cache.get(systemChannelId);
       if (!channel) {
-        console.warn(`[WARN] System channel ${systemChannelId} not found in guild ${ban.guild.name}`);
+        console.warn(`[WARN] System channel ${systemChannelId} not found in guild ${auditLog.guild.name}`);
+        return;
+      }
+
+      // Get the banned user from the audit log target
+      const bannedUser = auditLog.target;
+      if (!bannedUser) {
+        console.warn(`[WARN] No user found in ban audit log entry for guild ${auditLog.guild.name}`);
         return;
       }
 
       let finalMessage = config.message;
 
       // Replace placeholders
-      finalMessage = finalMessage.replace(/\{USER\}/g, ban.user.username || ban.user.displayName || 'Unknown User');
+      finalMessage = finalMessage.replace(/\{USER\}/g, bannedUser.username || bannedUser.displayName || 'Unknown User');
 
-      // Add reason if available from the ban event
-      if (ban.reason) {
-        finalMessage = finalMessage.replace(/\{REASON\}/g, ban.reason);
-      } else {
-        finalMessage = finalMessage.replace(/\{REASON\}/g, 'No reason provided');
-      }
+      // Get ban reason from audit log
+      const banReason = auditLog.reason || 'No reason provided';
+      finalMessage = finalMessage.replace(/\{REASON\}/g, banReason);
 
       // If it's a prompt, generate message via AI
       if (config.isPrompt) {
         try {
           finalMessage = await oai_interface.gerarMensagemBemVindoViaAPI(
-            ban.guild.id,
-            ban.user.id,
-            ban.user.username || ban.user.displayName || 'Unknown User',
+            auditLog.guild.id,
+            bannedUser.id,
+            bannedUser.username || bannedUser.displayName || 'Unknown User',
             'ban',
             finalMessage
           );
@@ -61,9 +69,9 @@ module.exports = {
       }
 
       await channel.send(finalMessage);
-      console.log(`[GUILD-BAN] Sent ban message for ${ban.user.tag || ban.user.username} in ${ban.guild.name}`);
+      console.log(`[GUILD-BAN] Sent ban message for ${bannedUser.tag || bannedUser.username} in ${auditLog.guild.name} with reason: "${banReason}"`);
     } catch (err) {
-      console.error(`[ERROR-GUILD-BAN] Failed to handle ban event for ${ban.user.tag || ban.user.username}:`, err);
+      console.error(`[ERROR-GUILD-BAN] Failed to handle ban audit log event:`, err);
     }
   },
 };

@@ -1,6 +1,6 @@
 /*
 ** caminho: events/guildMemberRemove.js
-** últimaMod: 28/07/2025 11:36
+** últimaMod: 25/08/2025 12:40
 ** autor: Vico
 ** colaboração: Gemini, ChatGPT, Roo Sonic
 */
@@ -61,6 +61,7 @@ module.exports = {
 
       let messageConfig = null;
       let messageType = 'leave';
+      let kickReason = null;
 
       if (wasBanned && settings.ban_message) {
         messageConfig = {
@@ -69,6 +70,7 @@ module.exports = {
         };
         messageType = 'ban';
       } else if (wasKicked && settings.kick_message) {
+        kickReason = kickLog.reason || 'No reason provided';
         messageConfig = {
           message: settings.kick_message,
           isPrompt: settings.kick_is_prompt === 1
@@ -87,6 +89,11 @@ module.exports = {
 
         // Replace placeholders
         finalMessage = finalMessage.replace(/\{@USER\}/g, `<@${member.id}>`).replace(/\{USER\}/g, member.user.username);
+
+        // Replace {REASON} placeholder for kicks
+        if (messageType === 'kick') {
+          finalMessage = finalMessage.replace(/\{REASON\}/g, kickReason);
+        }
 
         // If it's a prompt, generate message via AI
         if (messageConfig.isPrompt) {
