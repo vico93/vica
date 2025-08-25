@@ -426,7 +426,8 @@ if (group === 'guild_memories') {
          if (type) {
              // List specific type
              const msg = database.getMessageByType(interaction.guild.id, type);
-             if (!msg) {
+             console.log(`[CONFIG] Checking specific type ${type}:`, msg); // Debug log
+             if (!msg || !msg.message) {
                  return interaction.reply({
                      content: `ℹ️ Nenhuma mensagem configurada para **${typeNames[type]}**.`,
                      flags: [MessageFlags.Ephemeral]
