@@ -1,542 +1,1569 @@
 /*
 ** caminho: commands/config.js
-** últimaMod: 25/08/2025 12:35
+** últimaMod: 2025-08-25 13:43
 ** autor: Vico
-** colaboração: Gemini, ChatGPT, Roo Sonic
+** colaboração: Roo Sonic
 */
 
-const { SlashCommandBuilder, PermissionsBitField, MessageFlags, ChannelType, ActionRowBuilder, StringSelectMenuBuilder, ComponentType } = require('discord.js');
+/*
+ * Sistema de configuração baseado em embed para o bot Vica
+ * Interface organizada com dashboard principal e sub-menus categorizados
+ */
+
+const {
+    SlashCommandBuilder,
+    EmbedBuilder,
+    ActionRowBuilder,
+    StringSelectMenuBuilder,
+    ButtonBuilder,
+    ButtonStyle,
+    PermissionsBitField,
+    MessageFlags,
+    ComponentType,
+    ChannelType,
+    ModalBuilder,
+    TextInputBuilder,
+    TextInputStyle
+} = require('discord.js');
 const database = require('../core/database');
 
-module.exports = {
-    data: new SlashCommandBuilder()
-        .setName('config')
-        .setDescription('Configurações avançadas da Vica.')
-        .setDefaultMemberPermissions(PermissionsBitField.Flags.Administrator)
-        .setDMPermission(false)
-        // Grupo de comandos para a blacklist do CHATBOT
-        .addSubcommandGroup(group => group
-            .setName('blacklist_chatbot')
-            .setDescription('Gerencia os canais onde a Vica não pode interagir.')
-            .addSubcommand(sub => sub.setName('add').setDescription('Adiciona um canal à blacklist do chatbot.').addChannelOption(opt => opt.setName('canal').setDescription('O canal a ser adicionado.').setRequired(true)))
-            .addSubcommand(sub => sub.setName('remove').setDescription('Remove um canal da blacklist do chatbot.').addChannelOption(opt => opt.setName('canal').setDescription('O canal a ser removido.').setRequired(true)))
-            .addSubcommand(sub => sub.setName('list').setDescription('Lista os canais na blacklist do chatbot.')))
-        // Grupo de comandos para a blacklist de XP
-        .addSubcommandGroup(group => group
-            .setName('blacklist_xp')
-            .setDescription('Gerencia os canais onde não se ganha XP.')
-            .addSubcommand(sub => sub.setName('add').setDescription('Adiciona um canal à blacklist de XP.').addChannelOption(opt => opt.setName('canal').setDescription('O canal a ser adicionado.').setRequired(true)))
-            .addSubcommand(sub => sub.setName('remove').setDescription('Remove um canal da blacklist de XP.').addChannelOption(opt => opt.setName('canal').setDescription('O canal a ser removido.').setRequired(true)))
-            .addSubcommand(sub => sub.setName('list').setDescription('Lista os canais na blacklist de XP.')))
-        // Grupo de comandos para os multiplicadores de XP
-        .addSubcommandGroup(group => group
-            .setName('xp_multipliers')
-            .setDescription('Gerencia os multiplicadores de XP por cargo.')
-            .addSubcommand(sub => sub.setName('set').setDescription('Define um multiplicador de XP para um cargo.').addRoleOption(opt => opt.setName('cargo').setDescription('O cargo que receberá o bônus.').setRequired(true)).addNumberOption(opt => opt.setName('multiplicador').setDescription('Ex: 1.5 para 50% de bônus.').setRequired(true)))
-            .addSubcommand(sub => sub.setName('remove').setDescription('Remove o multiplicador de XP de um cargo.').addRoleOption(opt => opt.setName('cargo').setDescription('O cargo a ser removido.').setRequired(true)))
-            .addSubcommand(sub => sub.setName('list').setDescription('Lista todos os multiplicadores de XP configurados.')))
-        // Grupo de comandos para gerenciamento de XP
-        .addSubcommandGroup(group => group
-            .setName('xp_management')
-            .setDescription('Gerenciamento manual de XP de usuários.')
-            .addSubcommand(sub => sub
-                .setName('set')
-                .setDescription('Define o valor exato de XP para um usuário.')
-                .addUserOption(opt => opt.setName('usuario').setDescription('O usuário a ser modificado.').setRequired(true))
-                .addIntegerOption(opt => opt.setName('valor').setDescription('O novo valor total de XP.').setRequired(true).setMinValue(0)))
-            .addSubcommand(sub => sub
-                .setName('reset_all')
-                .setDescription('⚠️ ATENÇÃO: Zera o XP e o nível de TODOS os membros do servidor.')))
-        // --- NOVO GRUPO DE COMANDOS PARA GERENCIAR CANAIS ---
-        .addSubcommandGroup(group => group
-            .setName('canais')
-            .setDescription('Gerencia os canais padrão do bot.')
-            .addSubcommand(sub => sub
-                .setName('set_sistema')
-                .setDescription('Define o canal para onde as mensagens de sistema (ex: level up) serão enviadas.')
-                .addChannelOption(opt => opt.setName('canal').setDescription('O canal de texto desejado.').setRequired(true).addChannelTypes(ChannelType.GuildText)))
-            .addSubcommand(sub => sub
-                .setName('clear_sistema')
-                .setDescription('Limpa o canal de sistema (mensagens voltarão a ser enviadas no canal de origem).')))
-        // Grupo de comandos para parabéns por cargo
-        .addSubcommandGroup(group => group
-            .setName('role_upgrade_msgs')
-            .setDescription('Gerencia parabéns automáticos quando usuários recebem cargos específicos.')
-            .addSubcommand(sub => sub
-                .setName('set')
-                .setDescription('Configura parabéns automáticos para um cargo específico.')
-                .addRoleOption(opt => opt.setName('cargo').setDescription('O cargo que ativará os parabéns.').setRequired(true))
-                .addStringOption(opt => opt.setName('prompt').setDescription('Prompt para a IA (use {USER} para o nome do usuário).').setRequired(true).setMaxLength(500)))
-            .addSubcommand(sub => sub
-                .setName('delete')
-                .setDescription('Remove a configuração de parabéns por cargo.'))
-            .addSubcommand(sub => sub
-                .setName('list')
-                .setDescription('Mostra a configuração atual de parabéns por cargo.')))
-        // Subcomando raiz para inspeção de memórias
-        .addSubcommand(sub => sub
-            .setName('list_memories')
-            .setDescription('Lista as memórias salvas de um usuário.')
-            .addUserOption(opt => opt
-                .setName('usuario')
-                .setDescription('O usuário alvo.')
-                .setRequired(true)
-            ))
-        // Subcomando raiz para adicionar memória
-        .addSubcommand(sub => sub
-            .setName('add_memories')
-            .setDescription('Adiciona uma memória de longo prazo para um usuário.')
-            .addUserOption(opt => opt
-                .setName('usuario')
-                .setDescription('O usuário alvo.')
-                .setRequired(true)
-            )
-            .addStringOption(opt => opt
-                .setName('memoria')
-                .setDescription('O conteúdo da memória a ser salva.')
-                .setRequired(true)
-                .setMaxLength(500)
-            ))
-       // --- NOVO GRUPO PARA MEMÓRIAS DA GUILD ---
-       .addSubcommandGroup(group => group
-           .setName('guild_memories')
-           .setDescription('Gerencia as memórias de longo prazo do servidor.')
-           .addSubcommand(sub => sub
-               .setName('set')
-               .setDescription('Adiciona ou atualiza uma memória do servidor.')
-               .addStringOption(opt => opt.setName('memoria').setDescription('O fato a ser lembrado sobre o servidor.').setRequired(true).setMaxLength(1000)))
-           .addSubcommand(sub => sub
-               .setName('list')
-               .setDescription('Lista todas as memórias do servidor.'))
-           .addSubcommand(sub => sub
-               .setName('delete')
-               .setDescription('Remove uma memória específica do servidor.')))
+// --- CONSTANTES E CONFIGURAÇÕES ---
+const SESSION_TIMEOUT = 15 * 60 * 1000; // 15 minutos
+const CATEGORIES = {
+    CHATBOT: { id: 'chatbot', name: '🗣️ Chatbot Management', desc: 'Gerenciar blacklist do chatbot' },
+    XP_SYSTEM: { id: 'xp_system', name: '💰 XP System Configuration', desc: 'Configurar XP e multiplicadores' },
+    MESSAGES: { id: 'messages', name: '📢 Message & Channel Settings', desc: 'Mensagens e canais do sistema' },
+    MEMORIES: { id: 'memories', name: '🧠 Memory Management', desc: 'Gerenciar memórias do servidor' },
+    USER_CONTROLS: { id: 'user_controls', name: '👥 Manual User Controls', desc: 'Controles manuais de usuário' }
+};
 
-       // --- GRUPO PARA MENSAGENS DE ENTRADA E SAÍDA ---
-       .addSubcommandGroup(group => group
-           .setName('join_leave_msgs')
-           .setDescription('Gerencia mensagens de boas-vindas e saída do servidor.')
-           .addSubcommand(sub => sub
-               .setName('list')
-               .setDescription('Lista as mensagens configuradas por tipo.')
-               .addStringOption(opt => opt.setName('type').setDescription('Tipo de mensagem para listar.').setRequired(false)
-                   .addChoices(
-                       { name: 'Welcome', value: 'welcome' },
-                       { name: 'Leave', value: 'leave' },
-                       { name: 'Leave (Kick)', value: 'leave_kick' },
-                       { name: 'Leave (Ban)', value: 'leave_ban' }
-                   )))
-           .addSubcommand(sub => sub
-               .setName('set')
-               .setDescription('Define uma mensagem para um tipo específico.')
-               .addStringOption(opt => opt.setName('type').setDescription('Tipo de mensagem.').setRequired(true)
-                   .addChoices(
-                       { name: 'Welcome', value: 'welcome' },
-                       { name: 'Leave', value: 'leave' },
-                       { name: 'Leave (Kick)', value: 'leave_kick' },
-                       { name: 'Leave (Ban)', value: 'leave_ban' }
-                   ))
-               .addStringOption(opt => opt.setName('texto').setDescription('A mensagem ou prompt para a IA (use {@USER}, {USER}, {REASON}).').setRequired(true).setMaxLength(1000))
-               .addBooleanOption(opt => opt.setName('isprompt').setDescription('Define se o texto é um prompt para a IA ou uma mensagem fixa.').setRequired(true)))
-           .addSubcommand(sub => sub
-               .setName('delete')
-               .setDescription('Remove uma mensagem configurada.')
-               .addStringOption(opt => opt.setName('type').setDescription('Tipo de mensagem para remover.').setRequired(true)
-                   .addChoices(
-                       { name: 'Welcome', value: 'welcome' },
-                       { name: 'Leave', value: 'leave' },
-                       { name: 'Leave (Kick)', value: 'leave_kick' },
-                       { name: 'Leave (Ban)', value: 'leave_ban' }
-                   )))
-       ),
+// Mapa de ações para cada categoria
+const CATEGORY_ACTIONS = {
+    [CATEGORIES.CHATBOT.id]: ['add_channel', 'remove_channel', 'list_channels', 'back'],
+    [CATEGORIES.XP_SYSTEM.id]: ['add_channel', 'remove_channel', 'list_channels', 'set_multiplier', 'remove_multiplier', 'list_multipliers', 'back'],
+    [CATEGORIES.MESSAGES.id]: ['set_system_channel', 'clear_system_channel', 'set_role_upgrade', 'delete_role_upgrade', 'list_role_upgrades', 'set_join_leave', 'delete_join_leave', 'list_join_leave', 'back'],
+    [CATEGORIES.MEMORIES.id]: ['list_user_memories', 'add_user_memory', 'list_guild_memories', 'add_guild_memory', 'delete_guild_memory', 'back'],
+    [CATEGORIES.USER_CONTROLS.id]: ['set_user_xp', 'reset_all_xp', 'back']
+};
 
+// --- UTILITÁRIOS ---
 
-  async execute(interaction) {
-       const group = interaction.options.getSubcommandGroup(false);
-        const subcommand = interaction.options.getSubcommand(false);
+/**
+ * Gera ID único para componentes baseado no usuário para isolamento
+ */
+function generateComponentId(userId, type, suffix = '') {
+    return `${type}_${userId}${suffix ? '_' + suffix : ''}`;
+}
 
-        // Defesa extra: garantir que apenas administradores executem /config
-        if (!interaction.memberPermissions?.has(PermissionsBitField.Flags.Administrator)) {
-            return interaction.reply({ content: '⛔ Este comando é restrito a administradores do servidor.', flags: [MessageFlags.Ephemeral] });
+/**
+ * Cria embed principal do dashboard com status atual
+ */
+function createMainDashboardEmbed(guild) {
+    const embed = new EmbedBuilder()
+        .setTitle('⚙️ Vica Configuration Dashboard')
+        .setDescription('Selecione uma categoria abaixo para gerenciar as configurações do bot.')
+        .setColor('#0099FF')
+        .setTimestamp();
+
+    // Status do Chatbot
+    const chatbotChannels = database.chatbotListarCanais(guild.id);
+    embed.addFields({
+        name: '🗣️ Chatbot Management',
+        value: `Canais na blacklist: **${chatbotChannels.length}**`,
+        inline: true
+    });
+
+    // Status do XP System
+    const xpChannels = database.xpListarCanais(guild.id);
+    const multipliers = database.listarMultiplicadoresRole(guild.id);
+    embed.addFields({
+        name: '💰 XP System',
+        value: `Canais bloqueados: **${xpChannels.length}**\nMultiplicadores: **${multipliers.length}**`,
+        inline: true
+    });
+
+    // Status das Mensagens
+    const systemChannel = database.getSystemChannel(guild.id);
+    const roleUpgrades = database.listRoleCongratsConfigs(guild.id);
+    embed.addFields({
+        name: '📢 Messages & Channels',
+        value: `Canal sistema: ${systemChannel ? `<#${systemChannel}>` : '**Não definido**'}\nParabéns por cargo: **${roleUpgrades.length}**`,
+        inline: true
+    });
+
+    // Status das Memórias
+    const guildMemories = database.listarMemoriasGuild(guild.id);
+    embed.addFields({
+        name: '🧠 Memory Management',
+        value: `Memórias do servidor: **${guildMemories.length}**`,
+        inline: true
+    });
+
+    // Status dos Controles de Usuário
+    const totalUsers = database.buscarRank(guild.id, 1000).length;
+    embed.addFields({
+        name: '👥 User Controls',
+        value: `Total de usuários: **${totalUsers}**`,
+        inline: true
+    });
+
+    return embed;
+}
+
+/**
+ * Cria o menu de seleção de categoria
+ */
+function createCategorySelect(userId) {
+    const selectMenu = new StringSelectMenuBuilder()
+        .setCustomId(generateComponentId(userId, 'category_select'))
+        .setPlaceholder('Escolha uma categoria para configurar...');
+
+    Object.values(CATEGORIES).forEach(category => {
+        selectMenu.addOptions({
+            label: category.name,
+            description: category.desc,
+            value: category.id
+        });
+    });
+
+    return new ActionRowBuilder().addComponents(selectMenu);
+}
+
+/**
+ * Cria embed para sub-menu de categoria específica
+ */
+function createCategoryEmbed(categoryId, guild) {
+    const category = Object.values(CATEGORIES).find(cat => cat.id === categoryId);
+    if (!category) return null;
+
+    const embed = new EmbedBuilder()
+        .setTitle(`${category.name}`)
+        .setDescription(`Gerencie as configurações de ${category.name.toLowerCase()}.`)
+        .setColor('#0099FF')
+        .setTimestamp();
+
+    // Adicionar campos específicos baseados na categoria
+    switch (categoryId) {
+        case CATEGORIES.CHATBOT.id:
+            const chatbotChannels = database.chatbotListarCanais(guild.id);
+            embed.addFields({
+                name: '📋 Status Atual',
+                value: `Canais na blacklist: **${chatbotChannels.length}**`
+            });
+            if (chatbotChannels.length > 0) {
+                embed.addFields({
+                    name: '📝 Canais Bloqueados',
+                    value: chatbotChannels.map(c => `- <#${c.canal_id}>`).join('\n') || 'Nenhum canal'
+                });
+            }
+            break;
+
+        case CATEGORIES.XP_SYSTEM.id:
+            const xpChannels = database.xpListarCanais(guild.id);
+            const multipliers = database.listarMultiplicadoresRole(guild.id);
+            embed.addFields({
+                name: '📋 Status Atual',
+                value: `Canais bloqueados: **${xpChannels.length}**\nMultiplicadores: **${multipliers.length}**`
+            });
+            if (xpChannels.length > 0) {
+                embed.addFields({
+                    name: '🚫 Canais sem XP',
+                    value: xpChannels.map(c => `- <#${c.canal_id}>`).join('\n') || 'Nenhum canal'
+                });
+            }
+            if (multipliers.length > 0) {
+                embed.addFields({
+                    name: '✨ Multiplicadores',
+                    value: multipliers.map(m => `- <@&${m.role_id}>: **${m.multiplier}x**`).join('\n') || 'Nenhum multiplicador'
+                });
+            }
+            break;
+
+        case CATEGORIES.MESSAGES.id:
+            const systemChannel = database.getSystemChannel(guild.id);
+            const roleUpgrades = database.listRoleCongratsConfigs(guild.id);
+            embed.addFields({
+                name: '📋 Status Atual',
+                value: `Canal sistema: ${systemChannel ? `<#${systemChannel}>` : '**Não definido**'}\nParabéns por cargo: **${roleUpgrades.length}**`
+            });
+            break;
+
+        case CATEGORIES.MEMORIES.id:
+            const guildMemories = database.listarMemoriasGuild(guild.id);
+            embed.addFields({
+                name: '📋 Status Atual',
+                value: `Memórias do servidor: **${guildMemories.length}**`
+            });
+            break;
+
+        case CATEGORIES.USER_CONTROLS.id:
+            const totalUsers = database.buscarRank(guild.id, 1000).length;
+            embed.addFields({
+                name: '📋 Status Atual',
+                value: `Total de usuários no ranking: **${totalUsers}**`
+            });
+            break;
+    }
+
+    return embed;
+}
+
+/**
+ * Cria botões de ação para uma categoria específica
+ */
+function createCategoryButtons(userId, categoryId) {
+    const actions = CATEGORY_ACTIONS[categoryId] || [];
+    const buttons = [];
+
+    actions.forEach(action => {
+        let button;
+        switch (action) {
+            case 'back':
+                button = new ButtonBuilder()
+                    .setCustomId(generateComponentId(userId, 'back_to_main'))
+                    .setLabel('⬅️ Voltar')
+                    .setStyle(ButtonStyle.Secondary);
+                break;
+            case 'add_channel':
+                button = new ButtonBuilder()
+                    .setCustomId(generateComponentId(userId, `add_channel_${categoryId}`))
+                    .setLabel('➕ Adicionar Canal')
+                    .setStyle(ButtonStyle.Success);
+                break;
+            case 'remove_channel':
+                button = new ButtonBuilder()
+                    .setCustomId(generateComponentId(userId, `remove_channel_${categoryId}`))
+                    .setLabel('➖ Remover Canal')
+                    .setStyle(ButtonStyle.Danger);
+                break;
+            case 'list_channels':
+                button = new ButtonBuilder()
+                    .setCustomId(generateComponentId(userId, `list_channels_${categoryId}`))
+                    .setLabel('📋 Listar Canais')
+                    .setStyle(ButtonStyle.Primary);
+                break;
+            case 'set_multiplier':
+                button = new ButtonBuilder()
+                    .setCustomId(generateComponentId(userId, 'set_multiplier'))
+                    .setLabel('✨ Definir Multiplicador')
+                    .setStyle(ButtonStyle.Success);
+                break;
+            case 'remove_multiplier':
+                button = new ButtonBuilder()
+                    .setCustomId(generateComponentId(userId, 'remove_multiplier'))
+                    .setLabel('❌ Remover Multiplicador')
+                    .setStyle(ButtonStyle.Danger);
+                break;
+            case 'list_multipliers':
+                button = new ButtonBuilder()
+                    .setCustomId(generateComponentId(userId, 'list_multipliers'))
+                    .setLabel('📋 Listar Multiplicadores')
+                    .setStyle(ButtonStyle.Primary);
+                break;
+            case 'set_system_channel':
+                button = new ButtonBuilder()
+                    .setCustomId(generateComponentId(userId, 'set_system_channel'))
+                    .setLabel('🔧 Definir Canal Sistema')
+                    .setStyle(ButtonStyle.Success);
+                break;
+            case 'clear_system_channel':
+                button = new ButtonBuilder()
+                    .setCustomId(generateComponentId(userId, 'clear_system_channel'))
+                    .setLabel('🗑️ Limpar Canal Sistema')
+                    .setStyle(ButtonStyle.Danger);
+                break;
+            case 'set_role_upgrade':
+                button = new ButtonBuilder()
+                    .setCustomId(generateComponentId(userId, 'set_role_upgrade'))
+                    .setLabel('🎉 Configurar Parabéns')
+                    .setStyle(ButtonStyle.Success);
+                break;
+            case 'delete_role_upgrade':
+                button = new ButtonBuilder()
+                    .setCustomId(generateComponentId(userId, 'delete_role_upgrade'))
+                    .setLabel('❌ Remover Parabéns')
+                    .setStyle(ButtonStyle.Danger);
+                break;
+            case 'list_role_upgrades':
+                button = new ButtonBuilder()
+                    .setCustomId(generateComponentId(userId, 'list_role_upgrades'))
+                    .setLabel('📋 Listar Parabéns')
+                    .setStyle(ButtonStyle.Primary);
+                break;
+            case 'set_join_leave':
+                button = new ButtonBuilder()
+                    .setCustomId(generateComponentId(userId, 'set_join_leave'))
+                    .setLabel('📝 Configurar Mensagens')
+                    .setStyle(ButtonStyle.Success);
+                break;
+            case 'delete_join_leave':
+                button = new ButtonBuilder()
+                    .setCustomId(generateComponentId(userId, 'delete_join_leave'))
+                    .setLabel('❌ Remover Mensagens')
+                    .setStyle(ButtonStyle.Danger);
+                break;
+            case 'list_join_leave':
+                button = new ButtonBuilder()
+                    .setCustomId(generateComponentId(userId, 'list_join_leave'))
+                    .setLabel('📋 Listar Mensagens')
+                    .setStyle(ButtonStyle.Primary);
+                break;
+            case 'list_user_memories':
+                button = new ButtonBuilder()
+                    .setCustomId(generateComponentId(userId, 'list_user_memories'))
+                    .setLabel('👤 Memórias de Usuário')
+                    .setStyle(ButtonStyle.Primary);
+                break;
+            case 'add_user_memory':
+                button = new ButtonBuilder()
+                    .setCustomId(generateComponentId(userId, 'add_user_memory'))
+                    .setLabel('➕ Adicionar Memória')
+                    .setStyle(ButtonStyle.Success);
+                break;
+            case 'list_guild_memories':
+                button = new ButtonBuilder()
+                    .setCustomId(generateComponentId(userId, 'list_guild_memories'))
+                    .setLabel('🏠 Memórias do Servidor')
+                    .setStyle(ButtonStyle.Primary);
+                break;
+            case 'add_guild_memory':
+                button = new ButtonBuilder()
+                    .setCustomId(generateComponentId(userId, 'add_guild_memory'))
+                    .setLabel('➕ Memória do Servidor')
+                    .setStyle(ButtonStyle.Success);
+                break;
+            case 'delete_guild_memory':
+                button = new ButtonBuilder()
+                    .setCustomId(generateComponentId(userId, 'delete_guild_memory'))
+                    .setLabel('🗑️ Apagar Memória')
+                    .setStyle(ButtonStyle.Danger);
+                break;
+            case 'set_user_xp':
+                button = new ButtonBuilder()
+                    .setCustomId(generateComponentId(userId, 'set_user_xp'))
+                    .setLabel('⚡ Definir XP')
+                    .setStyle(ButtonStyle.Success);
+                break;
+            case 'reset_all_xp':
+                button = new ButtonBuilder()
+                    .setCustomId(generateComponentId(userId, 'reset_all_xp'))
+                    .setLabel('💥 Resetar Todo XP')
+                    .setStyle(ButtonStyle.Danger);
+                break;
         }
 
-        try {
-            // Lógica para o grupo "blacklist_chatbot"
-            if (group === 'blacklist_chatbot') {
-                const canal = interaction.options.getChannel('canal');
-                if (subcommand === 'add') {
-                    database.chatbotAdicionarCanal(interaction.guild.id, canal.id);
-                    return interaction.reply({ content: `✅ O canal ${canal} foi adicionado à blacklist do **chatbot**.`, flags: [MessageFlags.Ephemeral] });
-                }
-                if (subcommand === 'remove') {
-                    database.chatbotRemoverCanal(interaction.guild.id, canal.id);
-                    return interaction.reply({ content: `👍 O canal ${canal} foi removido da blacklist do **chatbot**.`, flags: [MessageFlags.Ephemeral] });
-                }
-                if (subcommand === 'list') {
-                    const canais = database.chatbotListarCanais(interaction.guild.id);
-                    if (canais.length === 0) return interaction.reply({ content: 'ℹ️ Não há canais na blacklist do chatbot.', flags: [MessageFlags.Ephemeral] });
-                    const lista = canais.map(c => `- <#${c.canal_id}>`).join('\n');
-                    return interaction.reply({ content: `**🚫 Canais na blacklist do chatbot:**\n${lista}`, flags: [MessageFlags.Ephemeral] });
-                }
-            }
+        if (button) buttons.push(button);
+    });
 
-            // Lógica para o grupo "blacklist_xp"
-            if (group === 'blacklist_xp') {
-                const canal = interaction.options.getChannel('canal');
-                if (subcommand === 'add') {
-                    database.xpAdicionarCanal(interaction.guild.id, canal.id);
-                    return interaction.reply({ content: `✅ O canal ${canal} foi adicionado à blacklist de **XP**.`, flags: [MessageFlags.Ephemeral] });
-                }
-                if (subcommand === 'remove') {
-                    database.xpRemoverCanal(interaction.guild.id, canal.id);
-                    return interaction.reply({ content: `👍 O canal ${canal} foi removido da blacklist de **XP**.`, flags: [MessageFlags.Ephemeral] });
-                }
-                if (subcommand === 'list') {
-                    const canais = database.xpListarCanais(interaction.guild.id);
-                    if (canais.length === 0) return interaction.reply({ content: 'ℹ️ Não há canais na blacklist de XP.', flags: [MessageFlags.Ephemeral] });
-                    const lista = canais.map(c => `- <#${c.canal_id}>`).join('\n');
-                    return interaction.reply({ content: `**🚫 Canais onde não se ganha XP:**\n${lista}`, flags: [MessageFlags.Ephemeral] });
-                }
-            }
-
-            // Lógica para o grupo "xp_multipliers"
-            if (group === 'xp_multipliers') {
-                const cargo = interaction.options.getRole('cargo');
-                if (subcommand === 'set') {
-                    const multiplicador = interaction.options.getNumber('multiplicador');
-                    if (multiplicador <= 0) return interaction.reply({ content: '❌ O multiplicador deve ser um número maior que zero.', flags: [MessageFlags.Ephemeral] });
-                    database.definirMultiplicadorRole(interaction.guild.id, cargo.id, multiplicador);
-                    return interaction.reply({ content: `✅ O cargo ${cargo} agora tem um multiplicador de XP de **${multiplicador}x**.`, flags: [MessageFlags.Ephemeral] });
-                }
-                if (subcommand === 'remove') {
-                    database.removerMultiplicadorRole(interaction.guild.id, cargo.id);
-                    return interaction.reply({ content: `👍 O multiplicador de XP do cargo ${cargo} foi removido.`, flags: [MessageFlags.Ephemeral] });
-                }
-                if (subcommand === 'list') {
-                    const multiplicadores = database.listarMultiplicadoresRole(interaction.guild.id);
-                    if (multiplicadores.length === 0) return interaction.reply({ content: 'ℹ️ Não há multiplicadores de XP configurados para cargos.', flags: [MessageFlags.Ephemeral] });
-                    const lista = multiplicadores.map(m => `- <@&${m.role_id}>: **${m.multiplier}x**`).join('\n');
-                    return interaction.reply({ content: `**✨ Multiplicadores de XP por cargo:**\n${lista}`, flags: [MessageFlags.Ephemeral] });
-                }
-            }
-
-            // Lógica para gerenciamento de XP
-            if (group === 'xp_management') {
-                if (subcommand === 'set') {
-                    const usuario = interaction.options.getUser('usuario');
-                    const valor = interaction.options.getInteger('valor');
-                    const nivel = Math.floor(valor / 1000);
-
-                    database.definirXP(interaction.guild.id, usuario.id, valor);
-
-                    return interaction.reply({ content: `✅ O XP de ${usuario} foi definido para **${valor}** (Nível ${nivel}).`, flags: [MessageFlags.Ephemeral] });
-                }
-                if (subcommand === 'reset_all') {
-                    const membrosResetados = database.resetarXP(interaction.guild.id);
-                    return interaction.reply({ content: `💥 **O ranking de XP do servidor foi completamente resetado!** ${membrosResetados} membros foram afetados.`, flags: [MessageFlags.Ephemeral] });
-                }
-            }
-// --- NOVA LÓGICA PARA GERENCIAR CANAIS DO SISTEMA ---
-if (group === 'canais') {
-    if (subcommand === 'set_sistema') {
-        const canal = interaction.options.getChannel('canal');
-        database.setSystemChannel(interaction.guild.id, canal.id);
-        return interaction.reply({ content: `✅ Beleza! De agora em diante, enviarei mensagens de sistema (como level up) no canal ${canal}.`, flags: [MessageFlags.Ephemeral] });
+    // Dividir botões em linhas de até 5 botões
+    const rows = [];
+    for (let i = 0; i < buttons.length; i += 5) {
+        rows.push(new ActionRowBuilder().addComponents(buttons.slice(i, i + 5)));
     }
-    if (subcommand === 'clear_sistema') {
-        // Passando null para limpar a configuração
-        database.setSystemChannel(interaction.guild.id, null);
-        return interaction.reply({ content: `👍 Canal de sistema limpo. As mensagens de sistema voltarão a ser enviadas nos canais onde acontecem.`, flags: [MessageFlags.Ephemeral] });
-    }
+
+    return rows;
 }
 
-// --- SUBCOMANDO RAIZ: list_memories ---
-if (!group && subcommand === 'list_memories') {
-    const usuario = interaction.options.getUser('usuario');
-    const mems = database.listarMemoriasUsuario(interaction.guild.id, usuario.id, 50, 0);
-    if (!mems || mems.length === 0) {
-        // Preferir apelido (displayName) quando possível
-        const member = interaction.guild?.members?.cache?.get(usuario.id) || null;
-        const apelido = member?.displayName || usuario.username;
-        return interaction.reply({ content: `ℹ️ Usuário **${apelido}** ainda não tem memórias de longo prazo salvas!`, flags: [MessageFlags.Ephemeral] });
-    }
-    const lista = mems.map(m => `- ${m.fact}`).join('\n');
-    return interaction.reply({ content: `🧠 Memórias de ${usuario}:\n${lista}`, flags: [MessageFlags.Ephemeral] });
-}
+// --- MANIPULADORES DE INTERAÇÕES ---
 
-// --- SUBCOMANDO RAIZ: add_memories ---
-if (!group && subcommand === 'add_memories') {
-    const usuario = interaction.options.getUser('usuario');
-    const memoria = interaction.options.getString('memoria');
-    if (!memoria || !memoria.trim()) {
-        return interaction.reply({ content: '❌ A memória não pode estar vazia.', flags: [MessageFlags.Ephemeral] });
-    }
-    const r = database.adicionarMemoriaUsuario(
-        interaction.guild.id,
-        usuario.id,
-        memoria.trim(),
-        { sourceMessageId: interaction.id, createdAt: Date.now() }
-    );
-    if (r.duplicate) {
-        return interaction.reply({ content: `ℹ️ Esta memória já existia para ${usuario} e não foi duplicada.`, flags: [MessageFlags.Ephemeral] });
-    }
-    return interaction.reply({ content: `✅ Memória adicionada para ${usuario}.`, flags: [MessageFlags.Ephemeral] });
-}
+/**
+ * Manipula seleção de categoria no menu dropdown
+ */
+async function handleCategorySelect(interaction) {
+    const categoryId = interaction.values[0];
+    const embed = createCategoryEmbed(categoryId, interaction.guild);
+    const buttons = createCategoryButtons(interaction.user.id, categoryId);
 
-// --- LÓGICA PARA ROLE UPGRADE MSGS ---
-if (group === 'role_upgrade_msgs') {
-    if (subcommand === 'set') {
-        const cargo = interaction.options.getRole('cargo');
-        const prompt = interaction.options.getString('prompt');
-
-        if (!prompt || !prompt.trim()) {
-            return interaction.reply({ content: '❌ O prompt não pode estar vazio.', flags: [MessageFlags.Ephemeral] });
-        }
-        const trimmed = prompt.trim();
-        if (trimmed.length < 5) return interaction.reply({ content: '❌ O prompt é muito curto — escreva pelo menos 5 caracteres.', flags: [MessageFlags.Ephemeral] });
-        if (trimmed.length > 500) return interaction.reply({ content: '❌ O prompt é muito longo — máximo de 500 caracteres.', flags: [MessageFlags.Ephemeral] });
-
-        // Detect if we're updating an existing entry for this role
-        const existing = database.listRoleCongratsConfigs(interaction.guild.id).find(c => c.roleId === cargo.id);
-        const wasUpdate = !!existing;
-
-        database.setRoleCongratsConfig(interaction.guild.id, cargo.id, trimmed);
-
-        const total = database.listRoleCongratsConfigs(interaction.guild.id).length;
-
+    if (!embed) {
         return interaction.reply({
-            content: `✅ Configuração ${wasUpdate ? 'atualizada' : 'salva'}! Quando alguém receber o cargo ${cargo}, enviarei uma mensagem de parabéns usando o prompt informado. Use \`{USER}\` no prompt para mencionar o nome do usuário.\n\nℹ️ Agora existem **${total}** configurações de parabéns por cargo neste servidor.`,
+            content: '❌ Categoria não encontrada.',
             flags: [MessageFlags.Ephemeral]
         });
     }
 
-    if (subcommand === 'delete') {
-        // Allow optional role argument to clear only one; if none provided, clear all
-        const roleToClear = interaction.options.getRole('cargo');
-        if (roleToClear) {
-            database.clearRoleCongratsConfig(interaction.guild.id, roleToClear.id);
-            return interaction.reply({ content: `👍 Configuração de parabéns para o cargo ${roleToClear} foi removida.`, flags: [MessageFlags.Ephemeral] });
-        }
-        database.clearRoleCongratsConfig(interaction.guild.id);
-        return interaction.reply({ content: `👍 Todas as configurações de parabéns por cargo foram limpas.`, flags: [MessageFlags.Ephemeral] });
+    await interaction.update({
+        embeds: [embed],
+        components: buttons
+    });
+}
+
+/**
+ * Manipula clique em botões
+ */
+async function handleButtonClick(interaction) {
+    const customId = interaction.customId;
+    const userId = interaction.user.id;
+
+    // Botão de voltar ao menu principal
+    if (customId === generateComponentId(userId, 'back_to_main')) {
+        const embed = createMainDashboardEmbed(interaction.guild);
+        const selectMenu = createCategorySelect(userId);
+
+        return interaction.update({
+            embeds: [embed],
+            components: [selectMenu]
+        });
     }
 
-    if (subcommand === 'list') {
-        const configs = database.listRoleCongratsConfigs(interaction.guild.id);
-        if (!configs || configs.length === 0) {
-            return interaction.reply({ content: 'ℹ️ Não há configuração de parabéns por cargo definida para este servidor.', flags: [MessageFlags.Ephemeral] });
+    // Manipular ações específicas de cada categoria
+    const categoryId = customId.split('_').pop(); // Extrair categoria do ID
+    const action = customId.replace(`_${userId}_`, '').replace(`_${categoryId}`, '').replace(`${userId}_`, '');
+
+    switch (action) {
+        case 'add_channel':
+            await handleAddChannel(interaction, categoryId);
+            break;
+        case 'remove_channel':
+            await handleRemoveChannel(interaction, categoryId);
+            break;
+        case 'list_channels':
+            await handleListChannels(interaction, categoryId);
+            break;
+        case 'set_multiplier':
+            await handleSetMultiplier(interaction);
+            break;
+        case 'remove_multiplier':
+            await handleRemoveMultiplier(interaction);
+            break;
+        case 'list_multipliers':
+            await handleListMultipliers(interaction);
+            break;
+        case 'set_system_channel':
+            await handleSetSystemChannel(interaction);
+            break;
+        case 'clear_system_channel':
+            await handleClearSystemChannel(interaction);
+            break;
+        case 'set_role_upgrade':
+            await handleSetRoleUpgrade(interaction);
+            break;
+        case 'delete_role_upgrade':
+            await handleDeleteRoleUpgrade(interaction);
+            break;
+        case 'list_role_upgrades':
+            await handleListRoleUpgrades(interaction);
+            break;
+        case 'set_join_leave':
+            await handleSetJoinLeave(interaction);
+            break;
+        case 'delete_join_leave':
+            await handleDeleteJoinLeave(interaction);
+            break;
+        case 'list_join_leave':
+            await handleListJoinLeave(interaction);
+            break;
+        case 'list_user_memories':
+            await handleListUserMemories(interaction);
+            break;
+        case 'add_user_memory':
+            await handleAddUserMemory(interaction);
+            break;
+        case 'list_guild_memories':
+            await handleListGuildMemories(interaction);
+            break;
+        case 'add_guild_memory':
+            await handleAddGuildMemory(interaction);
+            break;
+        case 'delete_guild_memory':
+            await handleDeleteGuildMemory(interaction);
+            break;
+        case 'set_user_xp':
+            await handleSetUserXP(interaction);
+            break;
+        case 'reset_all_xp':
+            await handleResetAllXP(interaction);
+            break;
+        default:
+            await interaction.reply({
+                content: '❌ Ação não reconhecida.',
+                flags: [MessageFlags.Ephemeral]
+            });
+    }
+}
+
+// --- HANDLERS PARA AÇÕES ESPECÍFICAS ---
+
+/**
+ * Manipula adição de canal à blacklist
+ */
+async function handleAddChannel(interaction, categoryId) {
+    const channels = interaction.guild.channels.cache
+        .filter(c => c.type === ChannelType.GuildText)
+        .map(c => ({
+            label: c.name,
+            value: c.id,
+            description: `ID: ${c.id}`
+        }));
+
+    if (channels.length === 0) {
+        return interaction.reply({
+            content: '❌ Nenhum canal de texto encontrado no servidor.',
+            flags: [MessageFlags.Ephemeral]
+        });
+    }
+
+    const selectMenu = new StringSelectMenuBuilder()
+        .setCustomId(generateComponentId(interaction.user.id, `add_channel_select_${categoryId}`))
+        .setPlaceholder('Selecione um canal para adicionar')
+        .addOptions(channels.slice(0, 25));
+
+    const row = new ActionRowBuilder().addComponents(selectMenu);
+
+    const reply = await interaction.reply({
+        content: `Selecione o canal para adicionar à blacklist de ${categoryId === CATEGORIES.CHATBOT.id ? 'chatbot' : 'XP'}:`,
+        components: [row],
+        flags: [MessageFlags.Ephemeral]
+    });
+
+    const collector = reply.createMessageComponentCollector({
+        componentType: ComponentType.StringSelect,
+        time: 60000
+    });
+
+    collector.on('collect', i => {
+        if (i.user.id !== interaction.user.id) {
+            return i.reply({ content: '⛔ Apenas quem executou o comando pode interagir aqui.', ephemeral: true });
         }
 
-        const lines = configs.map(c => {
-            const role = interaction.guild.roles.cache.get(c.roleId);
-            const roleMention = role ? role.toString() : `<@&${c.roleId}> (cargo não encontrado)`;
-            const prompt = c.prompt.length > 300 ? c.prompt.slice(0, 297) + '...' : c.prompt;
-            return `**${roleMention}** — ${prompt}`;
+        const channelId = i.values[0];
+        let changes = 0;
+
+        if (categoryId === CATEGORIES.CHATBOT.id) {
+            changes = database.chatbotAdicionarCanal(interaction.guild.id, channelId);
+        } else if (categoryId === CATEGORIES.XP_SYSTEM.id) {
+            changes = database.xpAdicionarCanal(interaction.guild.id, channelId);
+        }
+
+        const channel = interaction.guild.channels.cache.get(channelId);
+        const type = categoryId === CATEGORIES.CHATBOT.id ? 'chatbot' : 'XP';
+
+        if (changes > 0) {
+            i.update({
+                content: `✅ O canal ${channel} foi adicionado à blacklist de **${type}**.`,
+                components: []
+            });
+        } else {
+            i.update({
+                content: `⚠️ O canal ${channel} já estava na blacklist de **${type}**.`,
+                components: []
+            });
+        }
+    });
+
+    collector.on('end', collected => {
+        if (collected.size === 0) {
+            interaction.editReply({ content: '⏰ O tempo para selecionar um canal expirou.', components: [] });
+        }
+    });
+}
+
+/**
+ * Manipula remoção de canal da blacklist
+ */
+async function handleRemoveChannel(interaction, categoryId) {
+    let channels = [];
+
+    if (categoryId === CATEGORIES.CHATBOT.id) {
+        channels = database.chatbotListarCanais(interaction.guild.id);
+    } else if (categoryId === CATEGORIES.XP_SYSTEM.id) {
+        channels = database.xpListarCanais(interaction.guild.id);
+    }
+
+    if (channels.length === 0) {
+        return interaction.reply({
+            content: `ℹ️ Nenhum canal encontrado na blacklist de ${categoryId === CATEGORIES.CHATBOT.id ? 'chatbot' : 'XP'}.`,
+            flags: [MessageFlags.Ephemeral]
+        });
+    }
+
+    const options = channels.map(c => {
+        const channel = interaction.guild.channels.cache.get(c.canal_id);
+        return {
+            label: channel ? channel.name : `ID: ${c.canal_id}`,
+            value: c.canal_id,
+            description: channel ? `ID: ${c.canal_id}` : 'Canal não encontrado'
+        };
+    });
+
+    const selectMenu = new StringSelectMenuBuilder()
+        .setCustomId(generateComponentId(interaction.user.id, `remove_channel_select_${categoryId}`))
+        .setPlaceholder('Selecione um canal para remover')
+        .addOptions(options.slice(0, 25));
+
+    const row = new ActionRowBuilder().addComponents(selectMenu);
+
+    const reply = await interaction.reply({
+        content: `Selecione o canal para remover da blacklist de ${categoryId === CATEGORIES.CHATBOT.id ? 'chatbot' : 'XP'}:`,
+        components: [row],
+        flags: [MessageFlags.Ephemeral]
+    });
+
+    const collector = reply.createMessageComponentCollector({
+        componentType: ComponentType.StringSelect,
+        time: 60000
+    });
+
+    collector.on('collect', i => {
+        if (i.user.id !== interaction.user.id) {
+            return i.reply({ content: '⛔ Apenas quem executou o comando pode interagir aqui.', ephemeral: true });
+        }
+
+        const channelId = i.values[0];
+        let changes = 0;
+
+        if (categoryId === CATEGORIES.CHATBOT.id) {
+            changes = database.chatbotRemoverCanal(interaction.guild.id, channelId);
+        } else if (categoryId === CATEGORIES.XP_SYSTEM.id) {
+            changes = database.xpRemoverCanal(interaction.guild.id, channelId);
+        }
+
+        const channel = interaction.guild.channels.cache.get(channelId);
+        const type = categoryId === CATEGORIES.CHATBOT.id ? 'chatbot' : 'XP';
+
+        if (changes > 0) {
+            i.update({
+                content: `👍 O canal ${channel || `ID: ${channelId}`} foi removido da blacklist de **${type}**.`,
+                components: []
+            });
+        } else {
+            i.update({
+                content: `⚠️ O canal ${channel || `ID: ${channelId}`} não estava na blacklist de **${type}**.`,
+                components: []
+            });
+        }
+    });
+
+    collector.on('end', collected => {
+        if (collected.size === 0) {
+            interaction.editReply({ content: '⏰ O tempo para selecionar um canal expirou.', components: [] });
+        }
+    });
+}
+
+/**
+ * Manipula listagem de canais na blacklist
+ */
+async function handleListChannels(interaction, categoryId) {
+    let channels = [];
+    let title = '';
+
+    switch (categoryId) {
+        case CATEGORIES.CHATBOT.id:
+            channels = database.chatbotListarCanais(interaction.guild.id);
+            title = '🚫 Canais na Blacklist do Chatbot';
+            break;
+        case CATEGORIES.XP_SYSTEM.id:
+            channels = database.xpListarCanais(interaction.guild.id);
+            title = '🚫 Canais sem XP';
+            break;
+        default:
+            return interaction.reply({
+                content: '❌ Categoria não suportada para listagem de canais.',
+                flags: [MessageFlags.Ephemeral]
+            });
+    }
+
+    if (channels.length === 0) {
+        return interaction.reply({
+            content: `ℹ️ Nenhum canal encontrado na blacklist para ${categoryId}.`,
+            flags: [MessageFlags.Ephemeral]
+        });
+    }
+
+    const lista = channels.map(c => `- <#${c.canal_id}>`).join('\n');
+
+    await interaction.reply({
+        content: `**${title}:**\n${lista}`,
+        flags: [MessageFlags.Ephemeral]
+    });
+}
+
+/**
+ * Manipula definição de multiplicador de XP
+ */
+async function handleSetMultiplier(interaction) {
+    const roles = interaction.guild.roles.cache
+        .filter(r => r.id !== interaction.guild.id) // Exclui @everyone
+        .map(r => ({
+            label: r.name,
+            value: r.id,
+            description: `ID: ${r.id}`
+        }));
+
+    if (roles.length === 0) {
+        return interaction.reply({
+            content: '❌ Nenhum cargo encontrado no servidor.',
+            flags: [MessageFlags.Ephemeral]
+        });
+    }
+
+    const selectMenu = new StringSelectMenuBuilder()
+        .setCustomId(generateComponentId(interaction.user.id, 'set_multiplier_role_select'))
+        .setPlaceholder('Selecione um cargo para definir multiplicador')
+        .addOptions(roles.slice(0, 25));
+
+    const row = new ActionRowBuilder().addComponents(selectMenu);
+
+    const reply = await interaction.reply({
+        content: 'Selecione o cargo para definir o multiplicador de XP:',
+        components: [row],
+        flags: [MessageFlags.Ephemeral]
+    });
+
+    const collector = reply.createMessageComponentCollector({
+        componentType: ComponentType.StringSelect,
+        time: 60000
+    });
+
+    collector.on('collect', async i => {
+        if (i.user.id !== interaction.user.id) {
+            return i.reply({ content: '⛔ Apenas quem executou o comando pode interagir aqui.', ephemeral: true });
+        }
+
+        const roleId = i.values[0];
+        const role = interaction.guild.roles.cache.get(roleId);
+
+        // Criar modal para input do multiplicador
+        const modal = new ModalBuilder()
+            .setCustomId(generateComponentId(interaction.user.id, `set_multiplier_modal_${roleId}`))
+            .setTitle(`Definir Multiplicador para ${role.name}`);
+
+        const multiplierInput = new TextInputBuilder()
+            .setCustomId('multiplier_value')
+            .setLabel('Multiplicador de XP (ex: 1.5 para 50% bônus)')
+            .setPlaceholder('Digite um número maior que 0 (ex: 1.5)')
+            .setStyle(TextInputStyle.Short)
+            .setRequired(true)
+            .setMinLength(1)
+            .setMaxLength(10);
+
+        const firstActionRow = new ActionRowBuilder().addComponents(multiplierInput);
+        modal.addComponents(firstActionRow);
+
+        await i.showModal(modal);
+    });
+
+    collector.on('end', collected => {
+        if (collected.size === 0) {
+            interaction.editReply({ content: '⏰ O tempo para selecionar um cargo expirou.', components: [] });
+        }
+    });
+}
+
+/**
+ * Manipula remoção de multiplicador de XP
+ */
+async function handleRemoveMultiplier(interaction) {
+    await interaction.reply({
+        content: 'Funcionalidade de remover multiplicador - Implementação pendente',
+        flags: [MessageFlags.Ephemeral]
+    });
+}
+
+/**
+ * Manipula listagem de multiplicadores de XP
+ */
+async function handleListMultipliers(interaction) {
+    const multipliers = database.listarMultiplicadoresRole(interaction.guild.id);
+
+    if (multipliers.length === 0) {
+        return interaction.reply({
+            content: 'ℹ️ Nenhum multiplicador de XP configurado.',
+            flags: [MessageFlags.Ephemeral]
+        });
+    }
+
+    const lista = multipliers.map(m => `- <@&${m.role_id}>: **${m.multiplier}x**`).join('\n');
+
+    await interaction.reply({
+        content: `**✨ Multiplicadores de XP por cargo:**\n${lista}`,
+        flags: [MessageFlags.Ephemeral]
+    });
+}
+
+/**
+ * Manipula definição de canal do sistema
+ */
+async function handleSetSystemChannel(interaction) {
+    const channels = interaction.guild.channels.cache
+        .filter(c => c.type === ChannelType.GuildText)
+        .map(c => ({
+            label: c.name,
+            value: c.id,
+            description: `ID: ${c.id}`
+        }));
+
+    if (channels.length === 0) {
+        return interaction.reply({
+            content: '❌ Nenhum canal de texto encontrado no servidor.',
+            flags: [MessageFlags.Ephemeral]
+        });
+    }
+
+    const selectMenu = new StringSelectMenuBuilder()
+        .setCustomId(generateComponentId(interaction.user.id, 'set_system_channel_select'))
+        .setPlaceholder('Selecione um canal para mensagens do sistema')
+        .addOptions(channels.slice(0, 25));
+
+    const row = new ActionRowBuilder().addComponents(selectMenu);
+
+    const reply = await interaction.reply({
+        content: 'Selecione o canal onde as mensagens de sistema (como level up) serão enviadas:',
+        components: [row],
+        flags: [MessageFlags.Ephemeral]
+    });
+
+    const collector = reply.createMessageComponentCollector({
+        componentType: ComponentType.StringSelect,
+        time: 60000
+    });
+
+    collector.on('collect', i => {
+        if (i.user.id !== interaction.user.id) {
+            return i.reply({ content: '⛔ Apenas quem executou o comando pode interagir aqui.', ephemeral: true });
+        }
+
+        const channelId = i.values[0];
+        const changes = database.setSystemChannel(interaction.guild.id, channelId);
+
+        const channel = interaction.guild.channels.cache.get(channelId);
+
+        if (changes > 0) {
+            i.update({
+                content: `✅ Beleza! De agora em diante, enviarei mensagens de sistema no canal ${channel}.`,
+                components: []
+            });
+        } else {
+            i.update({
+                content: `⚠️ O canal ${channel} já estava definido como canal de sistema.`,
+                components: []
+            });
+        }
+    });
+
+    collector.on('end', collected => {
+        if (collected.size === 0) {
+            interaction.editReply({ content: '⏰ O tempo para selecionar um canal expirou.', components: [] });
+        }
+    });
+}
+
+/**
+ * Manipula limpeza do canal do sistema
+ */
+async function handleClearSystemChannel(interaction) {
+    const changes = database.setSystemChannel(interaction.guild.id, null);
+
+    if (changes > 0) {
+        await interaction.reply({
+            content: '✅ Canal de sistema limpo com sucesso! As mensagens voltarão aos canais originais.',
+            flags: [MessageFlags.Ephemeral]
+        });
+    } else {
+        await interaction.reply({
+            content: 'ℹ️ Nenhum canal de sistema estava configurado.',
+            flags: [MessageFlags.Ephemeral]
+        });
+    }
+}
+
+/**
+ * Manipula submissões de modais
+ */
+async function handleModalSubmit(interaction) {
+    const customId = interaction.customId;
+    const userId = interaction.user.id;
+
+    if (customId.includes('set_multiplier_modal_')) {
+        // Manipular modal de multiplicador
+        const roleId = customId.split('_').pop();
+        const multiplierValue = interaction.fields.getTextInputValue('multiplier_value');
+
+        const multiplier = parseFloat(multiplierValue);
+        if (isNaN(multiplier) || multiplier <= 0) {
+            return interaction.reply({
+                content: '❌ O multiplicador deve ser um número maior que zero.',
+                flags: [MessageFlags.Ephemeral]
+            });
+        }
+
+        const changes = database.definirMultiplicadorRole(interaction.guild.id, roleId, multiplier);
+        const role = interaction.guild.roles.cache.get(roleId);
+
+        if (changes > 0) {
+            await interaction.reply({
+                content: `✅ O cargo ${role} agora tem um multiplicador de XP de **${multiplier}x**.`,
+                flags: [MessageFlags.Ephemeral]
+            });
+        } else {
+            await interaction.reply({
+                content: `⚠️ O multiplicador do cargo ${role} foi atualizado para **${multiplier}x**.`,
+                flags: [MessageFlags.Ephemeral]
+            });
+        }
+
+    } else if (customId.includes('set_role_upgrade_modal_')) {
+        // Manipular modal de parabéns por cargo
+        const roleId = customId.split('_').pop();
+        const prompt = interaction.fields.getTextInputValue('role_upgrade_prompt');
+
+        if (!prompt || !prompt.trim()) {
+            return interaction.reply({
+                content: '❌ O prompt não pode estar vazio.',
+                flags: [MessageFlags.Ephemeral]
+            });
+        }
+
+        const trimmed = prompt.trim();
+        if (trimmed.length < 5) {
+            return interaction.reply({
+                content: '❌ O prompt é muito curto — escreva pelo menos 5 caracteres.',
+                flags: [MessageFlags.Ephemeral]
+            });
+        }
+
+        // Detect if we're updating an existing entry for this role
+        const existing = database.listRoleCongratsConfigs(interaction.guild.id).find(c => c.roleId === roleId);
+        const wasUpdate = !!existing;
+
+        database.setRoleCongratsConfig(interaction.guild.id, roleId, trimmed);
+        const role = interaction.guild.roles.cache.get(roleId);
+
+        const total = database.listRoleCongratsConfigs(interaction.guild.id).length;
+
+        await interaction.reply({
+            content: `✅ Configuração ${wasUpdate ? 'atualizada' : 'salva'}! Quando alguém receber o cargo ${role}, enviarei uma mensagem de parabéns usando o prompt informado. Use \`{USER}\` no prompt para mencionar o nome do usuário.\n\nℹ️ Agora existem **${total}** configurações de parabéns por cargo neste servidor.`,
+            flags: [MessageFlags.Ephemeral]
         });
 
-        return interaction.reply({ content: `**🎉 Configurações de parabéns por cargo:**\n${lines.join('\n')}`, flags: [MessageFlags.Ephemeral] });
+    } else if (customId.includes('set_user_memory_modal_')) {
+        // Manipular modal de memória de usuário
+        const userIdToAdd = customId.split('_').pop();
+        const memory = interaction.fields.getTextInputValue('user_memory');
+
+        if (!memory || !memory.trim()) {
+            return interaction.reply({
+                content: '❌ A memória não pode estar vazia.',
+                flags: [MessageFlags.Ephemeral]
+            });
+        }
+
+        const result = database.adicionarMemoriaUsuario(
+            interaction.guild.id,
+            userIdToAdd,
+            memory.trim(),
+            { sourceMessageId: interaction.id, createdAt: Date.now() }
+        );
+
+        const user = await interaction.guild.members.fetch(userIdToAdd);
+
+        if (result.duplicate) {
+            await interaction.reply({
+                content: `ℹ️ Esta memória já existia para ${user} e não foi duplicada.`,
+                flags: [MessageFlags.Ephemeral]
+            });
+        } else {
+            await interaction.reply({
+                content: `✅ Memória adicionada para ${user}.`,
+                flags: [MessageFlags.Ephemeral]
+            });
+        }
+
+    } else if (customId.includes('add_guild_memory_modal')) {
+        // Manipular modal de memória da guild
+        const memory = interaction.fields.getTextInputValue('guild_memory');
+
+        if (!memory || !memory.trim()) {
+            return interaction.reply({
+                content: '❌ A memória não pode estar vazia.',
+                flags: [MessageFlags.Ephemeral]
+            });
+        }
+
+        database.adicionarMemoriaGuild(interaction.guild.id, memory.trim());
+
+        await interaction.reply({
+            content: '✅ Memória do servidor salva com sucesso!',
+            flags: [MessageFlags.Ephemeral]
+        });
+
+    } else if (customId.includes('set_user_xp_modal_')) {
+        // Manipular modal de definição de XP
+        const userIdToSet = customId.split('_').pop();
+        const xpValue = interaction.fields.getTextInputValue('user_xp_value');
+
+        const xp = parseInt(xpValue);
+        if (isNaN(xp) || xp < 0) {
+            return interaction.reply({
+                content: '❌ O valor de XP deve ser um número inteiro maior ou igual a zero.',
+                flags: [MessageFlags.Ephemeral]
+            });
+        }
+
+        const level = Math.floor(xp / 1000);
+        database.definirXP(interaction.guild.id, userIdToSet, xp);
+        const user = await interaction.guild.members.fetch(userIdToSet);
+
+        await interaction.reply({
+            content: `✅ O XP de ${user} foi definido para **${xp}** (Nível ${level}).`,
+            flags: [MessageFlags.Ephemeral]
+        });
     }
 }
 
-// --- LÓGICA PARA GUILD MEMORIES ---
-if (group === 'guild_memories') {
-   if (subcommand === 'set') {
-       const memoria = interaction.options.getString('memoria');
-       database.adicionarMemoriaGuild(interaction.guild.id, memoria.trim());
-       return interaction.reply({ content: '✅ Memória do servidor salva com sucesso!', flags: [MessageFlags.Ephemeral] });
-   }
+/**
+ * Manipula configuração de parabéns por cargo
+ */
+async function handleSetRoleUpgrade(interaction) {
+    const roles = interaction.guild.roles.cache
+        .filter(r => r.id !== interaction.guild.id) // Exclui @everyone
+        .map(r => ({
+            label: r.name,
+            value: r.id,
+            description: `ID: ${r.id}`
+        }));
 
-   if (subcommand === 'list') {
-       const mems = database.listarMemoriasGuild(interaction.guild.id);
-       if (!mems || mems.length === 0) {
-           return interaction.reply({ content: 'ℹ️ O servidor ainda não possui memórias de longo prazo.', flags: [MessageFlags.Ephemeral] });
-       }
-       const lista = mems.map((m, i) => `${i + 1}. \`${m.fact.slice(0, 150)}\``).join('\n');
-       return interaction.reply({ content: `**🧠 Memórias do Servidor:**\n${lista}`, flags: [MessageFlags.Ephemeral] });
-   }
+    if (roles.length === 0) {
+        return interaction.reply({
+            content: '❌ Nenhum cargo encontrado no servidor.',
+            flags: [MessageFlags.Ephemeral]
+        });
+    }
 
-   if (subcommand === 'delete') {
-       const mems = database.listarMemoriasGuild(interaction.guild.id);
-       if (!mems || mems.length === 0) {
-           return interaction.reply({ content: 'ℹ️ Não há memórias para remover.', flags: [MessageFlags.Ephemeral] });
-       }
+    const selectMenu = new StringSelectMenuBuilder()
+        .setCustomId(generateComponentId(interaction.user.id, 'set_role_upgrade_select'))
+        .setPlaceholder('Selecione um cargo para parabéns')
+        .addOptions(roles.slice(0, 25));
 
-       const options = mems.map(m => ({
-           label: m.fact.slice(0, 100), // Limita o label para 100 caracteres
-           value: m.id.toString(),
-           description: `ID: ${m.id}`
-       }));
+    const row = new ActionRowBuilder().addComponents(selectMenu);
 
-       const selectMenu = new StringSelectMenuBuilder()
-           .setCustomId('delete_guild_memory')
-           .setPlaceholder('Selecione uma memória para apagar')
-           .addOptions(options.slice(0, 25)); // Limita a 25 opções por menu
+    const reply = await interaction.reply({
+        content: 'Selecione o cargo que ativará os parabéns automáticos:',
+        components: [row],
+        flags: [MessageFlags.Ephemeral]
+    });
 
-       const row = new ActionRowBuilder().addComponents(selectMenu);
+    const collector = reply.createMessageComponentCollector({
+        componentType: ComponentType.StringSelect,
+        time: 60000
+    });
 
-       const reply = await interaction.reply({
-           content: 'Selecione a memória do servidor que você deseja apagar:',
-           components: [row],
-           flags: [MessageFlags.Ephemeral]
-       });
+    collector.on('collect', async i => {
+        if (i.user.id !== interaction.user.id) {
+            return i.reply({ content: '⛔ Apenas quem executou o comando pode interagir aqui.', ephemeral: true });
+        }
 
-       const collector = reply.createMessageComponentCollector({
-           componentType: ComponentType.StringSelect,
-           time: 60000 // 60 segundos
-       });
+        const roleId = i.values[0];
+        const role = interaction.guild.roles.cache.get(roleId);
 
-       collector.on('collect', i => {
-           if (i.user.id !== interaction.user.id) {
-               return i.reply({ content: '⛔ Apenas quem executou o comando pode interagir aqui.', ephemeral: true });
-           }
-           
-           const memoryId = parseInt(i.values[0], 10);
-           const changes = database.removerMemoriaGuild(interaction.guild.id, memoryId);
+        // Criar modal para input do prompt
+        const modal = new ModalBuilder()
+            .setCustomId(generateComponentId(interaction.user.id, `set_role_upgrade_modal_${roleId}`))
+            .setTitle(`Configurar Parabéns para ${role.name}`);
 
-           if (changes > 0) {
-               i.update({ content: '✅ Memória removida com sucesso!', components: [] });
-           } else {
-               i.update({ content: '⚠️ A memória não foi encontrada ou já havia sido removida.', components: [] });
-           }
-       });
+        const promptInput = new TextInputBuilder()
+            .setCustomId('role_upgrade_prompt')
+            .setLabel('Prompt para a IA (use {USER} para o nome do usuário)')
+            .setPlaceholder('Ex: Parabéns {USER} por alcançar o cargo de {ROLE}!')
+            .setStyle(TextInputStyle.Paragraph)
+            .setRequired(true)
+            .setMinLength(5)
+            .setMaxLength(500);
 
-       collector.on('end', collected => {
-           if (collected.size === 0) {
-               interaction.editReply({ content: '⏰ O tempo para selecionar uma memória expirou.', components: [] });
-           }
-       });
-       return;
-   }
+        const firstActionRow = new ActionRowBuilder().addComponents(promptInput);
+        modal.addComponents(firstActionRow);
+
+        await i.showModal(modal);
+    });
+
+    collector.on('end', collected => {
+        if (collected.size === 0) {
+            interaction.editReply({ content: '⏰ O tempo para selecionar um cargo expirou.', components: [] });
+        }
+    });
 }
 
-// --- LÓGICA PARA MENSAGENS DE ENTRADA E SAÍDA ---
- if (group === 'join_leave_msgs') {
-     const type = interaction.options.getString('type');
-     const texto = interaction.options.getString('texto');
-     const isPrompt = interaction.options.getBoolean('isprompt');
+/**
+ * Manipula remoção de parabéns por cargo
+ */
+async function handleDeleteRoleUpgrade(interaction) {
+    await interaction.reply({
+        content: 'Funcionalidade de remover parabéns - Implementação pendente',
+        flags: [MessageFlags.Ephemeral]
+    });
+}
 
-     if (subcommand === 'list') {
-         const typeNames = {
-             'welcome': 'Welcome',
-             'leave': 'Leave',
-             'leave_kick': 'Leave (Kick)',
-             'leave_ban': 'Leave (Ban)'
-         };
+/**
+ * Manipula listagem de parabéns por cargo
+ */
+async function handleListRoleUpgrades(interaction) {
+    const configs = database.listRoleCongratsConfigs(interaction.guild.id);
 
-         if (type) {
-             // List specific type
-             const msg = database.getMessageByType(interaction.guild.id, type);
-             console.log(`[CONFIG] Checking specific type ${type}:`, msg); // Debug log
-             if (!msg || !msg.message) {
-                 return interaction.reply({
-                     content: `ℹ️ Nenhuma mensagem configurada para **${typeNames[type]}**.`,
-                     flags: [MessageFlags.Ephemeral]
-                 });
-             }
+    if (!configs || configs.length === 0) {
+        return interaction.reply({
+            content: 'ℹ️ Nenhuma configuração de parabéns por cargo encontrada.',
+            flags: [MessageFlags.Ephemeral]
+        });
+    }
 
-             const typeDisplay = msg.isPrompt ? 'Prompt para IA' : 'Mensagem fixa';
-             const preview = msg.message.length > 200 ? msg.message.slice(0, 197) + '...' : msg.message;
+    const lines = configs.map(c => {
+        const role = interaction.guild.roles.cache.get(c.roleId);
+        const roleMention = role ? role.toString() : `<@&${c.roleId}> (cargo não encontrado)`;
+        const prompt = c.prompt.length > 300 ? c.prompt.slice(0, 297) + '...' : c.prompt;
+        return `**${roleMention}** — ${prompt}`;
+    });
 
-             return interaction.reply({
-                 content: `**📋 ${typeNames[type]}**\n**Tipo:** ${typeDisplay}\n**Conteúdo:** ${preview}`,
-                 flags: [MessageFlags.Ephemeral]
-             });
-         } else {
-             // List all types
-             const messages = [];
-             for (const [key, name] of Object.entries(typeNames)) {
-                 const msg = database.getMessageByType(interaction.guild.id, key);
-                 console.log(`[CONFIG] Checking type ${key}:`, msg); // Debug log
-                 if (msg && msg.message) {
-                     const status = msg.isPrompt ? '🤖 Prompt' : '📝 Fixa';
-                     const preview = msg.message.length > 50 ? msg.message.slice(0, 47) + '...' : msg.message;
-                     messages.push(`**${name}:** ${status} - ${preview}`);
-                 } else {
-                     messages.push(`**${name}:** ❌ Não configurada`);
-                 }
-             }
+    await interaction.reply({
+        content: `**🎉 Configurações de parabéns por cargo:**\n${lines.join('\n')}`,
+        flags: [MessageFlags.Ephemeral]
+    });
+}
 
-             if (messages.length === 0) {
-                 return interaction.reply({
-                     content: 'ℹ️ Nenhuma mensagem configurada para este servidor.',
-                     flags: [MessageFlags.Ephemeral]
-                 });
-             }
+/**
+ * Manipula configuração de mensagens de entrada/saída
+ */
+async function handleSetJoinLeave(interaction) {
+    await interaction.reply({
+        content: 'Funcionalidade de configurar mensagens - Implementação pendente',
+        flags: [MessageFlags.Ephemeral]
+    });
+}
 
-             return interaction.reply({
-                 content: `**📋 Configurações de Mensagens:**\n${messages.join('\n')}`,
-                 flags: [MessageFlags.Ephemeral]
-             });
-         }
-     }
+/**
+ * Manipula remoção de mensagens de entrada/saída
+ */
+async function handleDeleteJoinLeave(interaction) {
+    await interaction.reply({
+        content: 'Funcionalidade de remover mensagens - Implementação pendente',
+        flags: [MessageFlags.Ephemeral]
+    });
+}
 
-     if (subcommand === 'set') {
-         if (!texto || !texto.trim()) {
-             return interaction.reply({
-                 content: '❌ O texto da mensagem não pode estar vazio.',
-                 flags: [MessageFlags.Ephemeral]
-             });
-         }
+/**
+ * Manipula listagem de mensagens de entrada/saída
+ */
+async function handleListJoinLeave(interaction) {
+    const typeNames = {
+        'welcome': 'Welcome',
+        'leave': 'Leave',
+        'leave_kick': 'Leave (Kick)',
+        'leave_ban': 'Leave (Ban)'
+    };
 
-         const trimmed = texto.trim();
-         if (trimmed.length < 5) {
-             return interaction.reply({
-                 content: '❌ A mensagem deve ter pelo menos 5 caracteres.',
-                 flags: [MessageFlags.Ephemeral]
-             });
-         }
+    const messages = [];
+    for (const [key, name] of Object.entries(typeNames)) {
+        const msg = database.getMessageByType(interaction.guild.id, key);
+        if (msg && msg.message) {
+            const status = msg.isPrompt ? '🤖 Prompt' : '📝 Fixa';
+            const preview = msg.message.length > 50 ? msg.message.slice(0, 47) + '...' : msg.message;
+            messages.push(`**${name}:** ${status} - ${preview}`);
+        } else {
+            messages.push(`**${name}:** ❌ Não configurada`);
+        }
+    }
 
-         if (trimmed.length > 1000) {
-             return interaction.reply({
-                 content: '❌ A mensagem não pode ter mais de 1000 caracteres.',
-                 flags: [MessageFlags.Ephemeral]
-             });
-         }
+    if (messages.length === 0) {
+        return interaction.reply({
+            content: 'ℹ️ Nenhuma mensagem configurada.',
+            flags: [MessageFlags.Ephemeral]
+        });
+    }
 
-         database.setMessageByType(interaction.guild.id, type, trimmed, isPrompt);
+    await interaction.reply({
+        content: `**📋 Configurações de Mensagens:**\n${messages.join('\n')}`,
+        flags: [MessageFlags.Ephemeral]
+    });
+}
 
-         const typeNames = {
-             'welcome': 'boas-vindas',
-             'leave': 'saída',
-             'leave_kick': 'expulsão',
-             'leave_ban': 'banimento'
-         };
+/**
+ * Manipula listagem de memórias de usuário
+ */
+async function handleListUserMemories(interaction) {
+    await interaction.reply({
+        content: 'Funcionalidade de listar memórias de usuário - Implementação pendente',
+        flags: [MessageFlags.Ephemeral]
+    });
+}
 
-         const typeDisplay = isPrompt ? 'prompt para IA' : 'mensagem fixa';
+/**
+ * Manipula adição de memória de usuário
+ */
+async function handleAddUserMemory(interaction) {
+    const users = interaction.guild.members.cache
+        .filter(m => !m.user.bot)
+        .map(m => ({
+            label: m.displayName,
+            value: m.id,
+            description: `ID: ${m.id}`
+        }));
 
-         return interaction.reply({
-             content: `✅ Mensagem de ${typeNames[type]} configurada como ${typeDisplay}. Será enviada no canal de sistema configurado.\n\n💡 **Placeholders disponíveis:** {@USER}, {USER}, {REASON}`,
-             flags: [MessageFlags.Ephemeral]
-         });
-     }
+    if (users.length === 0) {
+        return interaction.reply({
+            content: '❌ Nenhum usuário encontrado no servidor.',
+            flags: [MessageFlags.Ephemeral]
+        });
+    }
 
-     if (subcommand === 'delete') {
-         const deleted = database.deleteMessageByType(interaction.guild.id, type);
+    const selectMenu = new StringSelectMenuBuilder()
+        .setCustomId(generateComponentId(interaction.user.id, 'add_user_memory_select'))
+        .setPlaceholder('Selecione um usuário para adicionar memória')
+        .addOptions(users.slice(0, 25));
 
-         if (deleted > 0) {
-             const typeNames = {
-                 'welcome': 'boas-vindas',
-                 'leave': 'saída',
-                 'leave_kick': 'expulsão',
-                 'leave_ban': 'banimento'
-             };
+    const row = new ActionRowBuilder().addComponents(selectMenu);
 
-             return interaction.reply({
-                 content: `✅ Mensagem de ${typeNames[type]} removida com sucesso.`,
-                 flags: [MessageFlags.Ephemeral]
-             });
-         } else {
-             return interaction.reply({
-                 content: `ℹ️ Nenhuma mensagem de ${type} estava configurada para este servidor.`,
-                 flags: [MessageFlags.Ephemeral]
-             });
-         }
-     }
- }
+    const reply = await interaction.reply({
+        content: 'Selecione o usuário para adicionar uma memória:',
+        components: [row],
+        flags: [MessageFlags.Ephemeral]
+    });
 
-} catch (err) {
-            console.error(`[CONFIG] Erro no comando /config:`, err);
-            return interaction.reply({ content: '❌ Ocorreu um erro ao executar esta configuração.', flags: [MessageFlags.Ephemeral] });
+    const collector = reply.createMessageComponentCollector({
+        componentType: ComponentType.StringSelect,
+        time: 60000
+    });
+
+    collector.on('collect', async i => {
+        if (i.user.id !== interaction.user.id) {
+            return i.reply({ content: '⛔ Apenas quem executou o comando pode interagir aqui.', ephemeral: true });
+        }
+
+        const userId = i.values[0];
+        const user = await interaction.guild.members.fetch(userId);
+
+        // Criar modal para input da memória
+        const modal = new ModalBuilder()
+            .setCustomId(generateComponentId(interaction.user.id, `set_user_memory_modal_${userId}`))
+            .setTitle(`Adicionar Memória para ${user.displayName}`);
+
+        const memoryInput = new TextInputBuilder()
+            .setCustomId('user_memory')
+            .setLabel('Memória a ser adicionada')
+            .setPlaceholder('Digite a informação que o bot deve lembrar sobre este usuário')
+            .setStyle(TextInputStyle.Paragraph)
+            .setRequired(true)
+            .setMinLength(1)
+            .setMaxLength(500);
+
+        const firstActionRow = new ActionRowBuilder().addComponents(memoryInput);
+        modal.addComponents(firstActionRow);
+
+        await i.showModal(modal);
+    });
+
+    collector.on('end', collected => {
+        if (collected.size === 0) {
+            interaction.editReply({ content: '⏰ O tempo para selecionar um usuário expirou.', components: [] });
+        }
+    });
+}
+
+/**
+ * Manipula listagem de memórias da guild
+ */
+async function handleListGuildMemories(interaction) {
+    const memories = database.listarMemoriasGuild(interaction.guild.id);
+
+    if (!memories || memories.length === 0) {
+        return interaction.reply({
+            content: 'ℹ️ O servidor ainda não possui memórias salvas.',
+            flags: [MessageFlags.Ephemeral]
+        });
+    }
+
+    const lista = memories.map((m, i) => `${i + 1}. \`${m.fact.slice(0, 150)}\``).join('\n');
+
+    await interaction.reply({
+        content: `**🧠 Memórias do Servidor:**\n${lista}`,
+        flags: [MessageFlags.Ephemeral]
+    });
+}
+
+/**
+ * Manipula adição de memória da guild
+ */
+async function handleAddGuildMemory(interaction) {
+    // Criar modal para input da memória da guild
+    const modal = new ModalBuilder()
+        .setCustomId(generateComponentId(interaction.user.id, 'add_guild_memory_modal'))
+        .setTitle('Adicionar Memória do Servidor');
+
+    const memoryInput = new TextInputBuilder()
+        .setCustomId('guild_memory')
+        .setLabel('Memória a ser adicionada')
+        .setPlaceholder('Digite uma informação importante sobre o servidor que o bot deve lembrar')
+        .setStyle(TextInputStyle.Paragraph)
+        .setRequired(true)
+        .setMinLength(1)
+        .setMaxLength(1000);
+
+    const firstActionRow = new ActionRowBuilder().addComponents(memoryInput);
+    modal.addComponents(firstActionRow);
+
+    await interaction.showModal(modal);
+}
+
+/**
+ * Manipula remoção de memória da guild
+ */
+async function handleDeleteGuildMemory(interaction) {
+    const memories = database.listarMemoriasGuild(interaction.guild.id);
+
+    if (!memories || memories.length === 0) {
+        return interaction.reply({
+            content: 'ℹ️ Não há memórias para remover.',
+            flags: [MessageFlags.Ephemeral]
+        });
+    }
+
+    const options = memories.map(m => ({
+        label: m.fact.slice(0, 100),
+        value: m.id.toString(),
+        description: `ID: ${m.id}`
+    }));
+
+    const selectMenu = new StringSelectMenuBuilder()
+        .setCustomId(generateComponentId(interaction.user.id, 'delete_guild_memory_select'))
+        .setPlaceholder('Selecione uma memória para apagar')
+        .addOptions(options.slice(0, 25));
+
+    const row = new ActionRowBuilder().addComponents(selectMenu);
+
+    const reply = await interaction.reply({
+        content: 'Selecione a memória do servidor que você deseja apagar:',
+        components: [row],
+        flags: [MessageFlags.Ephemeral]
+    });
+
+    const collector = reply.createMessageComponentCollector({
+        componentType: ComponentType.StringSelect,
+        time: 60000
+    });
+
+    collector.on('collect', i => {
+        if (i.user.id !== interaction.user.id) {
+            return i.reply({ content: '⛔ Apenas quem executou o comando pode interagir aqui.', ephemeral: true });
+        }
+
+        const memoryId = parseInt(i.values[0], 10);
+        const changes = database.removerMemoriaGuild(interaction.guild.id, memoryId);
+
+        if (changes > 0) {
+            i.update({ content: '✅ Memória removida com sucesso!', components: [] });
+        } else {
+            i.update({ content: '⚠️ A memória não foi encontrada ou já havia sido removida.', components: [] });
+        }
+    });
+
+    collector.on('end', collected => {
+        if (collected.size === 0) {
+            interaction.editReply({ content: '⏰ O tempo para selecionar uma memória expirou.', components: [] });
+        }
+    });
+}
+
+/**
+ * Manipula definição de XP de usuário
+ */
+async function handleSetUserXP(interaction) {
+    const users = interaction.guild.members.cache
+        .filter(m => !m.user.bot)
+        .map(m => ({
+            label: m.displayName,
+            value: m.id,
+            description: `ID: ${m.id}`
+        }));
+
+    if (users.length === 0) {
+        return interaction.reply({
+            content: '❌ Nenhum usuário encontrado no servidor.',
+            flags: [MessageFlags.Ephemeral]
+        });
+    }
+
+    const selectMenu = new StringSelectMenuBuilder()
+        .setCustomId(generateComponentId(interaction.user.id, 'set_user_xp_select'))
+        .setPlaceholder('Selecione um usuário para definir XP')
+        .addOptions(users.slice(0, 25));
+
+    const row = new ActionRowBuilder().addComponents(selectMenu);
+
+    const reply = await interaction.reply({
+        content: 'Selecione o usuário para definir o XP:',
+        components: [row],
+        flags: [MessageFlags.Ephemeral]
+    });
+
+    const collector = reply.createMessageComponentCollector({
+        componentType: ComponentType.StringSelect,
+        time: 60000
+    });
+
+    collector.on('collect', async i => {
+        if (i.user.id !== interaction.user.id) {
+            return i.reply({ content: '⛔ Apenas quem executou o comando pode interagir aqui.', ephemeral: true });
+        }
+
+        const userId = i.values[0];
+        const user = await interaction.guild.members.fetch(userId);
+
+        // Criar modal para input do XP
+        const modal = new ModalBuilder()
+            .setCustomId(generateComponentId(interaction.user.id, `set_user_xp_modal_${userId}`))
+            .setTitle(`Definir XP para ${user.displayName}`);
+
+        const xpInput = new TextInputBuilder()
+            .setCustomId('user_xp_value')
+            .setLabel('Valor de XP (número inteiro)')
+            .setPlaceholder('Digite o valor total de XP (ex: 5000)')
+            .setStyle(TextInputStyle.Short)
+            .setRequired(true)
+            .setMinLength(1)
+            .setMaxLength(10);
+
+        const firstActionRow = new ActionRowBuilder().addComponents(xpInput);
+        modal.addComponents(firstActionRow);
+
+        await i.showModal(modal);
+    });
+
+    collector.on('end', collected => {
+        if (collected.size === 0) {
+            interaction.editReply({ content: '⏰ O tempo para selecionar um usuário expirou.', components: [] });
+        }
+    });
+}
+
+/**
+ * Manipula reset de todo XP do servidor
+ */
+async function handleResetAllXP(interaction) {
+    // Criar confirmação com botões
+    const confirmButton = new ButtonBuilder()
+        .setCustomId(generateComponentId(interaction.user.id, 'confirm_reset_xp'))
+        .setLabel('✅ Confirmar Reset')
+        .setStyle(ButtonStyle.Danger);
+
+    const cancelButton = new ButtonBuilder()
+        .setCustomId(generateComponentId(interaction.user.id, 'cancel_reset_xp'))
+        .setLabel('❌ Cancelar')
+        .setStyle(ButtonStyle.Secondary);
+
+    const row = new ActionRowBuilder().addComponents(confirmButton, cancelButton);
+
+    const reply = await interaction.reply({
+        content: '⚠️ **ATENÇÃO: Esta ação é irreversível!**\n\nVocê está prestes a zerar o XP e nível de **TODOS** os usuários do servidor.\n\nTem certeza de que deseja continuar?',
+        components: [row],
+        flags: [MessageFlags.Ephemeral]
+    });
+
+    const collector = reply.createMessageComponentCollector({
+        componentType: ComponentType.Button,
+        time: 30000 // 30 segundos para confirmar
+    });
+
+    collector.on('collect', async i => {
+        if (i.user.id !== interaction.user.id) {
+            return i.reply({ content: '⛔ Apenas quem executou o comando pode interagir aqui.', ephemeral: true });
+        }
+
+        if (i.customId === generateComponentId(interaction.user.id, 'confirm_reset_xp')) {
+            // Executar o reset
+            const affectedUsers = database.resetarXP(interaction.guild.id);
+
+            await i.update({
+                content: `💥 **Ranking de XP resetado com sucesso!**\n\n${affectedUsers} usuários foram afetados. Todos os XPs e níveis foram zerados.`,
+                components: []
+            });
+        } else if (i.customId === generateComponentId(interaction.user.id, 'cancel_reset_xp')) {
+            // Cancelar
+            await i.update({
+                content: '✅ Operação cancelada. Nenhum dado foi alterado.',
+                components: []
+            });
+        }
+    });
+
+    collector.on('end', collected => {
+        if (collected.size === 0) {
+            interaction.editReply({
+                content: '⏰ Tempo para confirmação expirou. Operação cancelada.',
+                components: []
+            });
+        }
+    });
+}
+
+// --- COMANDO PRINCIPAL ---
+
+module.exports = {
+    data: new SlashCommandBuilder()
+        .setName('config')
+        .setDescription('Painel de configuração do bot Vica com interface baseada em embed.')
+        .setDefaultMemberPermissions(PermissionsBitField.Flags.Administrator)
+        .setDMPermission(false),
+
+    async execute(interaction) {
+        // Verificar permissões de administrador
+        if (!interaction.memberPermissions?.has(PermissionsBitField.Flags.Administrator)) {
+            return interaction.reply({
+                content: '⛔ Este comando é restrito a administradores do servidor.',
+                flags: [MessageFlags.Ephemeral]
+            });
+        }
+
+        try {
+            console.log(`[CONFIG] Usuário ${interaction.user.tag} acessou o painel de configuração`);
+
+            // Criar dashboard principal
+            const embed = createMainDashboardEmbed(interaction.guild);
+            const selectMenu = createCategorySelect(interaction.user.id);
+
+            const reply = await interaction.reply({
+                embeds: [embed],
+                components: [selectMenu],
+                flags: [MessageFlags.Ephemeral]
+            });
+
+            // Configurar coletor de interações com timeout
+            const collector = reply.createMessageComponentCollector({
+                time: SESSION_TIMEOUT
+            });
+
+            collector.on('collect', async i => {
+                if (i.user.id !== interaction.user.id) {
+                    return i.reply({
+                        content: '⛔ Apenas quem executou o comando pode interagir aqui.',
+                        ephemeral: true
+                    });
+                }
+
+                try {
+                    if (i.isStringSelectMenu()) {
+                        await handleCategorySelect(i);
+                    } else if (i.isButton()) {
+                        await handleButtonClick(i);
+                    } else if (i.isModalSubmit()) {
+                        await handleModalSubmit(i);
+                    }
+                } catch (error) {
+                    console.error('[CONFIG][ERROR] Erro ao processar interação:', error);
+                    await i.reply({
+                        content: '❌ Ocorreu um erro ao processar sua solicitação.',
+                        flags: [MessageFlags.Ephemeral]
+                    });
+                }
+            });
+
+            collector.on('end', collected => {
+                console.log(`[CONFIG] Sessão expirada para ${interaction.user.tag} após ${collected.size} interações`);
+            });
+
+        } catch (error) {
+            console.error('[CONFIG][ERROR] Erro na execução do comando:', error);
+            await interaction.reply({
+                content: '❌ Ocorreu um erro ao carregar o painel de configuração.',
+                flags: [MessageFlags.Ephemeral]
+            });
         }
     }
 };
