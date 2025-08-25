@@ -60,7 +60,7 @@ module.exports = {
                 .setDescription('Limpa o canal de sistema (mensagens voltarão a ser enviadas no canal de origem).')))
         // Grupo de comandos para parabéns por cargo
         .addSubcommandGroup(group => group
-            .setName('role_congrats')
+            .setName('role_upgrade_msgs')
             .setDescription('Gerencia parabéns automáticos quando usuários recebem cargos específicos.')
             .addSubcommand(sub => sub
                 .setName('set')
@@ -68,10 +68,10 @@ module.exports = {
                 .addRoleOption(opt => opt.setName('cargo').setDescription('O cargo que ativará os parabéns.').setRequired(true))
                 .addStringOption(opt => opt.setName('prompt').setDescription('Prompt para a IA (use {USER} para o nome do usuário).').setRequired(true).setMaxLength(500)))
             .addSubcommand(sub => sub
-                .setName('clear')
+                .setName('delete')
                 .setDescription('Remove a configuração de parabéns por cargo.'))
             .addSubcommand(sub => sub
-                .setName('show')
+                .setName('list')
                 .setDescription('Mostra a configuração atual de parabéns por cargo.')))
         // Subcomando raiz para inspeção de memórias
         .addSubcommand(sub => sub
@@ -283,12 +283,12 @@ if (!group && subcommand === 'add_memories') {
     return interaction.reply({ content: `✅ Memória adicionada para ${usuario}.`, flags: [MessageFlags.Ephemeral] });
 }
 
-// --- LÓGICA PARA ROLE CONGRATS ---
-if (group === 'role_congrats') {
+// --- LÓGICA PARA ROLE UPGRADE MSGS ---
+if (group === 'role_upgrade_msgs') {
     if (subcommand === 'set') {
         const cargo = interaction.options.getRole('cargo');
         const prompt = interaction.options.getString('prompt');
-        
+
         if (!prompt || !prompt.trim()) {
             return interaction.reply({ content: '❌ O prompt não pode estar vazio.', flags: [MessageFlags.Ephemeral] });
         }
@@ -309,8 +309,8 @@ if (group === 'role_congrats') {
             flags: [MessageFlags.Ephemeral]
         });
     }
-    
-    if (subcommand === 'clear') {
+
+    if (subcommand === 'delete') {
         // Allow optional role argument to clear only one; if none provided, clear all
         const roleToClear = interaction.options.getRole('cargo');
         if (roleToClear) {
@@ -320,8 +320,8 @@ if (group === 'role_congrats') {
         database.clearRoleCongratsConfig(interaction.guild.id);
         return interaction.reply({ content: `👍 Todas as configurações de parabéns por cargo foram limpas.`, flags: [MessageFlags.Ephemeral] });
     }
-    
-    if (subcommand === 'show') {
+
+    if (subcommand === 'list') {
         const configs = database.listRoleCongratsConfigs(interaction.guild.id);
         if (!configs || configs.length === 0) {
             return interaction.reply({ content: 'ℹ️ Não há configuração de parabéns por cargo definida para este servidor.', flags: [MessageFlags.Ephemeral] });
