@@ -445,7 +445,8 @@ if (group === 'guild_memories') {
              const messages = [];
              for (const [key, name] of Object.entries(typeNames)) {
                  const msg = database.getMessageByType(interaction.guild.id, key);
-                 if (msg) {
+                 console.log(`[CONFIG] Checking type ${key}:`, msg); // Debug log
+                 if (msg && msg.message) {
                      const status = msg.isPrompt ? '🤖 Prompt' : '📝 Fixa';
                      const preview = msg.message.length > 50 ? msg.message.slice(0, 47) + '...' : msg.message;
                      messages.push(`**${name}:** ${status} - ${preview}`);
