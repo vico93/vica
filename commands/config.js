@@ -37,13 +37,27 @@ const CATEGORIES = {
     USER_CONTROLS: { id: 'user_controls', name: '👥 Controles Manuais de Usuário', desc: 'Controles manuais de usuário' }
 };
 
+// Sub-categorias para melhor organização
+const MESSAGE_SUBCATEGORIES = {
+    SYSTEM_CHANNEL: { id: 'system_channel', name: '📢 Canal do Sistema', desc: 'Configurar canal para mensagens automáticas' },
+    ROLE_CONGRATS: { id: 'role_congrats', name: '🎉 Parabéns por Cargo', desc: 'Configurar mensagens de parabéns automáticas' },
+    JOIN_LEAVE: { id: 'join_leave', name: '🚪 Entrada/Saída', desc: 'Configurar mensagens de entrada e saída' }
+};
+
 // Mapa de ações para cada categoria
 const CATEGORY_ACTIONS = {
     [CATEGORIES.CHATBOT.id]: ['add_channel', 'remove_channel', 'list_channels', 'back'],
     [CATEGORIES.XP_SYSTEM.id]: ['add_channel', 'remove_channel', 'list_channels', 'set_multiplier', 'remove_multiplier', 'list_multipliers', 'back'],
-    [CATEGORIES.MESSAGES.id]: ['set_system_channel', 'clear_system_channel', 'set_role_upgrade', 'delete_role_upgrade', 'list_role_upgrades', 'set_join_leave', 'delete_join_leave', 'list_join_leave', 'back'],
+    [CATEGORIES.MESSAGES.id]: ['select_subcategory', 'back'], // Agora usa sub-categorias
     [CATEGORIES.MEMORIES.id]: ['select_memory_type', 'back'],
     [CATEGORIES.USER_CONTROLS.id]: ['set_user_xp', 'reset_all_xp', 'back']
+};
+
+// Ações para cada sub-categoria de mensagens
+const SUBCATEGORY_ACTIONS = {
+    [MESSAGE_SUBCATEGORIES.SYSTEM_CHANNEL.id]: ['set_system_channel', 'clear_system_channel', 'back_to_messages'],
+    [MESSAGE_SUBCATEGORIES.ROLE_CONGRATS.id]: ['set_role_upgrade', 'list_role_upgrades', 'back_to_messages'],
+    [MESSAGE_SUBCATEGORIES.JOIN_LEAVE.id]: ['set_join_leave', 'delete_join_leave', 'list_join_leave', 'back_to_messages']
 };
 
 // --- UTILITÁRIOS ---
@@ -193,6 +207,25 @@ function createMemoryActionsSelect(userId, memoryType) {
 }
 
 /**
+ * Cria o menu de seleção de sub-categoria para mensagens
+ */
+function createMessageSubcategorySelect(userId) {
+    const selectMenu = new StringSelectMenuBuilder()
+        .setCustomId(generateComponentId(userId, 'message_subcategory_select'))
+        .setPlaceholder('Escolha uma sub-categoria de mensagens...');
+
+    Object.values(MESSAGE_SUBCATEGORIES).forEach(subcategory => {
+        selectMenu.addOptions({
+            label: subcategory.name,
+            description: subcategory.desc,
+            value: subcategory.id
+        });
+    });
+
+    return new ActionRowBuilder().addComponents(selectMenu);
+}
+
+/**
  * Cria embed para sub-menu de categoria específica
  */
 function createCategoryEmbed(categoryId, guild) {
@@ -243,12 +276,25 @@ function createCategoryEmbed(categoryId, guild) {
             break;
 
         case CATEGORIES.MESSAGES.id:
+            // Para mensagens, mostra visão geral das sub-categorias
             const systemChannel = database.getSystemChannel(guild.id);
             const roleUpgrades = database.listRoleCongratsConfigs(guild.id);
             embed.addFields({
-                name: '📋 Status Atual',
-                value: `Canal sistema: ${systemChannel ? `<#${systemChannel}>` : '**Não definido**'}\nParabéns por cargo: **${roleUpgrades.length}**`
+                name: '📢 Canal do Sistema',
+                value: systemChannel ? `<#${systemChannel}>` : '**Não definido**',
+                inline: true
             });
+            embed.addFields({
+                name: '🎉 Parabéns por Cargo',
+                value: `**${roleUpgrades.length}** configurações`,
+                inline: true
+            });
+            embed.addFields({
+                name: '🚪 Entrada/Saída',
+                value: '*Em desenvolvimento*',
+                inline: true
+            });
+            embed.setDescription('Selecione uma sub-categoria abaixo para configurar mensagens específicas.');
             break;
 
         case CATEGORIES.MEMORIES.id:
@@ -298,10 +344,146 @@ function createCategoryEmbed(categoryId, guild) {
 }
 
 /**
+ * Cria embed para sub-categoria específica de mensagens
+ */
+function createSubcategoryEmbed(subcategoryId, guild) {
+    const subcategory = Object.values(MESSAGE_SUBCATEGORIES).find(sub => sub.id === subcategoryId);
+    if (!subcategory) return null;
+
+    const embed = new EmbedBuilder()
+        .setTitle(`${subcategory.name}`)
+        .setDescription(`Gerencie as configurações de ${subcategory.name.toLowerCase()}.`)
+        .setColor('#0099FF')
+        .setTimestamp();
+
+    // Adicionar campos específicos baseados na sub-categoria
+    switch (subcategoryId) {
+        case MESSAGE_SUBCATEGORIES.SYSTEM_CHANNEL.id:
+            const systemChannel = database.getSystemChannel(guild.id);
+            embed.addFields({
+                name: '📋 Status Atual',
+                value: `Canal sistema: ${systemChannel ? `<#${systemChannel}>` : '**Não definido**'}`
+            });
+            break;
+
+        case MESSAGE_SUBCATEGORIES.ROLE_CONGRATS.id:
+            const roleUpgrades = database.listRoleCongratsConfigs(guild.id);
+            embed.addFields({
+                name: '📋 Status Atual',
+                value: `Parabéns por cargo: **${roleUpgrades.length}**`
+            });
+            break;
+
+        case MESSAGE_SUBCATEGORIES.JOIN_LEAVE.id:
+            embed.addFields({
+                name: '📋 Status Atual',
+                value: 'Funcionalidade em desenvolvimento'
+            });
+            break;
+    }
+
+    return embed;
+}
+
+/**
+ * Cria componentes de ação para uma sub-categoria específica
+ */
+function createSubcategoryButtons(userId, subcategoryId) {
+    const actions = SUBCATEGORY_ACTIONS[subcategoryId] || [];
+    const buttons = [];
+
+    actions.forEach(action => {
+        let button;
+        switch (action) {
+            case 'back_to_messages':
+                button = new ButtonBuilder()
+                    .setCustomId(generateComponentId(userId, 'back_to_messages'))
+                    .setLabel('⬅️ Voltar para Mensagens')
+                    .setStyle(ButtonStyle.Secondary);
+                break;
+            case 'set_system_channel':
+                button = new ButtonBuilder()
+                    .setCustomId(generateComponentId(userId, 'set_system_channel'))
+                    .setLabel('🔧 Definir Canal Sistema')
+                    .setStyle(ButtonStyle.Success);
+                break;
+            case 'clear_system_channel':
+                button = new ButtonBuilder()
+                    .setCustomId(generateComponentId(userId, 'clear_system_channel'))
+                    .setLabel('🗑️ Limpar Canal Sistema')
+                    .setStyle(ButtonStyle.Danger);
+                break;
+            case 'set_role_upgrade':
+                button = new ButtonBuilder()
+                    .setCustomId(generateComponentId(userId, 'set_role_upgrade'))
+                    .setLabel('🎉 Configurar Parabéns')
+                    .setStyle(ButtonStyle.Success);
+                break;
+            case 'list_role_upgrades':
+                button = new ButtonBuilder()
+                    .setCustomId(generateComponentId(userId, 'list_role_upgrades'))
+                    .setLabel('📋 Listar Parabéns')
+                    .setStyle(ButtonStyle.Primary);
+                break;
+            case 'set_join_leave':
+                button = new ButtonBuilder()
+                    .setCustomId(generateComponentId(userId, 'set_join_leave'))
+                    .setLabel('📝 Configurar Mensagens')
+                    .setStyle(ButtonStyle.Success);
+                break;
+            case 'delete_join_leave':
+                button = new ButtonBuilder()
+                    .setCustomId(generateComponentId(userId, 'delete_join_leave'))
+                    .setLabel('❌ Remover Mensagens')
+                    .setStyle(ButtonStyle.Danger);
+                break;
+            case 'list_join_leave':
+                button = new ButtonBuilder()
+                    .setCustomId(generateComponentId(userId, 'list_join_leave'))
+                    .setLabel('📋 Listar Mensagens')
+                    .setStyle(ButtonStyle.Primary);
+                break;
+        }
+
+        if (button) buttons.push(button);
+    });
+
+    // Dividir botões em linhas de até 5 botões
+    const rows = [];
+    for (let i = 0; i < buttons.length; i += 5) {
+        rows.push(new ActionRowBuilder().addComponents(buttons.slice(i, i + 5)));
+    }
+
+    return rows;
+}
+
+/**
  * Cria componentes de ação para uma categoria específica
  */
 function createCategoryButtons(userId, categoryId) {
     const actions = CATEGORY_ACTIONS[categoryId] || [];
+
+    // Tratamento especial para categoria de mensagens - usa sub-categorias
+    if (categoryId === CATEGORIES.MESSAGES.id) {
+        const components = [];
+
+        actions.forEach(action => {
+            switch (action) {
+                case 'back':
+                    const backButton = new ButtonBuilder()
+                        .setCustomId(generateComponentId(userId, 'back_to_main'))
+                        .setLabel('⬅️ Voltar')
+                        .setStyle(ButtonStyle.Secondary);
+                    components.push(new ActionRowBuilder().addComponents(backButton));
+                    break;
+                case 'select_subcategory':
+                    components.push(createMessageSubcategorySelect(userId));
+                    break;
+            }
+        });
+
+        return components;
+    }
 
     // Tratamento especial para categoria de memórias - retorna dropdowns
     if (categoryId === CATEGORIES.MEMORIES.id) {
@@ -373,54 +555,6 @@ function createCategoryButtons(userId, categoryId) {
                     .setLabel('📋 Listar Multiplicadores')
                     .setStyle(ButtonStyle.Primary);
                 break;
-            case 'set_system_channel':
-                button = new ButtonBuilder()
-                    .setCustomId(generateComponentId(userId, 'set_system_channel'))
-                    .setLabel('🔧 Definir Canal Sistema')
-                    .setStyle(ButtonStyle.Success);
-                break;
-            case 'clear_system_channel':
-                button = new ButtonBuilder()
-                    .setCustomId(generateComponentId(userId, 'clear_system_channel'))
-                    .setLabel('🗑️ Limpar Canal Sistema')
-                    .setStyle(ButtonStyle.Danger);
-                break;
-            case 'set_role_upgrade':
-                button = new ButtonBuilder()
-                    .setCustomId(generateComponentId(userId, 'set_role_upgrade'))
-                    .setLabel('🎉 Configurar Parabéns')
-                    .setStyle(ButtonStyle.Success);
-                break;
-            case 'delete_role_upgrade':
-                button = new ButtonBuilder()
-                    .setCustomId(generateComponentId(userId, 'delete_role_upgrade'))
-                    .setLabel('❌ Remover Parabéns')
-                    .setStyle(ButtonStyle.Danger);
-                break;
-            case 'list_role_upgrades':
-                button = new ButtonBuilder()
-                    .setCustomId(generateComponentId(userId, 'list_role_upgrades'))
-                    .setLabel('📋 Listar Parabéns')
-                    .setStyle(ButtonStyle.Primary);
-                break;
-            case 'set_join_leave':
-                button = new ButtonBuilder()
-                    .setCustomId(generateComponentId(userId, 'set_join_leave'))
-                    .setLabel('📝 Configurar Mensagens')
-                    .setStyle(ButtonStyle.Success);
-                break;
-            case 'delete_join_leave':
-                button = new ButtonBuilder()
-                    .setCustomId(generateComponentId(userId, 'delete_join_leave'))
-                    .setLabel('❌ Remover Mensagens')
-                    .setStyle(ButtonStyle.Danger);
-                break;
-            case 'list_join_leave':
-                button = new ButtonBuilder()
-                    .setCustomId(generateComponentId(userId, 'list_join_leave'))
-                    .setLabel('📋 Listar Mensagens')
-                    .setStyle(ButtonStyle.Primary);
-                break;
             case 'set_user_xp':
                 button = new ButtonBuilder()
                     .setCustomId(generateComponentId(userId, 'set_user_xp'))
@@ -471,6 +605,27 @@ async function handleCategorySelect(interaction) {
 }
 
 /**
+ * Manipula seleção de sub-categoria de mensagens
+ */
+async function handleMessageSubcategorySelect(interaction) {
+    const subcategoryId = interaction.values[0];
+    const embed = createSubcategoryEmbed(subcategoryId, interaction.guild);
+    const buttons = createSubcategoryButtons(interaction.user.id, subcategoryId);
+
+    if (!embed) {
+        return interaction.reply({
+            content: '❌ Sub-categoria não encontrada.',
+            flags: [MessageFlags.Ephemeral]
+        });
+    }
+
+    await interaction.update({
+        embeds: [embed],
+        components: buttons
+    });
+}
+
+/**
  * Manipula clique em botões
  */
 async function handleButtonClick(interaction) {
@@ -485,6 +640,77 @@ async function handleButtonClick(interaction) {
         return interaction.update({
             embeds: [embed],
             components: [selectMenu]
+        });
+    }
+
+    // Botão de voltar para categoria de mensagens
+    if (customId === generateComponentId(userId, 'back_to_messages')) {
+        const embed = createCategoryEmbed(CATEGORIES.MESSAGES.id, interaction.guild);
+        const buttons = createCategoryButtons(userId, CATEGORIES.MESSAGES.id);
+
+        return interaction.update({
+            embeds: [embed],
+            components: buttons
+        });
+    }
+
+    // Botão de editar parabéns por cargo
+    if (customId.includes('edit_role_upgrade_')) {
+        return handleEditRoleUpgrade(interaction);
+    }
+
+    // Botão de excluir parabéns por cargo
+    if (customId.includes('delete_role_upgrade_')) {
+        return handleDeleteRoleUpgrade(interaction);
+    }
+
+    // Botão de confirmar exclusão de parabéns
+    if (customId.includes('confirm_delete_role_')) {
+        const roleId = customId.split('_').pop();
+        const changes = database.clearRoleCongratsConfig(interaction.guild.id, roleId);
+        const role = interaction.guild.roles.cache.get(roleId);
+
+        if (changes > 0) {
+            const embed = new EmbedBuilder()
+                .setTitle('✅ Exclusão Concluída')
+                .setDescription(`A configuração de parabéns para o cargo ${role ? role.toString() : `<@&${roleId}>`} foi excluída com sucesso.`)
+                .setColor('#00AA00')
+                .setTimestamp();
+
+            const backButton = new ButtonBuilder()
+                .setCustomId(generateComponentId(userId, 'back_to_messages'))
+                .setLabel('⬅️ Voltar')
+                .setStyle(ButtonStyle.Secondary);
+
+            return interaction.update({
+                embeds: [embed],
+                components: [new ActionRowBuilder().addComponents(backButton)]
+            });
+        } else {
+            return interaction.update({
+                content: '⚠️ Não foi possível excluir a configuração.',
+                embeds: [],
+                components: []
+            });
+        }
+    }
+
+    // Botão de cancelar exclusão
+    if (customId === generateComponentId(userId, 'cancel_delete_role')) {
+        const embed = new EmbedBuilder()
+            .setTitle('❌ Operação Cancelada')
+            .setDescription('A exclusão da configuração foi cancelada.')
+            .setColor('#666666')
+            .setTimestamp();
+
+        const backButton = new ButtonBuilder()
+            .setCustomId(generateComponentId(userId, 'back_to_messages'))
+            .setLabel('⬅️ Voltar')
+            .setStyle(ButtonStyle.Secondary);
+
+        return interaction.update({
+            embeds: [embed],
+            components: [new ActionRowBuilder().addComponents(backButton)]
         });
     }
 
@@ -1077,6 +1303,50 @@ async function handleModalSubmit(interaction) {
             flags: [MessageFlags.Ephemeral]
         });
 
+    } else if (customId.includes('edit_role_upgrade_modal_')) {
+        // Manipular modal de edição de parabéns por cargo
+        const roleId = customId.split('_').pop();
+        const prompt = interaction.fields.getTextInputValue('edit_role_upgrade_prompt');
+
+        if (!prompt || !prompt.trim()) {
+            return interaction.reply({
+                content: '❌ O prompt não pode estar vazio.',
+                flags: [MessageFlags.Ephemeral]
+            });
+        }
+
+        const trimmed = prompt.trim();
+        if (trimmed.length < 5) {
+            return interaction.reply({
+                content: '❌ O prompt é muito curto — escreva pelo menos 5 caracteres.',
+                flags: [MessageFlags.Ephemeral]
+            });
+        }
+
+        database.setRoleCongratsConfig(interaction.guild.id, roleId, trimmed);
+        const role = interaction.guild.roles.cache.get(roleId);
+
+        const embed = new EmbedBuilder()
+            .setTitle('✅ Configuração Editada')
+            .setDescription(`A configuração de parabéns para o cargo ${role ? role.toString() : `<@&${roleId}>`} foi atualizada com sucesso!`)
+            .setColor('#00AA00')
+            .addFields({
+                name: '📝 Novo Prompt',
+                value: trimmed.length > 500 ? trimmed.slice(0, 497) + '...' : trimmed
+            })
+            .setTimestamp();
+
+        const backButton = new ButtonBuilder()
+            .setCustomId(generateComponentId(interaction.user.id, 'back_to_messages'))
+            .setLabel('⬅️ Voltar')
+            .setStyle(ButtonStyle.Secondary);
+
+        await interaction.reply({
+            embeds: [embed],
+            components: [new ActionRowBuilder().addComponents(backButton)],
+            flags: [MessageFlags.Ephemeral]
+        });
+
     } else if (customId.includes('set_user_memory_modal_')) {
         // Manipular modal de memória de usuário
         const userIdToAdd = customId.split('_').pop();
@@ -1228,34 +1498,157 @@ async function handleSetRoleUpgrade(interaction) {
  * Manipula remoção de parabéns por cargo
  */
 async function handleDeleteRoleUpgrade(interaction) {
+    const roleId = interaction.customId.split('_').pop();
+
+    const role = interaction.guild.roles.cache.get(roleId);
+    const roleName = role ? role.name : 'Cargo não encontrado';
+
+    // Criar confirmação
+    const confirmButton = new ButtonBuilder()
+        .setCustomId(generateComponentId(interaction.user.id, `confirm_delete_role_${roleId}`))
+        .setLabel('✅ Confirmar Exclusão')
+        .setStyle(ButtonStyle.Danger);
+
+    const cancelButton = new ButtonBuilder()
+        .setCustomId(generateComponentId(interaction.user.id, 'cancel_delete_role'))
+        .setLabel('❌ Cancelar')
+        .setStyle(ButtonStyle.Secondary);
+
+    const row = new ActionRowBuilder().addComponents(confirmButton, cancelButton);
+
+    const embed = new EmbedBuilder()
+        .setTitle('🗑️ Confirmar Exclusão')
+        .setDescription(`Tem certeza de que deseja excluir a configuração de parabéns para o cargo **${roleName}**?\n\nEsta ação não pode ser desfeita.`)
+        .setColor('#FF4444')
+        .setTimestamp();
+
     await interaction.reply({
-        content: 'Funcionalidade de remover parabéns - Implementação pendente',
+        embeds: [embed],
+        components: [row],
         flags: [MessageFlags.Ephemeral]
     });
 }
 
 /**
- * Manipula listagem de parabéns por cargo
+ * Manipula edição de parabéns por cargo
+ */
+async function handleEditRoleUpgrade(interaction) {
+    const roleId = interaction.customId.split('_').pop();
+    const configs = database.listRoleCongratsConfigs(interaction.guild.id);
+    const config = configs.find(c => c.roleId === roleId);
+
+    if (!config) {
+        return interaction.reply({
+            content: '❌ Configuração não encontrada.',
+            flags: [MessageFlags.Ephemeral]
+        });
+    }
+
+    const role = interaction.guild.roles.cache.get(roleId);
+
+    // Criar modal para editar o prompt
+    const modal = new ModalBuilder()
+        .setCustomId(generateComponentId(interaction.user.id, `edit_role_upgrade_modal_${roleId}`))
+        .setTitle(`Editar Parabéns para ${role?.name || 'Cargo'}`);
+
+    const promptInput = new TextInputBuilder()
+        .setCustomId('edit_role_upgrade_prompt')
+        .setLabel('Prompt para a IA (use {USER} para o nome do usuário)')
+        .setPlaceholder('Ex: Parabéns {USER} por alcançar o cargo de {ROLE}!')
+        .setStyle(TextInputStyle.Paragraph)
+        .setRequired(true)
+        .setMinLength(5)
+        .setMaxLength(500)
+        .setValue(config.prompt);
+
+    const firstActionRow = new ActionRowBuilder().addComponents(promptInput);
+    modal.addComponents(firstActionRow);
+
+    await interaction.showModal(modal);
+}
+
+/**
+ * Manipula listagem de parabéns por cargo com embeds e botões de ação
  */
 async function handleListRoleUpgrades(interaction) {
     const configs = database.listRoleCongratsConfigs(interaction.guild.id);
 
     if (!configs || configs.length === 0) {
+        const embed = new EmbedBuilder()
+            .setTitle('🎉 Parabéns por Cargo')
+            .setDescription('Nenhuma configuração de parabéns por cargo encontrada.\n\nUse o botão abaixo para criar a primeira configuração.')
+            .setColor('#FFA500')
+            .setTimestamp();
+
+        const addButton = new ButtonBuilder()
+            .setCustomId(generateComponentId(interaction.user.id, 'set_role_upgrade'))
+            .setLabel('➕ Criar Primeiro Parabéns')
+            .setStyle(ButtonStyle.Success);
+
+        const backButton = new ButtonBuilder()
+            .setCustomId(generateComponentId(interaction.user.id, 'back_to_messages'))
+            .setLabel('⬅️ Voltar')
+            .setStyle(ButtonStyle.Secondary);
+
         return interaction.reply({
-            content: 'ℹ️ Nenhuma configuração de parabéns por cargo encontrada.',
+            embeds: [embed],
+            components: [new ActionRowBuilder().addComponents(addButton, backButton)],
             flags: [MessageFlags.Ephemeral]
         });
     }
 
-    const lines = configs.map(c => {
-        const role = interaction.guild.roles.cache.get(c.roleId);
-        const roleMention = role ? role.toString() : `<@&${c.roleId}> (cargo não encontrado)`;
-        const prompt = c.prompt.length > 300 ? c.prompt.slice(0, 297) + '...' : c.prompt;
-        return `**${roleMention}** — ${prompt}`;
+    // Criar embeds para cada configuração (até 10 por página para não exceder limites)
+    const embeds = [];
+    const actionRows = [];
+
+    configs.slice(0, 10).forEach((config, index) => {
+        const role = interaction.guild.roles.cache.get(config.roleId);
+        const roleName = role ? role.name : 'Cargo não encontrado';
+        const roleMention = role ? role.toString() : `<@&${config.roleId}>`;
+
+        const embed = new EmbedBuilder()
+            .setTitle(`🎉 Parabéns para ${roleName}`)
+            .setDescription(config.prompt.length > 1024 ? config.prompt.slice(0, 1021) + '...' : config.prompt)
+            .setColor(role ? role.color || '#0099FF' : '#0099FF')
+            .addFields({
+                name: '📋 Detalhes',
+                value: `**Cargo:** ${roleMention}\n**ID do Cargo:** \`${config.roleId}\`\n**Comprimento:** ${config.prompt.length} caracteres`,
+                inline: false
+            })
+            .setTimestamp();
+
+        embeds.push(embed);
+
+        // Botões de ação para cada configuração
+        const editButton = new ButtonBuilder()
+            .setCustomId(generateComponentId(interaction.user.id, `edit_role_upgrade_${config.roleId}`))
+            .setLabel('✏️ Editar')
+            .setStyle(ButtonStyle.Primary);
+
+        const deleteButton = new ButtonBuilder()
+            .setCustomId(generateComponentId(interaction.user.id, `delete_role_upgrade_${config.roleId}`))
+            .setLabel('🗑️ Excluir')
+            .setStyle(ButtonStyle.Danger);
+
+        actionRows.push(new ActionRowBuilder().addComponents(editButton, deleteButton));
     });
 
+    // Botão para adicionar novo
+    const addButton = new ButtonBuilder()
+        .setCustomId(generateComponentId(interaction.user.id, 'set_role_upgrade'))
+        .setLabel('➕ Novo Parabéns')
+        .setStyle(ButtonStyle.Success);
+
+    const backButton = new ButtonBuilder()
+        .setCustomId(generateComponentId(interaction.user.id, 'back_to_messages'))
+        .setLabel('⬅️ Voltar')
+        .setStyle(ButtonStyle.Secondary);
+
+    actionRows.push(new ActionRowBuilder().addComponents(addButton, backButton));
+
     await interaction.reply({
-        content: `**🎉 Configurações de parabéns por cargo:**\n${lines.join('\n')}`,
+        embeds: embeds,
+        components: actionRows,
         flags: [MessageFlags.Ephemeral]
     });
 }
@@ -1686,6 +2079,8 @@ module.exports = {
                             await handleMemoryTypeSelect(i);
                         } else if (customId.includes('memory_actions_select')) {
                             await handleMemoryActionsSelect(i);
+                        } else if (customId.includes('message_subcategory_select')) {
+                            await handleMessageSubcategorySelect(i);
                         } else {
                             await handleCategorySelect(i);
                         }

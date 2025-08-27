@@ -137,17 +137,9 @@ async function gerarParabensCargoViaAPI(guildId, userId, promptUsuario, roleName
   ];
   
   try {
-    // Use the shortened system prompt
-    const systemPrompt = await carregarSystemPrompt();
-    const testMessages = [
-      { role: 'system', content: systemPrompt },
-      { role: 'user', content: 'Hello!' }
-    ];
-
-
     const response = await openai.chat.completions.create({
       model: config.openai.model,
-      messages: testMessages,
+      messages,
       temperature: 0.8,
       max_tokens: 100, // Slightly higher for more complete responses
     });
