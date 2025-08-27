@@ -1174,6 +1174,9 @@ async function handleListMultipliers(interaction) {
 /**
  * Manipula definição de canal do sistema
  */
+/**
+ * Manipula definição de canal do sistema
+ */
 async function handleSetSystemChannel(interaction) {
     console.log('[CONFIG] Iniciando handleSetSystemChannel para usuário:', interaction.user.tag);
 
@@ -1185,98 +1188,72 @@ async function handleSetSystemChannel(interaction) {
             description: `ID: ${c.id}`
         }));
 
-    console.log('[CONFIG] Canais encontrados:', channels.length);
-
     if (channels.length === 0) {
-        console.log('[CONFIG] Nenhum canal de texto encontrado');
         return interaction.reply({
             content: '❌ Nenhum canal de texto encontrado no servidor.',
-            flags: [MessageFlags.Ephemeral]
+            flags: [MessageFlags.Ephemeral],
         });
     }
 
+    const customId = generateComponentId(interaction.user.id, 'set_system_channel_select');
     const selectMenu = new StringSelectMenuBuilder()
-        .setCustomId(generateComponentId(interaction.user.id, 'set_system_channel_select'))
+        .setCustomId(customId)
         .setPlaceholder('Selecione um canal para mensagens do sistema')
         .addOptions(channels.slice(0, 25));
 
     const row = new ActionRowBuilder().addComponents(selectMenu);
 
-    console.log('[CONFIG] Criando dropdown com customId:', selectMenu.data.custom_id);
-
-    const reply = await interaction.reply({
+    // Usamos 'update' aqui porque estamos respondendo a um clique de botão
+    await interaction.update({
         content: 'Selecione o canal onde as mensagens de sistema (como level up) serão enviadas:',
         components: [row],
-        flags: [MessageFlags.Ephemeral]
     });
 
-    console.log('[CONFIG] Reply enviado, criando collector');
+    try {
+        // Criamos um filtro para garantir que apenas o usuário original possa interagir
+        const filter = (i) => i.customId === customId && i.user.id === interaction.user.id;
 
-    const collector = reply.createMessageComponentCollector({
-        componentType: ComponentType.StringSelect,
-        time: 60000
-    });
+        // Aguardamos pela interação no menu dropdown por 60 segundos
+        const selectInteraction = await interaction.channel.awaitMessageComponent({
+            filter,
+            componentType: ComponentType.StringSelect,
+            time: 60000
+        });
 
-    collector.on('collect', i => {
-        console.log('[CONFIG] Interação coletada no handleSetSystemChannel collector');
-        console.log('[CONFIG] CustomId da interação:', i.customId);
-        console.log('[CONFIG] Usuário da interação:', i.user.tag);
+        const channelId = selectInteraction.values[0];
+        const channel = interaction.guild.channels.cache.get(channelId);
 
-        if (i.user.id !== interaction.user.id) {
-            console.log('[CONFIG] Usuário incorreto tentou interagir');
-            return i.reply({ content: '⛔ Apenas quem executou o comando pode interagir aqui.', ephemeral: true });
-        }
-
-        try {
-            const channelId = i.values[0];
-            console.log('[CONFIG] ChannelId selecionado:', channelId);
-
-            const channel = interaction.guild.channels.cache.get(channelId);
-            console.log('[CONFIG] Canal encontrado:', channel ? channel.name : 'null');
-
-            if (!channel) {
-                console.log('[CONFIG] Canal não encontrado ou indisponível');
-                return i.update({
-                    content: '❌ O canal selecionado não existe mais ou não está disponível.',
-                    components: []
-                });
-            }
-
-            console.log('[CONFIG] Chamando database.setSystemChannel com guildId:', interaction.guild.id, 'channelId:', channelId);
-            const changes = database.setSystemChannel(interaction.guild.id, channelId);
-            console.log('[CONFIG] Mudanças no banco:', changes);
-
-            if (changes > 0) {
-                console.log('[CONFIG] Canal definido com sucesso');
-                i.update({
-                    content: `✅ Beleza! De agora em diante, enviarei mensagens de sistema no canal ${channel}.`,
-                    components: []
-                });
-            } else {
-                console.log('[CONFIG] Canal já estava definido');
-                i.update({
-                    content: `⚠️ O canal ${channel} já estava definido como canal de sistema.`,
-                    components: []
-                });
-            }
-        } catch (error) {
-            console.error('[CONFIG][ERROR] Erro ao definir canal de sistema:', error);
-            console.error('[CONFIG][ERROR] Stack trace:', error.stack);
-            i.update({
-                content: '❌ Ocorreu um erro ao definir o canal de sistema. Tente novamente.',
+        if (!channel) {
+            return selectInteraction.update({
+                content: '❌ O canal selecionado não existe mais ou não está disponível.',
                 components: []
             });
         }
-    });
 
-    collector.on('end', collected => {
-        console.log('[CONFIG] Collector do handleSetSystemChannel terminou');
-        console.log('[CONFIG] Interações coletadas:', collected.size);
-        if (collected.size === 0) {
-            console.log('[CONFIG] Tempo expirado, editando reply');
-            interaction.editReply({ content: '⏰ O tempo para selecionar um canal expirou.', components: [] });
+        database.setSystemChannel(interaction.guild.id, channelId);
+
+        // Sucesso! Atualizamos a mensagem final
+        await selectInteraction.update({
+            content: `✅ Beleza! De agora em diante, enviarei mensagens de sistema no canal ${channel}.`,
+            components: []
+        });
+
+    } catch (error) {
+        // Se o erro for um 'InteractionCollectorError', significa que o tempo esgotou
+        if (error.name === 'InteractionCollectorError') {
+            await interaction.editReply({
+                content: '⏰ O tempo para selecionar um canal expirou. A operação foi cancelada.',
+                components: []
+            });
+        } else {
+            // Outros erros inesperados
+            console.error('[CONFIG][ERROR] Erro ao aguardar componente do canal de sistema:', error);
+            await interaction.editReply({
+                content: '❌ Ocorreu um erro inesperado. Tente novamente.',
+                components: []
+            });
         }
-    });
+    }
 }
 
 /**
