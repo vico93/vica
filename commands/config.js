@@ -1,6 +1,6 @@
 /*
 ** caminho: commands/config.js
-** últimaMod: 2025-08-27 15:54
+** últimaMod: 2025-08-27 15:59
 ** autor: Vico
 ** colaboração: Roo Sonic
 */
@@ -1209,19 +1209,34 @@ async function handleSetSystemChannel(interaction) {
             return i.reply({ content: '⛔ Apenas quem executou o comando pode interagir aqui.', ephemeral: true });
         }
 
-        const channelId = i.values[0];
-        const changes = database.setSystemChannel(interaction.guild.id, channelId);
+        try {
+            const channelId = i.values[0];
+            const channel = interaction.guild.channels.cache.get(channelId);
 
-        const channel = interaction.guild.channels.cache.get(channelId);
+            if (!channel) {
+                return i.update({
+                    content: '❌ O canal selecionado não existe mais ou não está disponível.',
+                    components: []
+                });
+            }
 
-        if (changes > 0) {
+            const changes = database.setSystemChannel(interaction.guild.id, channelId);
+
+            if (changes > 0) {
+                i.update({
+                    content: `✅ Beleza! De agora em diante, enviarei mensagens de sistema no canal ${channel}.`,
+                    components: []
+                });
+            } else {
+                i.update({
+                    content: `⚠️ O canal ${channel} já estava definido como canal de sistema.`,
+                    components: []
+                });
+            }
+        } catch (error) {
+            console.error('[CONFIG][ERROR] Erro ao definir canal de sistema:', error);
             i.update({
-                content: `✅ Beleza! De agora em diante, enviarei mensagens de sistema no canal ${channel}.`,
-                components: []
-            });
-        } else {
-            i.update({
-                content: `⚠️ O canal ${channel} já estava definido como canal de sistema.`,
+                content: '❌ Ocorreu um erro ao definir o canal de sistema. Tente novamente.',
                 components: []
             });
         }
