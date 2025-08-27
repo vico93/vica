@@ -1,13 +1,14 @@
 /*
 ** caminho: commands/comment.js
-** últimaMod: 2025-08-27 00:38
+** últimaMod: 2025-08-27 00:52
 ** autor: Vico
 ** colaboração: Roo Sonic
 */
 
 /*
  * Comando /comment para gerar comentários sobre conversas recentes
- * Analisa as últimas mensagens do canal e gera um comentário inteligente
+ * Analisa mensagens específicas do canal por intervalo e gera um comentário inteligente
+ * Suporta agrupamento de mensagens consecutivas do mesmo usuário
  */
 
 const {
@@ -21,22 +22,38 @@ const config = require('../config.json');
 module.exports = {
   data: new SlashCommandBuilder()
     .setName('comment')
-    .setDescription('Gera um comentário sobre as últimas mensagens do canal')
+    .setDescription('Gera um comentário sobre mensagens específicas do canal')
     .addIntegerOption(option =>
-      option.setName('number')
-        .setDescription('Número de mensagens recentes para analisar (máx. 20)')
+      option.setName('from')
+        .setDescription('Posição inicial da mensagem (1 = mais recente)')
         .setRequired(true)
-        .setMinValue(1)
-        .setMaxValue(20)),
+        .setMinValue(1))
+    .addIntegerOption(option =>
+      option.setName('to')
+        .setDescription('Posição final da mensagem (deve ser >= from)')
+        .setRequired(true)
+        .setMinValue(1)),
 
   async execute(interaction) {
-    const number = interaction.options.getInteger('number');
+    const from = interaction.options.getInteger('from');
+    const to = interaction.options.getInteger('to');
     const channel = interaction.channel;
     const guild = interaction.guild;
 
+    /* --- VALIDAÇÃO DE PARÂMETROS --- */
+    if (to < from) {
+      return interaction.reply({
+        content: '❌ O valor de `to` deve ser maior ou igual a `from`.',
+        flags: [MessageFlags.Ephemeral]
+      });
+    }
+
+    const limit = to - from + 1;
+    const offset = from - 1;
+
     try {
-      /* --- BUSCAR HISTÓRICO DE MENSAGENS --- */
-      const messageHistory = database.buscarHistoricoCanal(guild.id, channel.id, number);
+      /* --- BUSCAR HISTÓRICO DE MENSAGENS POR INTERVALO --- */
+      const messageHistory = database.buscarHistoricoCanalRange(guild.id, channel.id, limit, offset);
 
       if (messageHistory.length === 0) {
         return interaction.reply({
@@ -73,12 +90,21 @@ module.exports = {
         });
       }
 
-      /* --- FORMATAR CONVERSA --- */
+      /* --- FORMATAR CONVERSA COM AGRUPAMENTO --- */
       const participantList = Array.from(participants).join(', ');
       let conversationText = `**Participantes:** ${participantList}\n\n`;
 
-      for (const msg of messages) {
-        conversationText += `${msg.nickname}: ${msg.content}\n`;
+      for (let i = 0; i < messages.length; i++) {
+        const msg = messages[i];
+        const prevMsg = i > 0 ? messages[i - 1] : null;
+
+        if (prevMsg && msg.nickname === prevMsg.nickname) {
+          // Mensagem consecutiva do mesmo usuário - indentar
+          conversationText += `        ${msg.content}\n`;
+        } else {
+          // Primeira mensagem do usuário ou usuário diferente
+          conversationText += `<${msg.nickname}>: ${msg.content}\n`;
+        }
       }
 
       /* --- VERIFICAR LIMITE DE CARACTERES --- */

@@ -245,6 +245,7 @@ const stmts = {
   msgInsert:  db.prepare('INSERT OR IGNORE INTO mensagens (guild_id, canal_id, usuario_id, message_id, timestamp) VALUES (?, ?, ?, ?, ?)'),
   msgHistory: db.prepare('SELECT message_id FROM mensagens WHERE guild_id=? AND canal_id=? AND usuario_id=? ORDER BY timestamp DESC LIMIT ?'),
   channelMsgHistory: db.prepare('SELECT message_id, usuario_id FROM mensagens WHERE guild_id=? AND canal_id=? ORDER BY timestamp DESC LIMIT ?'),
+  channelMsgHistoryRange: db.prepare('SELECT message_id, usuario_id FROM mensagens WHERE guild_id=? AND canal_id=? ORDER BY timestamp DESC LIMIT ? OFFSET ?'),
   
   /* --- NOVAS STATEMENTS PARA CONFIGURAÇÕES DO SERVIDOR --- */
   settingsGetChannel: db.prepare('SELECT system_channel_id FROM guild_settings WHERE guild_id = ?'),
@@ -433,6 +434,8 @@ module.exports = {
     stmts.msgHistory.all(g, c, u, l).map(r => r.message_id).reverse(),
   buscarHistoricoCanal: (g, c, l = 10) =>
     stmts.channelMsgHistory.all(g, c, l).reverse(),
+  buscarHistoricoCanalRange: (g, c, limit, offset) =>
+    stmts.channelMsgHistoryRange.all(g, c, limit, offset).reverse(),
 
   // --- NOVAS FUNÇÕES EXPORTADAS ---
   // configurações do servidor
