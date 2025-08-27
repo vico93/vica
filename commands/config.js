@@ -1,6 +1,6 @@
 /*
 ** caminho: commands/config.js
-** últimaMod: 2025-08-25 13:43
+** últimaMod: 2025-08-27 15:54
 ** autor: Vico
 ** colaboração: Roo Sonic
 */
@@ -40,8 +40,8 @@ const CATEGORIES = {
 // Sub-categorias para melhor organização
 const MESSAGE_SUBCATEGORIES = {
     SYSTEM_CHANNEL: { id: 'system_channel', name: '📢 Canal do Sistema', desc: 'Configurar canal para mensagens automáticas' },
-    ROLE_CONGRATS: { id: 'role_congrats', name: '🎉 Parabéns por Cargo', desc: 'Configurar mensagens de parabéns automáticas' },
-    JOIN_LEAVE: { id: 'join_leave', name: '🚪 Entrada/Saída', desc: 'Configurar mensagens de entrada e saída' }
+    ROLE_CONGRATS: { id: 'role_congrats', name: '🎉 Parabéns por Cargo', desc: 'Configurar mensagens de parabéns automáticas' }
+    // JOIN_LEAVE: { id: 'join_leave', name: '🚪 Entrada/Saída', desc: 'Configurar mensagens de entrada e saída' } // Removido - funcionalidade não implementada
 };
 
 // Mapa de ações para cada categoria
@@ -56,8 +56,8 @@ const CATEGORY_ACTIONS = {
 // Ações para cada sub-categoria de mensagens
 const SUBCATEGORY_ACTIONS = {
     [MESSAGE_SUBCATEGORIES.SYSTEM_CHANNEL.id]: ['set_system_channel', 'clear_system_channel', 'back_to_messages'],
-    [MESSAGE_SUBCATEGORIES.ROLE_CONGRATS.id]: ['set_role_upgrade', 'list_role_upgrades', 'back_to_messages'],
-    [MESSAGE_SUBCATEGORIES.JOIN_LEAVE.id]: ['set_join_leave', 'delete_join_leave', 'list_join_leave', 'back_to_messages']
+    [MESSAGE_SUBCATEGORIES.ROLE_CONGRATS.id]: ['set_role_upgrade', 'list_role_upgrades', 'back_to_messages']
+    // [MESSAGE_SUBCATEGORIES.JOIN_LEAVE.id]: ['set_join_leave', 'delete_join_leave', 'list_join_leave', 'back_to_messages'] // Removido - funcionalidade não implementada
 };
 
 // --- UTILITÁRIOS ---
@@ -289,11 +289,7 @@ function createCategoryEmbed(categoryId, guild) {
                 value: `**${roleUpgrades.length}** configurações`,
                 inline: true
             });
-            embed.addFields({
-                name: '🚪 Entrada/Saída',
-                value: '*Em desenvolvimento*',
-                inline: true
-            });
+            // Entrada/Saída removido - funcionalidade não implementada
             embed.setDescription('Selecione uma sub-categoria abaixo para configurar mensagens específicas.');
             break;
 
@@ -374,12 +370,12 @@ function createSubcategoryEmbed(subcategoryId, guild) {
             });
             break;
 
-        case MESSAGE_SUBCATEGORIES.JOIN_LEAVE.id:
-            embed.addFields({
-                name: '📋 Status Atual',
-                value: 'Funcionalidade em desenvolvimento'
-            });
-            break;
+        // case MESSAGE_SUBCATEGORIES.JOIN_LEAVE.id: // Removido - funcionalidade não implementada
+        //     embed.addFields({
+        //         name: '📋 Status Atual',
+        //         value: 'Funcionalidade em desenvolvimento'
+        //     });
+        //     break;
     }
 
     return embed;
@@ -425,24 +421,24 @@ function createSubcategoryButtons(userId, subcategoryId) {
                     .setLabel('📋 Listar Parabéns')
                     .setStyle(ButtonStyle.Primary);
                 break;
-            case 'set_join_leave':
-                button = new ButtonBuilder()
-                    .setCustomId(generateComponentId(userId, 'set_join_leave'))
-                    .setLabel('📝 Configurar Mensagens')
-                    .setStyle(ButtonStyle.Success);
-                break;
-            case 'delete_join_leave':
-                button = new ButtonBuilder()
-                    .setCustomId(generateComponentId(userId, 'delete_join_leave'))
-                    .setLabel('❌ Remover Mensagens')
-                    .setStyle(ButtonStyle.Danger);
-                break;
-            case 'list_join_leave':
-                button = new ButtonBuilder()
-                    .setCustomId(generateComponentId(userId, 'list_join_leave'))
-                    .setLabel('📋 Listar Mensagens')
-                    .setStyle(ButtonStyle.Primary);
-                break;
+            // case 'set_join_leave': // Removido - funcionalidade não implementada
+            //     button = new ButtonBuilder()
+            //         .setCustomId(generateComponentId(userId, 'set_join_leave'))
+            //         .setLabel('📝 Configurar Mensagens')
+            //         .setStyle(ButtonStyle.Success);
+            //     break;
+            // case 'delete_join_leave': // Removido - funcionalidade não implementada
+            //     button = new ButtonBuilder()
+            //         .setCustomId(generateComponentId(userId, 'delete_join_leave'))
+            //         .setLabel('❌ Remover Mensagens')
+            //         .setStyle(ButtonStyle.Danger);
+            //     break;
+            // case 'list_join_leave': // Removido - funcionalidade não implementada
+            //     button = new ButtonBuilder()
+            //         .setCustomId(generateComponentId(userId, 'list_join_leave'))
+            //         .setLabel('📋 Listar Mensagens')
+            //         .setStyle(ButtonStyle.Primary);
+            //     break;
         }
 
         if (button) buttons.push(button);
@@ -588,6 +584,29 @@ function createCategoryButtons(userId, categoryId) {
  */
 async function handleCategorySelect(interaction) {
     const categoryId = interaction.values[0];
+
+    // Check if this is actually a subcategory (in case routing is broken)
+    const subcategory = Object.values(MESSAGE_SUBCATEGORIES).find(sub => sub.id === categoryId);
+    if (subcategory) {
+        // Treat as subcategory
+        const embed = createSubcategoryEmbed(categoryId, interaction.guild);
+        const buttons = createSubcategoryButtons(interaction.user.id, categoryId);
+
+        if (!embed) {
+            return interaction.reply({
+                content: '❌ Sub-categoria não encontrada.',
+                flags: [MessageFlags.Ephemeral]
+            });
+        }
+
+        await interaction.update({
+            embeds: [embed],
+            components: buttons
+        });
+        return;
+    }
+
+    // Normal category handling
     const embed = createCategoryEmbed(categoryId, interaction.guild);
     const buttons = createCategoryButtons(interaction.user.id, categoryId);
 
@@ -769,15 +788,15 @@ async function handleButtonClick(interaction) {
         case 'list_role_upgrades':
             await handleListRoleUpgrades(interaction);
             break;
-        case 'set_join_leave':
-            await handleSetJoinLeave(interaction);
-            break;
-        case 'delete_join_leave':
-            await handleDeleteJoinLeave(interaction);
-            break;
-        case 'list_join_leave':
-            await handleListJoinLeave(interaction);
-            break;
+        // case 'set_join_leave': // Removido - funcionalidade não implementada
+        //     await handleSetJoinLeave(interaction);
+        //     break;
+        // case 'delete_join_leave': // Removido - funcionalidade não implementada
+        //     await handleDeleteJoinLeave(interaction);
+        //     break;
+        // case 'list_join_leave': // Removido - funcionalidade não implementada
+        //     await handleListJoinLeave(interaction);
+        //     break;
         case 'set_user_xp':
             await handleSetUserXP(interaction);
             break;
