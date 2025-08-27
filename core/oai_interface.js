@@ -337,9 +337,37 @@ async function gerarParabensCargoViaAPI(guildId, userId, promptUsuario, roleName
    }
  }
 
+ // Função para gerar comentário baseado em conversa via API
+ async function gerarComentarioViaAPI(conversationText) {
+   const systemPrompt = await carregarSystemPrompt();
+   const messages = [
+     { role: 'system', content: systemPrompt },
+     {
+       role: 'user',
+       content: `Analise a seguinte conversa do Discord e faça um comentário interessante ou engraçado sobre ela:\n\n${conversationText}`,
+     },
+   ];
+
+   try {
+     const response = await openai.chat.completions.create({
+       model: config.openai.model,
+       messages,
+       temperature: 0.8,
+       max_tokens: config.settings.maxTokens,
+     });
+     const content = response?.choices?.[0]?.message?.content;
+     if (!content) throw new Error('A API não retornou conteúdo na resposta.');
+     return content.trim();
+   } catch (error) {
+     console.error('[ERRO] Não consegui gerar comentário pela API da OpenAI:', error.message);
+     throw error;
+   }
+ }
+
 module.exports = {
   gerarPerguntaViaAPI,
   gerarRespostaContextual,
   gerarParabensCargoViaAPI,
   gerarMensagemBemVindoViaAPI,
+  gerarComentarioViaAPI,
 };
