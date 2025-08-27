@@ -1,6 +1,6 @@
 /*
 ** caminho: commands/config.js
-** últimaMod: 2025-08-27 15:59
+** últimaMod: 2025-08-27 16:07
 ** autor: Vico
 ** colaboração: Roo Sonic
 */
@@ -754,6 +754,9 @@ async function handleButtonClick(interaction) {
     const categoryId = customId.split('_').pop(); // Extrair categoria do ID
     const action = customId.replace(`_${userId}_`, '').replace(`_${categoryId}`, '').replace(`${userId}_`, '');
 
+    console.log('[CONFIG] Action extracted:', action);
+    console.log('[CONFIG] CategoryId extracted:', categoryId);
+
     switch (action) {
         case 'add_channel':
             await handleAddChannel(interaction, categoryId);
@@ -774,6 +777,7 @@ async function handleButtonClick(interaction) {
             await handleListMultipliers(interaction);
             break;
         case 'set_system_channel':
+            console.log('[CONFIG] Chamando handleSetSystemChannel');
             await handleSetSystemChannel(interaction);
             break;
         case 'clear_system_channel':
@@ -1171,6 +1175,8 @@ async function handleListMultipliers(interaction) {
  * Manipula definição de canal do sistema
  */
 async function handleSetSystemChannel(interaction) {
+    console.log('[CONFIG] Iniciando handleSetSystemChannel para usuário:', interaction.user.tag);
+
     const channels = interaction.guild.channels.cache
         .filter(c => c.type === ChannelType.GuildText)
         .map(c => ({
@@ -1179,7 +1185,10 @@ async function handleSetSystemChannel(interaction) {
             description: `ID: ${c.id}`
         }));
 
+    console.log('[CONFIG] Canais encontrados:', channels.length);
+
     if (channels.length === 0) {
+        console.log('[CONFIG] Nenhum canal de texto encontrado');
         return interaction.reply({
             content: '❌ Nenhum canal de texto encontrado no servidor.',
             flags: [MessageFlags.Ephemeral]
@@ -1193,11 +1202,15 @@ async function handleSetSystemChannel(interaction) {
 
     const row = new ActionRowBuilder().addComponents(selectMenu);
 
+    console.log('[CONFIG] Criando dropdown com customId:', selectMenu.data.custom_id);
+
     const reply = await interaction.reply({
         content: 'Selecione o canal onde as mensagens de sistema (como level up) serão enviadas:',
         components: [row],
         flags: [MessageFlags.Ephemeral]
     });
+
+    console.log('[CONFIG] Reply enviado, criando collector');
 
     const collector = reply.createMessageComponentCollector({
         componentType: ComponentType.StringSelect,
@@ -1205,29 +1218,42 @@ async function handleSetSystemChannel(interaction) {
     });
 
     collector.on('collect', i => {
+        console.log('[CONFIG] Interação coletada no handleSetSystemChannel collector');
+        console.log('[CONFIG] CustomId da interação:', i.customId);
+        console.log('[CONFIG] Usuário da interação:', i.user.tag);
+
         if (i.user.id !== interaction.user.id) {
+            console.log('[CONFIG] Usuário incorreto tentou interagir');
             return i.reply({ content: '⛔ Apenas quem executou o comando pode interagir aqui.', ephemeral: true });
         }
 
         try {
             const channelId = i.values[0];
+            console.log('[CONFIG] ChannelId selecionado:', channelId);
+
             const channel = interaction.guild.channels.cache.get(channelId);
+            console.log('[CONFIG] Canal encontrado:', channel ? channel.name : 'null');
 
             if (!channel) {
+                console.log('[CONFIG] Canal não encontrado ou indisponível');
                 return i.update({
                     content: '❌ O canal selecionado não existe mais ou não está disponível.',
                     components: []
                 });
             }
 
+            console.log('[CONFIG] Chamando database.setSystemChannel com guildId:', interaction.guild.id, 'channelId:', channelId);
             const changes = database.setSystemChannel(interaction.guild.id, channelId);
+            console.log('[CONFIG] Mudanças no banco:', changes);
 
             if (changes > 0) {
+                console.log('[CONFIG] Canal definido com sucesso');
                 i.update({
                     content: `✅ Beleza! De agora em diante, enviarei mensagens de sistema no canal ${channel}.`,
                     components: []
                 });
             } else {
+                console.log('[CONFIG] Canal já estava definido');
                 i.update({
                     content: `⚠️ O canal ${channel} já estava definido como canal de sistema.`,
                     components: []
@@ -1235,6 +1261,7 @@ async function handleSetSystemChannel(interaction) {
             }
         } catch (error) {
             console.error('[CONFIG][ERROR] Erro ao definir canal de sistema:', error);
+            console.error('[CONFIG][ERROR] Stack trace:', error.stack);
             i.update({
                 content: '❌ Ocorreu um erro ao definir o canal de sistema. Tente novamente.',
                 components: []
@@ -1243,7 +1270,10 @@ async function handleSetSystemChannel(interaction) {
     });
 
     collector.on('end', collected => {
+        console.log('[CONFIG] Collector do handleSetSystemChannel terminou');
+        console.log('[CONFIG] Interações coletadas:', collected.size);
         if (collected.size === 0) {
+            console.log('[CONFIG] Tempo expirado, editando reply');
             interaction.editReply({ content: '⏰ O tempo para selecionar um canal expirou.', components: [] });
         }
     });
@@ -2097,7 +2127,13 @@ module.exports = {
             });
 
             collector.on('collect', async i => {
+                console.log('[CONFIG] Main collector recebeu interação');
+                console.log('[CONFIG] Tipo de interação:', i.constructor.name);
+                console.log('[CONFIG] CustomId:', i.customId);
+                console.log('[CONFIG] Usuário:', i.user.tag);
+
                 if (i.user.id !== interaction.user.id) {
+                    console.log('[CONFIG] Usuário incorreto tentou interagir');
                     return i.reply({
                         content: '⛔ Apenas quem executou o comando pode interagir aqui.',
                         ephemeral: true
@@ -2106,25 +2142,42 @@ module.exports = {
 
                 try {
                     if (i.isStringSelectMenu()) {
+                        console.log('[CONFIG] Processando StringSelectMenu');
                         const customId = i.customId;
+                        console.log('[CONFIG] CustomId analisado:', customId);
+
                         if (customId.includes('category_select')) {
+                            console.log('[CONFIG] Chamando handleCategorySelect');
                             await handleCategorySelect(i);
                         } else if (customId.includes('memory_type_select')) {
+                            console.log('[CONFIG] Chamando handleMemoryTypeSelect');
                             await handleMemoryTypeSelect(i);
                         } else if (customId.includes('memory_actions_select')) {
+                            console.log('[CONFIG] Chamando handleMemoryActionsSelect');
                             await handleMemoryActionsSelect(i);
                         } else if (customId.includes('message_subcategory_select')) {
+                            console.log('[CONFIG] Chamando handleMessageSubcategorySelect');
                             await handleMessageSubcategorySelect(i);
+                        } else if (customId.includes('set_system_channel_select')) {
+                            console.log('[CONFIG] Detectado set_system_channel_select - esta interação deve ser tratada pelo collector interno');
+                            // Esta interação deve ser tratada pelo collector interno do handleSetSystemChannel
+                            // Não fazer nada aqui para evitar conflito
                         } else {
+                            console.log('[CONFIG] CustomId não reconhecido, chamando handleCategorySelect por padrão');
                             await handleCategorySelect(i);
                         }
                     } else if (i.isButton()) {
+                        console.log('[CONFIG] Processando Button');
                         await handleButtonClick(i);
                     } else if (i.isModalSubmit()) {
+                        console.log('[CONFIG] Processando ModalSubmit');
                         await handleModalSubmit(i);
+                    } else {
+                        console.log('[CONFIG] Tipo de interação não reconhecido:', i.constructor.name);
                     }
                 } catch (error) {
                     console.error('[CONFIG][ERROR] Erro ao processar interação:', error);
+                    console.error('[CONFIG][ERROR] Stack trace:', error.stack);
                     await i.reply({
                         content: '❌ Ocorreu um erro ao processar sua solicitação.',
                         flags: [MessageFlags.Ephemeral]
