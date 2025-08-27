@@ -35,13 +35,18 @@ module.exports = {
         .setMinValue(1)),
 
   async execute(interaction) {
+    console.log('[COMMENT][START] Comando iniciado com parâmetros from/to');
+
     const from = interaction.options.getInteger('from');
     const to = interaction.options.getInteger('to');
     const channel = interaction.channel;
     const guild = interaction.guild;
 
+    console.log(`[COMMENT][PARAMS] from=${from}, to=${to}, channel=${channel?.id}, guild=${guild?.id}`);
+
     /* --- VALIDAÇÃO DE PARÂMETROS --- */
     if (to < from) {
+      console.log('[COMMENT][VALIDATION] Parâmetros inválidos: to < from');
       return interaction.reply({
         content: '❌ O valor de `to` deve ser maior ou igual a `from`.',
         flags: [MessageFlags.Ephemeral]
@@ -50,12 +55,16 @@ module.exports = {
 
     const limit = to - from + 1;
     const offset = from - 1;
+    console.log(`[COMMENT][CALC] limit=${limit}, offset=${offset}`);
 
     try {
       /* --- BUSCAR HISTÓRICO DE MENSAGENS POR INTERVALO --- */
+      console.log('[COMMENT][DB] Buscando histórico no banco de dados...');
       const messageHistory = database.buscarHistoricoCanalRange(guild.id, channel.id, limit, offset);
+      console.log(`[COMMENT][DB] Encontradas ${messageHistory.length} mensagens no histórico`);
 
       if (messageHistory.length === 0) {
+        console.log('[COMMENT][DB] Nenhum histórico encontrado');
         return interaction.reply({
           content: '❌ Não há mensagens suficientes no histórico deste canal.',
           flags: [MessageFlags.Ephemeral]
@@ -63,11 +72,13 @@ module.exports = {
       }
 
       /* --- BUSCAR CONTEÚDO DAS MENSAGENS --- */
+      console.log('[COMMENT][FETCH] Buscando conteúdo das mensagens...');
       const messages = [];
       const participants = new Set();
 
       for (const record of messageHistory) {
         try {
+          console.log(`[COMMENT][FETCH] Buscando mensagem ${record.message_id}`);
           const message = await channel.messages.fetch(record.message_id);
           if (!message.author.bot) { // Excluir mensagens de bots
             const nickname = message.member?.displayName || message.author.displayName || message.author.username;
@@ -76,14 +87,20 @@ module.exports = {
               nickname,
               content: message.content
             });
+            console.log(`[COMMENT][FETCH] Mensagem adicionada: ${nickname}`);
+          } else {
+            console.log(`[COMMENT][FETCH] Mensagem de bot pulada`);
           }
         } catch (error) {
           // Mensagem pode ter sido deletada, continuar
-          console.log(`[COMMENT] Mensagem ${record.message_id} não encontrada, pulando...`);
+          console.log(`[COMMENT][FETCH] Mensagem ${record.message_id} não encontrada:`, error.message);
         }
       }
 
+      console.log(`[COMMENT][FETCH] Total de mensagens válidas: ${messages.length}`);
+
       if (messages.length === 0) {
+        console.log('[COMMENT][FETCH] Nenhuma mensagem válida encontrada');
         return interaction.reply({
           content: '❌ Não há mensagens de usuários no histórico (apenas bots).',
           flags: [MessageFlags.Ephemeral]
@@ -91,6 +108,7 @@ module.exports = {
       }
 
       /* --- FORMATAR CONVERSA COM AGRUPAMENTO --- */
+      console.log('[COMMENT][FORMAT] Formatando conversa...');
       const participantList = Array.from(participants).join(', ');
       let conversationText = `**Participantes:** ${participantList}\n\n`;
 
@@ -107,9 +125,14 @@ module.exports = {
         }
       }
 
+      console.log(`[COMMENT][FORMAT] Texto formatado com ${conversationText.length} caracteres`);
+
       /* --- VERIFICAR LIMITE DE CARACTERES --- */
       const maxChars = config.settings.maxTokens; // Usando como limite de caracteres
+      console.log(`[COMMENT][LIMIT] Verificando limite: ${conversationText.length}/${maxChars}`);
+
       if (conversationText.length > maxChars) {
+        console.log('[COMMENT][LIMIT] Texto muito longo, rejeitando');
         return interaction.reply({
           content: `❌ Conversa muito longa (${conversationText.length} caracteres, máximo ${maxChars}). Reduza o número de mensagens.`,
           flags: [MessageFlags.Ephemeral]
@@ -117,17 +140,23 @@ module.exports = {
       }
 
       /* --- GERAR COMENTÁRIO VIA API --- */
-      console.log(`[COMMENT] Gerando comentário para ${messages.length} mensagens (${conversationText.length} chars)`);
+      console.log(`[COMMENT][API] Enviando para API: ${messages.length} mensagens (${conversationText.length} chars)`);
 
       const comment = await oaiInterface.gerarComentarioViaAPI(conversationText);
 
+      console.log(`[COMMENT][API] Resposta recebida, tamanho: ${comment.length}`);
+
       /* --- RESPONDER NO CANAL --- */
+      console.log('[COMMENT][REPLY] Enviando resposta...');
       await interaction.reply(comment);
+      console.log('[COMMENT][SUCCESS] Comando executado com sucesso');
 
     } catch (error) {
       console.error('[COMMENT][ERROR] Erro ao executar comando:', error);
+      console.error('[COMMENT][ERROR] Stack trace:', error.stack);
 
       if (!interaction.replied) {
+        console.log('[COMMENT][ERROR] Enviando resposta de erro...');
         await interaction.reply({
           content: '❌ Ocorreu um erro ao gerar o comentário. Tente novamente.',
           flags: [MessageFlags.Ephemeral]
