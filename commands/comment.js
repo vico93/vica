@@ -37,6 +37,10 @@ module.exports = {
   async execute(interaction) {
     console.log('[COMMENT][START] Comando iniciado com parâmetros from/to');
 
+    // Acknowledge the interaction immediately to prevent timeout
+    await interaction.deferReply();
+    console.log('[COMMENT][DEFER] Interação reconhecida, processando em segundo plano');
+
     const from = interaction.options.getInteger('from');
     const to = interaction.options.getInteger('to');
     const channel = interaction.channel;
@@ -47,9 +51,8 @@ module.exports = {
     /* --- VALIDAÇÃO DE PARÂMETROS --- */
     if (to < from) {
       console.log('[COMMENT][VALIDATION] Parâmetros inválidos: to < from');
-      return interaction.reply({
-        content: '❌ O valor de `to` deve ser maior ou igual a `from`.',
-        flags: [MessageFlags.Ephemeral]
+      return interaction.editReply({
+        content: '❌ O valor de `to` deve ser maior ou igual a `from`.'
       });
     }
 
@@ -65,9 +68,8 @@ module.exports = {
 
       if (messageHistory.length === 0) {
         console.log('[COMMENT][DB] Nenhum histórico encontrado');
-        return interaction.reply({
-          content: '❌ Não há mensagens suficientes no histórico deste canal.',
-          flags: [MessageFlags.Ephemeral]
+        return interaction.editReply({
+          content: '❌ Não há mensagens suficientes no histórico deste canal.'
         });
       }
 
@@ -101,9 +103,8 @@ module.exports = {
 
       if (messages.length === 0) {
         console.log('[COMMENT][FETCH] Nenhuma mensagem válida encontrada');
-        return interaction.reply({
-          content: '❌ Não há mensagens de usuários no histórico (apenas bots).',
-          flags: [MessageFlags.Ephemeral]
+        return interaction.editReply({
+          content: '❌ Não há mensagens de usuários no histórico (apenas bots).'
         });
       }
 
@@ -133,9 +134,8 @@ module.exports = {
 
       if (conversationText.length > maxChars) {
         console.log('[COMMENT][LIMIT] Texto muito longo, rejeitando');
-        return interaction.reply({
-          content: `❌ Conversa muito longa (${conversationText.length} caracteres, máximo ${maxChars}). Reduza o número de mensagens.`,
-          flags: [MessageFlags.Ephemeral]
+        return interaction.editReply({
+          content: `❌ Conversa muito longa (${conversationText.length} caracteres, máximo ${maxChars}). Reduza o número de mensagens.`
         });
       }
 
@@ -148,20 +148,17 @@ module.exports = {
 
       /* --- RESPONDER NO CANAL --- */
       console.log('[COMMENT][REPLY] Enviando resposta...');
-      await interaction.reply(comment);
+      await interaction.editReply(comment);
       console.log('[COMMENT][SUCCESS] Comando executado com sucesso');
 
     } catch (error) {
       console.error('[COMMENT][ERROR] Erro ao executar comando:', error);
       console.error('[COMMENT][ERROR] Stack trace:', error.stack);
 
-      if (!interaction.replied) {
-        console.log('[COMMENT][ERROR] Enviando resposta de erro...');
-        await interaction.reply({
-          content: '❌ Ocorreu um erro ao gerar o comentário. Tente novamente.',
-          flags: [MessageFlags.Ephemeral]
-        });
-      }
+      console.log('[COMMENT][ERROR] Enviando resposta de erro...');
+      await interaction.editReply({
+        content: '❌ Ocorreu um erro ao gerar o comentário. Tente novamente.'
+      });
     }
   },
 };
