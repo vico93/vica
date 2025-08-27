@@ -40,8 +40,8 @@ const CATEGORIES = {
 // Sub-categorias para melhor organização
 const MESSAGE_SUBCATEGORIES = {
     SYSTEM_CHANNEL: { id: 'system_channel', name: '📢 Canal do Sistema', desc: 'Configurar canal para mensagens automáticas' },
-    ROLE_CONGRATS: { id: 'role_congrats', name: '🎉 Parabéns por Cargo', desc: 'Configurar mensagens de parabéns automáticas' }
-    // JOIN_LEAVE: { id: 'join_leave', name: '🚪 Entrada/Saída', desc: 'Configurar mensagens de entrada e saída' } // Removido - funcionalidade não implementada
+    ROLE_CONGRATS: { id: 'role_congrats', name: '🎉 Parabéns por Cargo', desc: 'Configurar mensagens de parabéns automáticas' },
+    JOIN_LEAVE: { id: 'join_leave', name: '🚪 Entrada/Saída', desc: 'Configurar mensagens de entrada e saída' }
 };
 
 // Mapa de ações para cada categoria
@@ -56,8 +56,16 @@ const CATEGORY_ACTIONS = {
 // Ações para cada sub-categoria de mensagens
 const SUBCATEGORY_ACTIONS = {
     [MESSAGE_SUBCATEGORIES.SYSTEM_CHANNEL.id]: ['set_system_channel', 'clear_system_channel', 'back_to_messages'],
-    [MESSAGE_SUBCATEGORIES.ROLE_CONGRATS.id]: ['set_role_upgrade', 'list_role_upgrades', 'back_to_messages']
-    // [MESSAGE_SUBCATEGORIES.JOIN_LEAVE.id]: ['set_join_leave', 'delete_join_leave', 'list_join_leave', 'back_to_messages'] // Removido - funcionalidade não implementada
+    [MESSAGE_SUBCATEGORIES.ROLE_CONGRATS.id]: ['set_role_upgrade', 'list_role_upgrades', 'back_to_messages'],
+    [MESSAGE_SUBCATEGORIES.JOIN_LEAVE.id]: ['set_join_leave', 'delete_join_leave', 'back_to_messages']
+};
+
+// Mapeamento de tipos de mensagem para nomes amigáveis
+const JOIN_LEAVE_TYPES = {
+    welcome: '👋 Boas-vindas',
+    leave: '🚪 Saída (Normal)',
+    kick: '👢 Saída (Expulsão)',
+    ban: '🚫 Saída (Banimento)'
 };
 
 // --- UTILITÁRIOS ---
@@ -370,12 +378,19 @@ function createSubcategoryEmbed(subcategoryId, guild) {
             });
             break;
 
-        // case MESSAGE_SUBCATEGORIES.JOIN_LEAVE.id: // Removido - funcionalidade não implementada
-        //     embed.addFields({
-        //         name: '📋 Status Atual',
-        //         value: 'Funcionalidade em desenvolvimento'
-        //     });
-        //     break;
+        case MESSAGE_SUBCATEGORIES.JOIN_LEAVE.id:
+            embed.addFields({ name: '📋 Mensagens configuradas', value: ' ' }); // Placeholder
+            for (const [type, name] of Object.entries(JOIN_LEAVE_TYPES)) {
+                const msg = database.getMessageByType(guild.id, type);
+                let status = '❌ Não configurada';
+                if (msg && msg.message) {
+                    const mode = msg.isPrompt ? '🤖 Prompt' : '📝 Texto Fixo';
+                    const preview = msg.message.length > 40 ? msg.message.slice(0, 37) + '...' : msg.message;
+                    status = `${mode}: \`${preview}\``;
+                }
+                embed.addFields({ name: name, value: status, inline: true });
+            }
+            break;
     }
 
     return embed;
@@ -421,24 +436,18 @@ function createSubcategoryButtons(userId, subcategoryId) {
                     .setLabel('📋 Listar Parabéns')
                     .setStyle(ButtonStyle.Primary);
                 break;
-            // case 'set_join_leave': // Removido - funcionalidade não implementada
-            //     button = new ButtonBuilder()
-            //         .setCustomId(generateComponentId(userId, 'set_join_leave'))
-            //         .setLabel('📝 Configurar Mensagens')
-            //         .setStyle(ButtonStyle.Success);
-            //     break;
-            // case 'delete_join_leave': // Removido - funcionalidade não implementada
-            //     button = new ButtonBuilder()
-            //         .setCustomId(generateComponentId(userId, 'delete_join_leave'))
-            //         .setLabel('❌ Remover Mensagens')
-            //         .setStyle(ButtonStyle.Danger);
-            //     break;
-            // case 'list_join_leave': // Removido - funcionalidade não implementada
-            //     button = new ButtonBuilder()
-            //         .setCustomId(generateComponentId(userId, 'list_join_leave'))
-            //         .setLabel('📋 Listar Mensagens')
-            //         .setStyle(ButtonStyle.Primary);
-            //     break;
+            case 'set_join_leave':
+                button = new ButtonBuilder()
+                    .setCustomId(generateComponentId(userId, 'set_join_leave'))
+                    .setLabel('📝 Definir/Editar Mensagem')
+                    .setStyle(ButtonStyle.Success);
+                break;
+            case 'delete_join_leave':
+                button = new ButtonBuilder()
+                    .setCustomId(generateComponentId(userId, 'delete_join_leave'))
+                    .setLabel('🗑️ Remover Mensagem')
+                    .setStyle(ButtonStyle.Danger);
+                break;
         }
 
         if (button) buttons.push(button);
