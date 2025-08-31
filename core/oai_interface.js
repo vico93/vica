@@ -1,6 +1,6 @@
 /*
 ** caminho: core/oai_interface.js
-** últimaMod: 22/08/2025 01:18
+** últimaMod: 31/08/2025 19:55
 ** autor: Vico
 ** colaboração: Gemini, ChatGPT, Roo Sonic
 */
@@ -142,6 +142,7 @@ async function gerarParabensCargoViaAPI(guildId, userId, promptUsuario, roleName
       messages,
       temperature: 0.8,
       max_tokens: 100, // Slightly higher for more complete responses
+      tools: [salvarMemoriaFunction],
     });
 
     const message = response?.choices?.[0]?.message;
@@ -204,6 +205,7 @@ async function gerarParabensCargoViaAPI(guildId, userId, promptUsuario, roleName
        messages,
        temperature: 0.8,
        max_tokens: config.settings.maxTokens,
+       tools: [salvarMemoriaFunction],
      };
 
      const response = await openai.chat.completions.create(requestBody);
@@ -238,7 +240,7 @@ async function gerarParabensCargoViaAPI(guildId, userId, promptUsuario, roleName
  }
  
  // Função para gerar uma resposta à partir da API
- async function gerarRespostaContextual(guildId, canalId, usuarioId, mensagemUsuario, imageUrl = null, channel = null, sourceMessageId = null) {
+ async function gerarRespostaContextual(guildId, canalId, usuarioId, botUserId, mensagemUsuario, imageUrl = null, channel = null, sourceMessageId = null) {
    let systemPrompt = await carregarSystemPrompt();
 
    // Carrega memórias da guild e injeta no system prompt
@@ -250,6 +252,30 @@ async function gerarParabensCargoViaAPI(guildId, userId, promptUsuario, roleName
      }
    } catch (e) {
      console.error('[OAI] Erro ao buscar memórias da guild:', e);
+   }
+
+   // Carrega ranking de participação e injeta no system prompt
+   try {
+     const ranking = database.buscarRank(guildId, 5);
+     if (ranking && ranking.length > 0) {
+       const rankingLines = ranking.map((user, index) =>
+         `${index + 1}. <@${user.usuario_id}> (${user.xp} XP)`
+       );
+       systemPrompt += `\n\n**Ranking de participação:**\n${rankingLines.join(', ')}`;
+     }
+   } catch (e) {
+     console.error('[OAI] Erro ao buscar ranking de participação:', e);
+   }
+
+   // Carrega memórias específicas do usuário e injeta no system prompt
+   try {
+     const userMems = database.listarMemoriasUsuario(guildId, usuarioId);
+     if (userMems && userMems.length > 0) {
+       const memoriasUsuarioTexto = userMems.map(m => `- ${m.fact}`).join('\n');
+       systemPrompt += `\n\n**Memórias sobre este usuário (use-as para guiar suas respostas):**\n${memoriasUsuarioTexto}`;
+     }
+   } catch (e) {
+     console.error('[OAI] Erro ao buscar memórias do usuário:', e);
    }
 
 
@@ -268,7 +294,10 @@ async function gerarParabensCargoViaAPI(guildId, userId, promptUsuario, roleName
          historicoIds.map(async (id) => {
            try {
              const m = await channel.messages.fetch(id);
-             return m?.content || null;
+             if (m?.content) {
+               return { content: m.content, authorId: m.author.id };
+             }
+             return null;
            } catch {
              return null;
            }
@@ -280,12 +309,22 @@ async function gerarParabensCargoViaAPI(guildId, userId, promptUsuario, roleName
      }
    }
 
-   for (const txt of historicoTextos) {
-     messages.push({ role: 'user', content: txt });
+   for (const msg of historicoTextos) {
+     const isBot = msg.authorId === botUserId;
+     messages.push({ role: isBot ? 'assistant' : 'user', content: msg.content });
    }
 
-   // Add the current user message with simple string content
-   messages.push({ role: 'user', content: mensagemUsuario });
+   // Add the current user message
+   let userContent;
+   if (imageUrl) {
+     userContent = [
+       { type: 'text', text: mensagemUsuario },
+       { type: 'image_url', image_url: { url: imageUrl } }
+     ];
+   } else {
+     userContent = mensagemUsuario;
+   }
+   messages.push({ role: 'user', content: userContent });
 
    try {
      // Use the full message array with system prompt and conversation history
@@ -294,6 +333,7 @@ async function gerarParabensCargoViaAPI(guildId, userId, promptUsuario, roleName
        messages,
        temperature: 0.8,
        max_tokens: config.settings.maxTokens,
+       tools: [salvarMemoriaFunction],
      });
 
      const message = response?.choices?.[0]?.message;

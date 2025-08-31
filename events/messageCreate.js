@@ -145,7 +145,7 @@ module.exports = {
       if (!prompt && !imageUrl) return;
 
       const resposta = await oai.gerarRespostaContextual(
-        guildId, canalId, usuarioId, prompt, imageUrl, message.channel, message.id
+        guildId, canalId, usuarioId, message.client.user.id, prompt, imageUrl, message.channel, message.id
       );
 
       await message.reply({ content: resposta, failIfNotExists: false });

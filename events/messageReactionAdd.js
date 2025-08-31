@@ -67,7 +67,7 @@ module.exports = {
       await message.channel.sendTyping();
 
       const resposta = await oai.gerarRespostaContextual(
-        guildId, canalId, usuarioId, prompt, imageUrl
+        guildId, canalId, usuarioId, message.client.user.id, prompt, imageUrl
       );
 
       await message.reply({ content: resposta, failIfNotExists: false });
