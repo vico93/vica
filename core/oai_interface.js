@@ -328,6 +328,20 @@ async function gerarParabensCargoViaAPI(guildId, userId, promptUsuario, roleName
 
    try {
      // Use the full message array with system prompt and conversation history
+     console.log('[DEBUG] Sending request to OpenAI API:');
+     console.log(`- Model: ${config.openai.model}`);
+     console.log(`- Messages count: ${messages.length}`);
+     console.log(`- First message type: ${messages[0]?.role}/${typeof messages[0]?.content === 'object' ? messages[0]?.content?.type || 'array' : 'text'}`);
+     console.log(`- Has tools: true`);
+     console.log(`- Tools length: 1`);
+     console.log(`- System prompt length: ${systemPrompt.length} characters`);
+     console.log(`- Request excerpt:`, {
+       model: config.openai.model,
+       messages: messages.length,
+       temperature: 0.8,
+       max_tokens: config.settings.maxTokens,
+       tools: ['salvar_memoria']
+     });
      const response = await openai.chat.completions.create({
        model: config.openai.model,
        messages,
