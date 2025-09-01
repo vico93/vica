@@ -116,6 +116,40 @@ async function gerarPerguntaViaAPI(promptUsuario = null) {
       temperature: 0.9,
       max_tokens: config.settings.maxTokens,
     });
+
+    // /* --- Logging da Resposta Raw da API --- */
+    console.log('[OAI][DEBUG] Resposta raw da API recebida (gerarPerguntaViaAPI):');
+    console.log(`- Status HTTP: ${response.status || 'N/A'}`);
+    console.log(`- Cabeçalhos importantes:`, {
+      'content-type': response.headers?.get?.('content-type') || 'N/A',
+      'x-ratelimit-remaining': response.headers?.get?.('x-ratelimit-remaining') || 'N/A'
+    });
+
+    // Sanitizar resposta para logging (remover dados sensíveis)
+    const sanitizedResponse = {
+      id: response.id,
+      object: response.object,
+      created: response.created,
+      model: response.model,
+      choices: response.choices,
+      usage: response.usage
+    };
+    console.log('- Resposta completa (sanitizada):', JSON.stringify(sanitizedResponse, null, 2));
+    console.log('- Detalhes de choices[0]:', response.choices?.[0] ? JSON.stringify(response.choices[0], null, 2) : 'N/A');
+
+    const mainChoice = response.choices?.[0];
+    if (mainChoice) {
+      console.log('- Tipo da resposta:', typeof mainChoice);
+      console.log('- Tem mensagem:', !!mainChoice.message);
+      if (mainChoice.message) {
+        console.log('- Conteúdo da mensagem:', mainChoice.message.content ? 'Presente' : 'Ausente');
+        console.log('- Tool calls:', mainChoice.message.tool_calls ? `Presente (${mainChoice.message.tool_calls.length})` : 'Ausente');
+      }
+      console.log('- Finish reason:', mainChoice.finish_reason || 'N/A');
+    } else {
+      console.log('- ERRO: Não há choices[0] na resposta!');
+    }
+
     const content = response?.choices?.[0]?.message?.content;
     if (!content) throw new Error('A API não retornou conteúdo na resposta.');
     return content.trim();
@@ -144,6 +178,39 @@ async function gerarParabensCargoViaAPI(guildId, userId, promptUsuario, roleName
       max_tokens: 100, // Slightly higher for more complete responses
       tools: [salvarMemoriaFunction],
     });
+
+    // /* --- Logging da Resposta Raw da API --- */
+    console.log('[OAI][DEBUG] Resposta raw da API recebida (gerarParabensCargoViaAPI):');
+    console.log(`- Status HTTP: ${response.status || 'N/A'}`);
+    console.log(`- Cabeçalhos importantes:`, {
+      'content-type': response.headers?.get?.('content-type') || 'N/A',
+      'x-ratelimit-remaining': response.headers?.get?.('x-ratelimit-remaining') || 'N/A'
+    });
+
+    // Sanitizar resposta para logging (remover dados sensíveis)
+    const sanitizedResponse = {
+      id: response.id,
+      object: response.object,
+      created: response.created,
+      model: response.model,
+      choices: response.choices,
+      usage: response.usage
+    };
+    console.log('- Resposta completa (sanitizada):', JSON.stringify(sanitizedResponse, null, 2));
+    console.log('- Detalhes de choices[0]:', response.choices?.[0] ? JSON.stringify(response.choices[0], null, 2) : 'N/A');
+
+    const mainChoice = response.choices?.[0];
+    if (mainChoice) {
+      console.log('- Tipo da resposta:', typeof mainChoice);
+      console.log('- Tem mensagem:', !!mainChoice.message);
+      if (mainChoice.message) {
+        console.log('- Conteúdo da mensagem:', mainChoice.message.content ? 'Presente' : 'Ausente');
+        console.log('- Tool calls:', mainChoice.message.tool_calls ? `Presente (${mainChoice.message.tool_calls.length})` : 'Ausente');
+      }
+      console.log('- Finish reason:', mainChoice.finish_reason || 'N/A');
+    } else {
+      console.log('- ERRO: Não há choices[0] na resposta!');
+    }
 
     const message = response?.choices?.[0]?.message;
     let content = message?.content || '';
@@ -209,7 +276,40 @@ async function gerarParabensCargoViaAPI(guildId, userId, promptUsuario, roleName
      };
 
      const response = await openai.chat.completions.create(requestBody);
- 
+
+     // /* --- Logging da Resposta Raw da API --- */
+     console.log('[OAI][DEBUG] Resposta raw da API recebida (gerarMensagemBemVindoViaAPI):');
+     console.log(`- Status HTTP: ${response.status || 'N/A'}`);
+     console.log(`- Cabeçalhos importantes:`, {
+       'content-type': response.headers?.get?.('content-type') || 'N/A',
+       'x-ratelimit-remaining': response.headers?.get?.('x-ratelimit-remaining') || 'N/A'
+     });
+
+     // Sanitizar resposta para logging (remover dados sensíveis)
+     const sanitizedResponse = {
+       id: response.id,
+       object: response.object,
+       created: response.created,
+       model: response.model,
+       choices: response.choices,
+       usage: response.usage
+     };
+     console.log('- Resposta completa (sanitizada):', JSON.stringify(sanitizedResponse, null, 2));
+     console.log('- Detalhes de choices[0]:', response.choices?.[0] ? JSON.stringify(response.choices[0], null, 2) : 'N/A');
+
+     const mainChoice = response.choices?.[0];
+     if (mainChoice) {
+       console.log('- Tipo da resposta:', typeof mainChoice);
+       console.log('- Tem mensagem:', !!mainChoice.message);
+       if (mainChoice.message) {
+         console.log('- Conteúdo da mensagem:', mainChoice.message.content ? 'Presente' : 'Ausente');
+         console.log('- Tool calls:', mainChoice.message.tool_calls ? `Presente (${mainChoice.message.tool_calls.length})` : 'Ausente');
+       }
+       console.log('- Finish reason:', mainChoice.finish_reason || 'N/A');
+     } else {
+       console.log('- ERRO: Não há choices[0] na resposta!');
+     }
+
      const message = response?.choices?.[0]?.message;
      let content = message?.content || '';
  
@@ -350,6 +450,39 @@ async function gerarParabensCargoViaAPI(guildId, userId, promptUsuario, roleName
        tools: [salvarMemoriaFunction],
      });
 
+     // /* --- Logging da Resposta Raw da API --- */
+     console.log('[OAI][DEBUG] Resposta raw da API recebida (gerarRespostaContextual):');
+     console.log(`- Status HTTP: ${response.status || 'N/A'}`);
+     console.log(`- Cabeçalhos importantes:`, {
+       'content-type': response.headers?.get?.('content-type') || 'N/A',
+       'x-ratelimit-remaining': response.headers?.get?.('x-ratelimit-remaining') || 'N/A'
+     });
+
+     // Sanitizar resposta para logging (remover dados sensíveis)
+     const sanitizedResponse = {
+       id: response.id,
+       object: response.object,
+       created: response.created,
+       model: response.model,
+       choices: response.choices,
+       usage: response.usage
+     };
+     console.log('- Resposta completa (sanitizada):', JSON.stringify(sanitizedResponse, null, 2));
+     console.log('- Detalhes de choices[0]:', response.choices?.[0] ? JSON.stringify(response.choices[0], null, 2) : 'N/A');
+
+     const mainChoice = response.choices?.[0];
+     if (mainChoice) {
+       console.log('- Tipo da resposta:', typeof mainChoice);
+       console.log('- Tem mensagem:', !!mainChoice.message);
+       if (mainChoice.message) {
+         console.log('- Conteúdo da mensagem:', mainChoice.message.content ? 'Presente' : 'Ausente');
+         console.log('- Tool calls:', mainChoice.message.tool_calls ? `Presente (${mainChoice.message.tool_calls.length})` : 'Ausente');
+       }
+       console.log('- Finish reason:', mainChoice.finish_reason || 'N/A');
+     } else {
+       console.log('- ERRO: Não há choices[0] na resposta!');
+     }
+
      const message = response?.choices?.[0]?.message;
      let content = message?.content || '';
 
@@ -407,6 +540,40 @@ async function gerarParabensCargoViaAPI(guildId, userId, promptUsuario, roleName
        temperature: 0.8,
        max_tokens: config.settings.maxTokens,
      });
+
+     // /* --- Logging da Resposta Raw da API --- */
+     console.log('[OAI][DEBUG] Resposta raw da API recebida (gerarComentarioViaAPI):');
+     console.log(`- Status HTTP: ${response.status || 'N/A'}`);
+     console.log(`- Cabeçalhos importantes:`, {
+       'content-type': response.headers?.get?.('content-type') || 'N/A',
+       'x-ratelimit-remaining': response.headers?.get?.('x-ratelimit-remaining') || 'N/A'
+     });
+
+     // Sanitizar resposta para logging (remover dados sensíveis)
+     const sanitizedResponse = {
+       id: response.id,
+       object: response.object,
+       created: response.created,
+       model: response.model,
+       choices: response.choices,
+       usage: response.usage
+     };
+     console.log('- Resposta completa (sanitizada):', JSON.stringify(sanitizedResponse, null, 2));
+     console.log('- Detalhes de choices[0]:', response.choices?.[0] ? JSON.stringify(response.choices[0], null, 2) : 'N/A');
+
+     const mainChoice = response.choices?.[0];
+     if (mainChoice) {
+       console.log('- Tipo da resposta:', typeof mainChoice);
+       console.log('- Tem mensagem:', !!mainChoice.message);
+       if (mainChoice.message) {
+         console.log('- Conteúdo da mensagem:', mainChoice.message.content ? 'Presente' : 'Ausente');
+         console.log('- Tool calls:', mainChoice.message.tool_calls ? `Presente (${mainChoice.message.tool_calls.length})` : 'Ausente');
+       }
+       console.log('- Finish reason:', mainChoice.finish_reason || 'N/A');
+     } else {
+       console.log('- ERRO: Não há choices[0] na resposta!');
+     }
+
      const content = response?.choices?.[0]?.message?.content;
      if (!content) throw new Error('A API não retornou conteúdo na resposta.');
      return content.trim();
