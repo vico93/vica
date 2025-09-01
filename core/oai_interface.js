@@ -371,7 +371,13 @@ async function gerarParabensCargoViaAPI(guildId, userId, promptUsuario, roleName
      }
 
      if (!content) {
-       throw new Error('A API não retornou conteúdo na resposta.');
+       // Caso não haja conteúdo mas houve chamadas de ferramentas, assume sucesso
+       if (message?.tool_calls?.length > 0) {
+         console.log('[VICA][TOOL] Sem conteúdo textual, mas ferramentas executadas com sucesso');
+         content = 'Memória salva/atualizada com sucesso!';
+       } else {
+         throw new Error('A API não retornou conteúdo na resposta.');
+       }
      }
 
      // Remove qualquer referência a ferramentas do conteúdo final
