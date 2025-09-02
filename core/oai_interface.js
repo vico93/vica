@@ -1,6 +1,6 @@
 /*
 ** caminho: core/oai_interface.js
-** últimaMod: 01/09/2025 00:47
+** últimaMod: 01/09/2025 21:43
 ** autor: Vico
 ** colaboração: Gemini, ChatGPT, Roo Sonic
 */
@@ -11,6 +11,7 @@ const OpenAI = require('openai');
 const config = require('../config.json');
 const database = require('../core/database');
 
+/* --- Função Para Salvar Memórias de Longo Prazo --- */
 // Define a função para salvar memórias de longo prazo
 const salvarMemoriaFunction = {
   name: 'salvar_memoria',
@@ -18,18 +19,185 @@ const salvarMemoriaFunction = {
   parameters: {
     type: 'object',
     properties: {
+      guild_id: {
+        type: 'string',
+        description: 'O ID da guild (servidor) do Discord.'
+      },
       user_id: {
         type: 'string',
         description: 'O ID numérico do usuário no Discord (ex: "171003562363584513").'
       },
       fato: {
         type: 'string',
-        description: 'Um fato curto em português sobre o usuário (máx. ~200 caracteres, sem quebras de linha). Ex: "Gosta de maçãs", "Torcedor do São Paulo".'
+        maxLength: 200,
+        description: 'Um fato curto em português sobre o usuário (máx. 200 caracteres, sem quebras de linha). Ex: "Gosta de maçãs", "Torcedor do São Paulo".'
+      },
+      importance: {
+        type: 'number',
+        minimum: 1,
+        maximum: 10,
+        description: 'Importância da memória (1-10, onde 10 é muito importante).'
+      },
+      confidence: {
+        type: 'number',
+        minimum: 0,
+        maximum: 1,
+        description: 'Confiança na memória (0-1, onde 1 é certeza absoluta).'
+      },
+      source_message_id: {
+        type: 'string',
+        description: 'ID da mensagem do Discord que originou esta memória.'
+      },
+      timestamp: {
+        type: 'number',
+        description: 'Timestamp Unix quando a memória foi criada.'
       }
     },
-    required: ['user_id', 'fato']
+    required: ['guild_id', 'user_id', 'fato']
   }
 };
+
+/* --- Funções Helper Para Processar Chamadas de Ferramentas --- */
+
+// Função helper para extrair tool calls de uma choice de forma robusta
+function extractToolCallsFromChoice(choice) {
+  try {
+    // Verificar diferentes formatos possíveis
+    const message = choice?.message;
+    if (!message) {
+      console.warn('[EXTRACT_TOOL][WARN] Choice.message ausente');
+      return [];
+    }
+
+    const toolCalls = message.tool_calls;
+    if (toolCalls) {
+      console.log(`[EXTRACT_TOOL][INFO] Encontradas ${toolCalls.length} tool calls na mensagem`);
+      return toolCalls;
+    }
+
+    // Fallback: verificar se está na propriedade 'function_call' (formato antigo)
+    if (message.function_call) {
+      console.warn('[EXTRACT_TOOL][WARN] Detectado formato antigo function_call, convertendo para tool_calls');
+      return [{
+        id: 'legacy_function_call',
+        type: 'function',
+        function: message.function_call
+      }];
+    }
+
+    console.log('[EXTRACT_TOOL][INFO] Nenhuma tool call encontrada na mensagem');
+    return [];
+  } catch (error) {
+    console.error('[EXTRACT_TOOL][ERRO] Falha ao extrair tool calls:', error.message);
+    return [];
+  }
+}
+
+// Função helper para processar tool calls e executar as funções
+function processToolCallsFromResponse(toolCalls, guildId, context = {}) {
+  if (!toolCalls || toolCalls.length === 0) {
+    console.log('[PROCESS_TOOL][INFO] Nenhuma tool call para processar');
+    return { success: true, processed: 0 };
+  }
+
+  console.log(`[PROCESS_TOOL][INFO] Processando ${toolCalls.length} tool calls`);
+
+  let processed = 0;
+  const results = [];
+
+  for (const toolCall of toolCalls) {
+    try {
+      if (toolCall.function?.name === 'salvar_memoria') {
+        const args = parseJsonSafely(toolCall.function.arguments, context.moduleTag || '[TOOL]');
+        if (args) {
+          // Sanitizar o fato
+          const sanitizedFato = sanitizeFato(args.fato);
+
+          // Validate importance (1-10, fallback 5)
+          let importance = args.importance;
+          if (typeof importance !== 'number' || importance < 1 || importance > 10) {
+            importance = 5; // default fallback
+          }
+          importance = Math.round(importance); // ensure integer
+
+          // Validate confidence (0-1, fallback 1.0)
+          let confidence = args.confidence;
+          if (typeof confidence !== 'number' || confidence < 0 || confidence > 1) {
+            confidence = 1.0; // default fallback
+          }
+
+          const result = database.adicionarMemoriaUsuario(
+            args.guild_id || guildId,
+            args.user_id,
+            sanitizedFato,
+            {
+              importance: importance,
+              confidence: confidence,
+              sourceMessageId: args.source_message_id || context.sourceMessageId,
+              createdAt: args.timestamp || Date.now()
+            }
+          );
+
+          console.log(`[${context.moduleTag || 'TOOL'}][TOOL] salvar_memoria guild=${args.guild_id || guildId} user=${args.user_id} fact="${sanitizedFato}" importance=${importance} confidence=${confidence} inserted=${result.inserted} duplicate=${result.duplicate}`);
+          results.push({ function: 'salvar_memoria', result, success: true });
+          processed++;
+        }
+      } else {
+        console.warn(`[PROCESS_TOOL][WARN] Tool call não reconhecida: ${toolCall.function?.name}`);
+        results.push({ function: toolCall.function?.name, error: 'Função não reconhecida', success: false });
+      }
+    } catch (e) {
+      console.error(`[PROCESS_TOOL][ERRO] Falha ao processar tool call ${toolCall.function?.name}:`, e?.message || e);
+      results.push({ function: toolCall.function?.name, error: e.message, success: false });
+    }
+  }
+
+  return { success: true, processed, results };
+}
+
+// Função para parse de JSON com fallback via regex
+function parseJsonSafely(jsonString, moduleTag = '[PARSE]') {
+  try {
+    // Tentar parse normal primeiro
+    return JSON.parse(jsonString);
+  } catch (parseError) {
+    console.warn(`${moduleTag}[JSON_PARSE][WARN] Parse JSON normal falhou, tentando regex fallback:`, parseError.message);
+
+    // Fallback: tentar extrair argumentos via regex
+    const regexPattern = /"(\w+)":\s*(?:"([^"]*)"|(\d+(?:\.\d+)?))/g;
+    const args = {};
+    let match;
+
+    try {
+      while ((match = regexPattern.exec(jsonString)) !== null) {
+        const [, key, strValue, numValue] = match;
+        args[key] = strValue !== undefined ? strValue : (numValue ? parseFloat(numValue) : match[0]);
+      }
+
+      if (Object.keys(args).length === 0) {
+        throw new Error('Nenhum argumento extraído via regex');
+      }
+
+      console.log(`${moduleTag}[JSON_PARSE][INFO] Extraído via regex:`, args);
+      return args;
+    } catch (regexError) {
+      console.error(`${moduleTag}[JSON_PARSE][ERRO] Fallback regex também falhou:`, regexError.message);
+      return null;
+    }
+  }
+}
+
+// Função para sanitizar fato (truncar e remover quebras de linha)
+function sanitizeFato(fato) {
+  if (typeof fato !== 'string') return '';
+
+  return fato
+    .replace(/\n/g, ' ') // Remove newlines
+    .replace(/\r/g, '')  // Remove carriage returns
+    .replace(/\t/g, ' ') // Remove tabs
+    .trim()              // Remove espaços extras
+    .substring(0, 200);  // Truncate to 200 chars
+}
 
 // Carrega o system prompt do arquivo system_prompt.txt
 // Se não conseguir ler o arquivo, retorna um prompt padrão
@@ -126,6 +294,7 @@ async function gerarPerguntaViaAPI(promptUsuario = null) {
   }
 }
 
+/* --- Função Role Congratulation API --- */
 // Função para gerar parabéns por cargo via API
 async function gerarParabensCargoViaAPI(guildId, userId, promptUsuario, roleName) {
   const systemPrompt = await carregarSystemPrompt();
@@ -136,7 +305,7 @@ async function gerarParabensCargoViaAPI(guildId, userId, promptUsuario, roleName
       content: promptUsuario,
     },
   ];
-  
+
   try {
     const response = await openai.chat.completions.create({
       model: config.openai.model,
@@ -144,26 +313,22 @@ async function gerarParabensCargoViaAPI(guildId, userId, promptUsuario, roleName
       temperature: 0.8,
       max_tokens: 100, // Slightly higher for more complete responses
       tools: [salvarMemoriaFunction],
+      function_call: 'auto', // Enable automatic function calling
     });
 
-    const message = response?.choices?.[0]?.message;
+    const choice = response?.choices?.[0];
+    const message = choice?.message;
     let content = message?.content || '';
 
-    // Processa chamadas de ferramentas (function calls)
-    if (message?.tool_calls) {
-      for (const toolCall of message.tool_calls) {
-        if (toolCall.function.name === 'salvar_memoria') {
-          try {
-            const args = JSON.parse(toolCall.function.arguments);
-            const result = database.adicionarMemoriaUsuario(guildId, args.user_id, args.fato, {
-              createdAt: Date.now()
-            });
-            console.log(`[ROLE-CONGRATS][TOOL] salvar_memoria guild=${guildId} user=${args.user_id} fact="${args.fato}" inserted=${result.inserted} duplicate=${result.duplicate}`);
-          } catch (e) {
-            console.error('[ROLE-CONGRATS][TOOL][ERRO] Falha ao processar chamada de ferramenta salvar_memoria:', e?.message || e);
-          }
-        }
-      }
+    // Processa chamadas de ferramentas usando helpers robustos
+    const toolCalls = extractToolCallsFromChoice(choice);
+    const toolResults = processToolCallsFromResponse(toolCalls, guildId, {
+      moduleTag: '[ROLE-CONGRATS]',
+      sourceMessageId: null
+    });
+
+    if (toolResults.processed > 0) {
+      console.log(`[ROLE-CONGRATS][TOOL] Processadas ${toolResults.processed} chamadas de ferramentas`);
     }
 
     if (!content) throw new Error('A API não retornou conteúdo na resposta.');
@@ -171,7 +336,7 @@ async function gerarParabensCargoViaAPI(guildId, userId, promptUsuario, roleName
     // Adiciona automaticamente uma memória sobre o usuário estar no cargo
     if (roleName && userId) {
       try {
-        const memoria = `Está no cargo ${roleName}`;
+        const memoria = sanitizeFato(`Está no cargo ${roleName}`);
         database.adicionarMemoriaUsuario(guildId, userId, memoria, {
           createdAt: Date.now()
         });
@@ -200,35 +365,28 @@ async function gerarParabensCargoViaAPI(guildId, userId, promptUsuario, roleName
    ];
  
    try {
-     // Create a clean request without tools to test basic functionality
-     const requestBody = {
+     const response = await openai.chat.completions.create({
        model: config.openai.model,
        messages,
        temperature: 0.8,
        max_tokens: config.settings.maxTokens,
        tools: [salvarMemoriaFunction],
-     };
-
-     const response = await openai.chat.completions.create(requestBody);
-
-     const message = response?.choices?.[0]?.message;
+       function_call: 'auto', // Enable automatic function calling
+     });
+ 
+     const choice = response?.choices?.[0];
+     const message = choice?.message;
      let content = message?.content || '';
  
-     // Processa chamadas de ferramentas (function calls)
-     if (message?.tool_calls) {
-       for (const toolCall of message.tool_calls) {
-         if (toolCall.function.name === 'salvar_memoria') {
-           try {
-             const args = JSON.parse(toolCall.function.arguments);
-             const result = database.adicionarMemoriaUsuario(guildId, args.user_id, args.fato, {
-               createdAt: Date.now()
-             });
-             console.log(`[WELCOME][TOOL] salvar_memoria guild=${guildId} user=${args.user_id} fact="${args.fato}" inserted=${result.inserted} duplicate=${result.duplicate}`);
-           } catch (e) {
-             console.error('[WELCOME][TOOL][ERRO] Falha ao processar chamada de ferramenta salvar_memoria:', e?.message || e);
-           }
-         }
-       }
+     // Processa chamadas de ferramentas usando helpers robustos
+     const toolCalls = extractToolCallsFromChoice(choice);
+     const toolResults = processToolCallsFromResponse(toolCalls, guildId, {
+       moduleTag: '[WELCOME]',
+       sourceMessageId: null
+     });
+ 
+     if (toolResults.processed > 0) {
+       console.log(`[WELCOME][TOOL] Processadas ${toolResults.processed} chamadas de ferramentas`);
      }
  
      if (!content) throw new Error('A API não retornou conteúdo na resposta.');
@@ -335,31 +493,27 @@ async function gerarParabensCargoViaAPI(guildId, userId, promptUsuario, roleName
        temperature: 0.8,
        max_tokens: config.settings.maxTokens,
        tools: [salvarMemoriaFunction],
+       function_call: 'auto', // Enable automatic function calling
      });
 
-     const message = response?.choices?.[0]?.message;
+     const choice = response?.choices?.[0];
+     const message = choice?.message;
      let content = message?.content || '';
 
-     // Processa chamadas de ferramentas (function calls)
-     if (message?.tool_calls) {
-       for (const toolCall of message.tool_calls) {
-         if (toolCall.function.name === 'salvar_memoria') {
-           try {
-             const args = JSON.parse(toolCall.function.arguments);
-             const result = database.adicionarMemoriaUsuario(guildId, args.user_id, args.fato, {
-               sourceMessageId
-             });
-             console.log(`[VICA][TOOL] salvar_memoria guild=${guildId} user=${args.user_id} fact="${args.fato}" inserted=${result.inserted} duplicate=${result.duplicate}`);
-           } catch (e) {
-             console.error('[VICA][TOOL][ERRO] Falha ao processar chamada de ferramenta salvar_memoria:', e?.message || e);
-           }
-         }
-       }
+     // Processa chamadas de ferramentas usando helpers robustos
+     const toolCalls = extractToolCallsFromChoice(choice);
+     const toolResults = processToolCallsFromResponse(toolCalls, guildId, {
+       moduleTag: '[VICA]',
+       sourceMessageId
+     });
+
+     if (toolResults.processed > 0) {
+       console.log(`[VICA][TOOL] Processadas ${toolResults.processed} chamadas de ferramentas`);
      }
 
      if (!content) {
        // Caso não haja conteúdo mas houve chamadas de ferramentas, assume sucesso
-       if (message?.tool_calls?.length > 0) {
+       if (toolResults.processed > 0) {
          console.log('[VICA][TOOL] Sem conteúdo textual, mas ferramentas executadas com sucesso');
          content = 'Memória salva/atualizada com sucesso!';
        } else {
