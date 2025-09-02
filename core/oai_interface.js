@@ -496,9 +496,6 @@ async function gerarParabensCargoViaAPI(guildId, userId, promptUsuario, roleName
        function_call: 'auto', // Enable automatic function calling
      });
 
-     // DEBUG: Loga a resposta completa:
-     console.log('[DEBUG RAW RESPONSE]', JSON.stringify(response, null, 2));
-
      const choice = response?.choices?.[0];
      const message = choice?.message;
      let content = message?.content || '';
@@ -513,8 +510,6 @@ async function gerarParabensCargoViaAPI(guildId, userId, promptUsuario, roleName
      if (toolResults.processed > 0) {
        console.log(`[VICA][TOOL] Processadas ${toolResults.processed} chamadas de ferramentas`);
      }
-     // DEBUG: "Preciso ver o que a API está devolvendo quando ocorre a falha."
-     console.log('[DEBUG API RESPONSE]', JSON.stringify(choice, null, 2));
 
      if (!content) {
        // Caso não haja conteúdo mas houve chamadas de ferramentas, assume sucesso
