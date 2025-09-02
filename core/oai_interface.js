@@ -163,7 +163,7 @@ function sanitizeFato(fato) {
      let match;
 
      // Log original content before processing
-     console.log(`[PARSE_TAG][DEBUG] Iniciando processamento de tags. Conteúdo original: "${content}"`);
+     // console.log(`[PARSE_TAG][DEBUG] Iniciando processamento de tags. Conteúdo original: "${content}"`);
 
      while ((match = tagRegex.exec(content)) !== null) {
        const tagContent = match[1];
