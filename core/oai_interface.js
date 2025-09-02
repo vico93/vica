@@ -1,6 +1,6 @@
 /*
 ** caminho: core/oai_interface.js
-** últimaMod: 01/09/2025 21:43
+** últimaMod: 02/09/2025 18:14
 ** autor: Vico
 ** colaboração: Gemini, ChatGPT, Roo Sonic
 */
@@ -11,51 +11,6 @@ const OpenAI = require('openai');
 const config = require('../config.json');
 const database = require('../core/database');
 
-/* --- Função Para Salvar Memórias de Longo Prazo --- */
-// Define a função para salvar memórias de longo prazo
-const salvarMemoriaFunction = {
-  name: 'salvar_memoria',
-  description: 'Salva uma memória de longo prazo sobre um usuário do Discord baseada em fatos estáveis, como preferências, hábitos ou marcos pessoais. Use apenas para informações valiosas e não sensíveis.',
-  parameters: {
-    type: 'object',
-    properties: {
-      guild_id: {
-        type: 'string',
-        description: 'O ID da guild (servidor) do Discord.'
-      },
-      user_id: {
-        type: 'string',
-        description: 'O ID numérico do usuário no Discord (ex: "171003562363584513").'
-      },
-      fato: {
-        type: 'string',
-        maxLength: 200,
-        description: 'Um fato curto em português sobre o usuário (máx. 200 caracteres, sem quebras de linha). Ex: "Gosta de maçãs", "Torcedor do São Paulo".'
-      },
-      importance: {
-        type: 'number',
-        minimum: 1,
-        maximum: 10,
-        description: 'Importância da memória (1-10, onde 10 é muito importante).'
-      },
-      confidence: {
-        type: 'number',
-        minimum: 0,
-        maximum: 1,
-        description: 'Confiança na memória (0-1, onde 1 é certeza absoluta).'
-      },
-      source_message_id: {
-        type: 'string',
-        description: 'ID da mensagem do Discord que originou esta memória.'
-      },
-      timestamp: {
-        type: 'number',
-        description: 'Timestamp Unix quando a memória foi criada.'
-      }
-    },
-    required: ['guild_id', 'user_id', 'fato']
-  }
-};
 
 /* --- Funções Helper Para Processar Chamadas de Ferramentas --- */
 
@@ -197,9 +152,87 @@ function sanitizeFato(fato) {
     .replace(/\t/g, ' ') // Remove tabs
     .trim()              // Remove espaços extras
     .substring(0, 200);  // Truncate to 200 chars
-}
-
-// Carrega o system prompt do arquivo system_prompt.txt
+   }
+   
+   /* --- Funções Para Processar Comandos de Tags SGML --- */
+   
+   // Função para extrair comandos das tags <vica>...</vica>
+   function parseTagCommands(content) {
+     const commands = [];
+     const tagRegex = /<vica>(.*?)<\/vica>/gs;
+     let match;
+   
+     while ((match = tagRegex.exec(content)) !== null) {
+       const tagContent = match[1];
+       const parts = tagContent.split(':');
+       if (parts.length >= 2) {
+         const commandName = parts[0];
+         const params = {};
+         for (let i = 1; i < parts.length; i += 2) {
+           if (i + 1 < parts.length) {
+             params[parts[i]] = parts[i + 1];
+           }
+         }
+         commands.push({ command: commandName, params });
+       }
+     }
+     return commands;
+   }
+   
+   // Função similar a processToolCallsFromResponse para processar comandos de tags
+   function processTagCommands(commands, guildId, context = {}) {
+     if (!commands || commands.length === 0) {
+       console.log('[PROCESS_TAG][INFO] Nenhuma tag para processar');
+       return { success: true, processed: 0 };
+     }
+   
+     console.log(`[PROCESS_TAG][INFO] Processando ${commands.length} comandos de tags`);
+   
+     let processed = 0;
+     const results = [];
+   
+     for (const cmd of commands) {
+       try {
+         if (cmd.command === 'salvar_memoria') {
+           const args = cmd.params;
+           const sanitizedFato = sanitizeFato(args.fato || '');
+           
+           let importance = parseFloat(args.importance) || 5;
+           if (importance < 1 || importance > 10) importance = 5;
+           importance = Math.round(importance);
+           
+           let confidence = parseFloat(args.confidence) || 0.5;
+           if (confidence < 0 || confidence > 1) confidence = 0.5;
+           
+           const result = database.adicionarMemoriaUsuario(
+             args.guild_id || guildId,
+             args.user_id,
+             sanitizedFato,
+             {
+               importance: importance,
+               confidence: confidence,
+               sourceMessageId: args.source_message_id || context.sourceMessageId,
+               createdAt: parseInt(args.timestamp) || Date.now()
+             }
+           );
+           
+           console.log(`[${context.moduleTag || 'TAG'}][TAG] salvar_memoria guild=${args.guild_id || guildId} user=${args.user_id} fact="${sanitizedFato}" importance=${importance} confidence=${confidence} inserted=${result.inserted} duplicate=${result.duplicate}`);
+           results.push({ command: 'salvar_memoria', result, success: true });
+           processed++;
+         } else {
+           console.warn(`[PROCESS_TAG][WARN] Comando não reconhecido: ${cmd.command}`);
+           results.push({ command: cmd.command, error: 'Comando não reconhecido', success: false });
+         }
+       } catch (e) {
+         console.error(`[PROCESS_TAG][ERRO] Falha ao processar comando ${cmd.command}:`, e?.message || e);
+         results.push({ command: cmd.command, error: e.message, success: false });
+       }
+     }
+   
+     return { success: true, processed, results };
+   }
+   
+   // Carrega o system prompt do arquivo system_prompt.txt
 // Se não conseguir ler o arquivo, retorna um prompt padrão
 async function carregarSystemPrompt() {
   const filePath = path.join(__dirname, '..', 'data', 'system_prompt.txt');
@@ -312,23 +345,21 @@ async function gerarParabensCargoViaAPI(guildId, userId, promptUsuario, roleName
       messages,
       temperature: 0.8,
       max_tokens: 100, // Slightly higher for more complete responses
-      tools: [salvarMemoriaFunction],
-      function_call: 'auto', // Enable automatic function calling
     });
 
     const choice = response?.choices?.[0];
     const message = choice?.message;
     let content = message?.content || '';
 
-    // Processa chamadas de ferramentas usando helpers robustos
-    const toolCalls = extractToolCallsFromChoice(choice);
-    const toolResults = processToolCallsFromResponse(toolCalls, guildId, {
+    // Processa comandos de tags usando helpers de tags
+    const commands = parseTagCommands(content);
+    const tagResults = processTagCommands(commands, guildId, {
       moduleTag: '[ROLE-CONGRATS]',
       sourceMessageId: null
     });
 
-    if (toolResults.processed > 0) {
-      console.log(`[ROLE-CONGRATS][TOOL] Processadas ${toolResults.processed} chamadas de ferramentas`);
+    if (tagResults.processed > 0) {
+      console.log(`[ROLE-CONGRATS][TAG] Processadas ${tagResults.processed} comandos de tags`);
     }
 
     if (!content) throw new Error('A API não retornou conteúdo na resposta.');
@@ -346,7 +377,9 @@ async function gerarParabensCargoViaAPI(guildId, userId, promptUsuario, roleName
       }
     }
 
-    return content.trim();
+    // Strip tags from content before returning
+    content = content.replace(/<vica>.*?<\/vica>/gs, '').trim();
+    return content;
   } catch (error) {
     console.error('[ERRO] Não consegui gerar parabéns pela API da OpenAI:', error.message);
     throw error;
@@ -370,28 +403,28 @@ async function gerarParabensCargoViaAPI(guildId, userId, promptUsuario, roleName
        messages,
        temperature: 0.8,
        max_tokens: config.settings.maxTokens,
-       tools: [salvarMemoriaFunction],
-       function_call: 'auto', // Enable automatic function calling
      });
  
      const choice = response?.choices?.[0];
      const message = choice?.message;
      let content = message?.content || '';
  
-     // Processa chamadas de ferramentas usando helpers robustos
-     const toolCalls = extractToolCallsFromChoice(choice);
-     const toolResults = processToolCallsFromResponse(toolCalls, guildId, {
+     // Processa comandos de tags usando helpers de tags
+     const commands = parseTagCommands(content);
+     const tagResults = processTagCommands(commands, guildId, {
        moduleTag: '[WELCOME]',
        sourceMessageId: null
      });
  
-     if (toolResults.processed > 0) {
-       console.log(`[WELCOME][TOOL] Processadas ${toolResults.processed} chamadas de ferramentas`);
+     if (tagResults.processed > 0) {
+       console.log(`[WELCOME][TAG] Processadas ${tagResults.processed} comandos de tags`);
      }
  
      if (!content) throw new Error('A API não retornou conteúdo na resposta.');
  
-     return content.trim();
+     // Strip tags from content before returning
+     content = content.replace(/<vica>.*?<\/vica>/gs, '').trim();
+     return content;
    } catch (error) {
      console.error(`[ERRO] Não consegui gerar mensagem de ${messageType} pela API da OpenAI:`, error.message);
      throw error;
@@ -492,8 +525,6 @@ async function gerarParabensCargoViaAPI(guildId, userId, promptUsuario, roleName
        messages,
        temperature: 0.8,
        max_tokens: config.settings.maxTokens,
-       tools: [salvarMemoriaFunction],
-       function_call: 'auto', // Enable automatic function calling
      });
 
      const choice = response?.choices?.[0];
@@ -501,29 +532,29 @@ async function gerarParabensCargoViaAPI(guildId, userId, promptUsuario, roleName
      let content = message?.content || '';
 
      // Processa chamadas de ferramentas usando helpers robustos
-     const toolCalls = extractToolCallsFromChoice(choice);
-     const toolResults = processToolCallsFromResponse(toolCalls, guildId, {
+     const commands = parseTagCommands(content);
+     const tagResults = processTagCommands(commands, guildId, {
        moduleTag: '[VICA]',
        sourceMessageId
      });
 
-     if (toolResults.processed > 0) {
-       console.log(`[VICA][TOOL] Processadas ${toolResults.processed} chamadas de ferramentas`);
+     if (tagResults.processed > 0) {
+       console.log(`[VICA][TAG] Processadas ${tagResults.processed} comandos de tags`);
      }
 
      if (!content) {
-       // Caso não haja conteúdo mas houve chamadas de ferramentas, assume sucesso
-       if (toolResults.processed > 0) {
-         console.log('[VICA][TOOL] Sem conteúdo textual, mas ferramentas executadas com sucesso');
+       // Caso não haja conteúdo mas houve comandos de tags, assume sucesso
+       if (tagResults.processed > 0) {
+         console.log('[VICA][TAG] Sem conteúdo textual, mas comandos de tags executados com sucesso');
          content = 'Memória salva/atualizada com sucesso!';
        } else {
          throw new Error('A API não retornou conteúdo na resposta.');
        }
      }
 
-     // Remove qualquer referência a ferramentas do conteúdo final
-     const cleaned = content.trim();
-     return cleaned;
+     // Strip tags from content before returning
+     content = content.replace(/<vica>.*?<\/vica>/gs, '').trim();
+     return content;
    } catch (error) {
      console.error('[ERRO] Não consegui gerar uma resposta pela API da OpenAI:', error.message);
      throw error;
