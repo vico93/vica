@@ -496,6 +496,9 @@ async function gerarParabensCargoViaAPI(guildId, userId, promptUsuario, roleName
        function_call: 'auto', // Enable automatic function calling
      });
 
+     // DEBUG: Loga a resposta completa:
+     console.log('[DEBUG RAW RESPONSE]', JSON.stringify(response, null, 2));
+
      const choice = response?.choices?.[0];
      const message = choice?.message;
      let content = message?.content || '';
