@@ -1,8 +1,8 @@
 /*
 ** caminho: commands/config.js
-** últimaMod: 2025-08-27 16:07
+** últimaMod: 2025-09-02 22:17
 ** autor: Vico
-** colaboração: Roo Sonic
+** colaboração: Roo Sonic, Kimi AI
 */
 
 /*
@@ -759,6 +759,20 @@ async function handleButtonClick(interaction) {
         });
     }
 
+    // Botões de paginação de memórias de usuário
+    if (customId.includes('prev_user_') || customId.includes('next_user_')) {
+        const pagePart = customId.split('_').pop();
+        const page = customId.includes('next_user_') ? parseInt(pagePart) + 1 : parseInt(pagePart);
+        return handleListUserMemories(interaction, userId, page);
+    }
+
+    // Botões de paginação de memórias do servidor
+    if (customId.includes('prev_guild_') || customId.includes('next_guild_')) {
+        const pagePart = customId.split('_').pop();
+        const page = customId.includes('next_guild_') ? parseInt(pagePart) + 1 : parseInt(pagePart);
+        return handleListGuildMemories(interaction, userId, page);
+    }
+
     // Manipular ações específicas de cada categoria
     const categoryId = customId.split('_').pop(); // Extrair categoria do ID
     const action = customId.replace(`_${userId}_`, '').replace(`_${categoryId}`, '').replace(`${userId}_`, '');
@@ -855,7 +869,7 @@ async function handleMemoryActionsSelect(interaction) {
 
     switch (action) {
         case 'list_guild_memories':
-            await handleListGuildMemories(interaction);
+            await handleListGuildMemories(interaction, userId);
             break;
         case 'add_guild_memories':
             await handleAddGuildMemory(interaction);
@@ -864,7 +878,7 @@ async function handleMemoryActionsSelect(interaction) {
             await handleDeleteGuildMemory(interaction);
             break;
         case 'list_user_memories':
-            await handleListUserMemories(interaction);
+            await handleListUserMemories(interaction, userId);
             break;
         case 'add_user_memories':
             await handleAddUserMemory(interaction);
@@ -1760,11 +1774,129 @@ async function handleListJoinLeave(interaction) {
 }
 
 /**
- * Manipula listagem de memórias de usuário
+ * Cria embed para listagem paginada de memórias
  */
-async function handleListUserMemories(interaction) {
-    await interaction.reply({
-        content: 'Funcionalidade de listar memórias de usuário - Implementação pendente',
+function createMemoryListEmbed(memoryType, memories, page, totalPages, totalCount) {
+    const isUser = memoryType === 'user_memories';
+    const typeText = isUser ? 'de Usuários' : 'do Servidor';
+    const emoji = '🧠';
+    const title = `${emoji} Memórias ${typeText} (Página ${page}/${totalPages})`;
+
+    const embed = new EmbedBuilder()
+        .setTitle(title)
+        .setColor('#5865F2')
+        .setTimestamp();
+
+    if (!memories || memories.length === 0) {
+        embed.setDescription('Nenhuma memória encontrada.');
+        return embed;
+    }
+
+    let description = '';
+    memories.forEach((memory, index) => {
+        const num = ((page - 1) * 10) + index + 1;
+        const content = memory.fact.slice(0, 80);
+        const truncated = memory.fact.length > 80 ? '...' : '';
+        description += `\`${num}.\` ${content}${truncated}\n`;
+    });
+
+    embed.setDescription(description);
+    embed.setFooter({
+        text: `Página ${page}/${totalPages} (${totalCount} memórias)`
+    });
+
+    return embed;
+}
+
+/**
+ * Cria botões de navegação para paginação
+ */
+function createPaginationButtons(userId, memoryType, page, totalPages) {
+    const isUser = memoryType === 'user_memories';
+    const prevId = isUser ? 'prev_user' : 'prev_guild';
+    const nextId = isUser ? 'next_user' : 'next_guild';
+    const backId = 'back_to_memory_types';
+
+    const buttons = [
+        new ButtonBuilder()
+            .setCustomId(generateComponentId(userId, backId))
+            .setLabel('⬅️ Voltar')
+            .setStyle(ButtonStyle.Secondary),
+    ];
+
+    if (page > 1) {
+        buttons.push(
+            new ButtonBuilder()
+                .setCustomId(generateComponentId(userId, `${prevId}_${page - 1}`))
+                .setLabel('⬅️ Anterior')
+                .setStyle(ButtonStyle.Primary)
+        );
+    }
+
+    if (page < totalPages) {
+        buttons.push(
+            new ButtonBuilder()
+                .setCustomId(generateComponentId(userId, `${nextId}_${page}`))
+                .setLabel('Próximo ➡️')
+                .setStyle(ButtonStyle.Primary)
+        );
+    }
+
+    const rows = [];
+    for (let i = 0; i < buttons.length; i += 5) {
+        rows.push(new ActionRowBuilder().addComponents(buttons.slice(i, i + 5)));
+    }
+
+    return rows;
+}
+
+/**
+ * Manipula listagem de memórias de usuário com paginação
+ */
+async function handleListUserMemories(interaction, userId, page = 1) {
+    const ITEMS_PER_PAGE = 10;
+    const offset = (page - 1) * ITEMS_PER_PAGE;
+
+    // Busca todas as memórias de usuário do servidor para calcular total
+    let allMemories = [];
+    try {
+        if (database.listarMemoriasUsuario) {
+            allMemories = database.listarMemoriasUsuario(interaction.guild.id);
+        }
+    } catch (error) {
+        console.log('[CONFIG] Função listarMemoriasUsuario não disponível');
+    }
+
+    const totalCount = allMemories.length;
+    const totalPages = Math.ceil(totalCount / ITEMS_PER_PAGE);
+
+    // Busca memórias para a página atual (se temos memórias)
+    let currentMemories = [];
+    if (totalCount > 0) {
+        currentMemories = database.listarMemoriasUsuario(interaction.guild.id, undefined, ITEMS_PER_PAGE, offset);
+    }
+
+    const embed = createMemoryListEmbed('user_memories', currentMemories, page, totalPages, totalCount);
+
+    if (totalCount === 0) {
+        const backButton = new ButtonBuilder()
+            .setCustomId(generateComponentId(userId || interaction.user.id, 'back_to_memory_types'))
+            .setLabel('⬅️ Voltar')
+            .setStyle(ButtonStyle.Secondary);
+        const components = [new ActionRowBuilder().addComponents(backButton)];
+
+        return interaction.update({
+            embeds: [embed],
+            components: components,
+            flags: [MessageFlags.Ephemeral]
+        });
+    }
+
+    const components = createPaginationButtons(userId || interaction.user.id, 'user_memories', page, totalPages);
+
+    return interaction.update({
+        embeds: [embed],
+        components: components,
         flags: [MessageFlags.Ephemeral]
     });
 }
@@ -1842,22 +1974,44 @@ async function handleAddUserMemory(interaction) {
 }
 
 /**
- * Manipula listagem de memórias da guild
+ * Manipula listagem de memórias da guild com paginação
  */
-async function handleListGuildMemories(interaction) {
-    const memories = database.listarMemoriasGuild(interaction.guild.id);
+async function handleListGuildMemories(interaction, userId, page = 1) {
+    const ITEMS_PER_PAGE = 10;
+    const offset = (page - 1) * ITEMS_PER_PAGE;
 
-    if (!memories || memories.length === 0) {
-        return interaction.reply({
-            content: 'ℹ️ O servidor ainda não possui memórias salvas.',
+    // Busca todas as memórias da guild para calcular total
+    const allMemories = database.listarMemoriasGuild(interaction.guild.id);
+    const totalCount = allMemories.length;
+    const totalPages = Math.ceil(totalCount / ITEMS_PER_PAGE);
+
+    // Busca memórias para a página atual
+    let currentMemories = [];
+    if (totalCount > 0) {
+        currentMemories = database.listarMemoriasGuild(interaction.guild.id, ITEMS_PER_PAGE, offset);
+    }
+
+    const embed = createMemoryListEmbed('guild_memories', currentMemories, page, totalPages, totalCount);
+
+    if (totalCount === 0) {
+        const backButton = new ButtonBuilder()
+            .setCustomId(generateComponentId(userId || interaction.user.id, 'back_to_memory_types'))
+            .setLabel('⬅️ Voltar')
+            .setStyle(ButtonStyle.Secondary);
+        const components = [new ActionRowBuilder().addComponents(backButton)];
+
+        return interaction.update({
+            embeds: [embed],
+            components: components,
             flags: [MessageFlags.Ephemeral]
         });
     }
 
-    const lista = memories.map((m, i) => `${i + 1}. \`${m.fact.slice(0, 150)}\``).join('\n');
+    const components = createPaginationButtons(userId || interaction.user.id, 'guild_memories', page, totalPages);
 
-    await interaction.reply({
-        content: `**🧠 Memórias do Servidor:**\n${lista}`,
+    return interaction.update({
+        embeds: [embed],
+        components: components,
         flags: [MessageFlags.Ephemeral]
     });
 }
@@ -1941,6 +2095,133 @@ async function handleDeleteGuildMemory(interaction) {
     collector.on('end', collected => {
         if (collected.size === 0) {
             interaction.editReply({ content: '⏰ O tempo para selecionar uma memória expirou.', components: [] });
+        }
+    });
+}
+
+/**
+ * Manipula remoção de memória do usuário
+ */
+async function handleDeleteUserMemory(interaction) {
+    const memories = database.listarMemoriasUsuario(interaction.guild.id, interaction.user.id);
+
+    if (!memories || memories.length === 0) {
+        return interaction.reply({
+            content: 'ℹ️ Você não possui memórias registradas para remover.',
+            flags: [MessageFlags.Ephemeral]
+        });
+    }
+
+    // Criar embed para mostrar memórias
+    const embed = new EmbedBuilder()
+        .setTitle('🧠 Seus registros mentais')
+        .setDescription('Selecione a lembrança que deseja remover:')
+        .setColor('#5865F2')
+        .setTimestamp();
+
+    if (memories.length > 0) {
+        let list = '';
+        memories.forEach((memory, index) => {
+            const data = new Date(memory.created_at).toLocaleDateString('pt-BR');
+            const shortened = memory.fact.length > 60 ? memory.fact.substring(0, 57) + '...' : memory.fact;
+            list += `\`${index + 1}\` **${data}:** ${shortened}\n`;
+        });
+        embed.addFields({
+            name: '📝 Seus registros encontrados',
+            value: list || 'Nenhum registro encontrado'
+        });
+    } else {
+        embed.setDescription('ℹ️ Nenhuma memória encontrada para exibir.');
+    }
+
+    const options = memories.map((memory, index) => ({
+        label: `#${index + 1}: ${memory.fact.substring(0, 40)}${memory.fact.length > 40 ? '...' : ''}`,
+        value: memory.id.toString(),
+        description: `Criado em: ${new Date(memory.created_at).toLocaleDateString('pt-BR')}`
+    }));
+
+    const selectMenu = new StringSelectMenuBuilder()
+        .setCustomId(generateComponentId(interaction.user.id, 'delete_user_memory_select'))
+        .setPlaceholder('Selecione uma memória para remover')
+        .addOptions(options.slice(0, 25));
+
+    // Botão de cancelar
+    const cancelButton = new ButtonBuilder()
+        .setCustomId(generateComponentId(interaction.user.id, 'cancel_delete_memory'))
+        .setLabel('Cancelar')
+        .setStyle(ButtonStyle.Secondary)
+        .setEmoji('❌');
+
+    const row1 = new ActionRowBuilder().addComponents(selectMenu);
+    const row2 = new ActionRowBuilder().addComponents(cancelButton);
+
+    const reply = await interaction.reply({
+        embeds: [embed],
+        components: [row1, row2],
+        flags: [MessageFlags.Ephemeral]
+    });
+
+    const collector = reply.createMessageComponentCollector({
+        time: 60000
+    });
+
+    collector.on('collect', i => {
+        if (i.user.id !== interaction.user.id) {
+            return i.reply({ content: '⛔ Apenas quem executou o comando pode interagir aqui.', ephemeral: true });
+        }
+
+        if (i.customId === generateComponentId(interaction.user.id, 'delete_user_memory_select')) {
+            const memoryId = parseInt(i.values[0], 10);
+
+            // Buscar o fact_key para esta memória
+            const memory = memories.find(m => m.id === memoryId);
+            if (!memory) {
+                return i.update({
+                    content: '❌ Memória não encontrada.',
+                    embeds: [],
+                    components: []
+                });
+            }
+
+            // Criar fato key consistentando com a inserção
+            const factKey = String(memory.fact ?? '')
+                .normalize('NFKD')
+                .replace(/[\u0300-\u036f]/g, ' ')
+                .toLowerCase()
+                .replace(/\s+/g, ' ')
+                .trim();
+
+            const changes = database.removerMemoriaUsuario(interaction.guild.id, interaction.user.id, factKey);
+
+            if (changes > 0) {
+                i.update({
+                    content: '✅ Sua lembrança foi removida com sucesso! O bot está aprendendo a esquecer melhor.',
+                    embeds: [],
+                    components: []
+                });
+            } else {
+                i.update({
+                    content: '⚠️ Esta lembrança já havia sido removida ou não foi encontrada.',
+                    embeds: [],
+                    components: []
+                });
+            }
+        } else if (i.customId === generateComponentId(interaction.user.id, 'cancel_delete_memory')) {
+            i.update({
+                content: '❌ Operação cancelada. Suas lembranças estão seguras.',
+                embeds: [],
+                components: []
+            });
+        }
+    });
+
+    collector.on('end', collected => {
+        if (collected.size === 0) {
+            interaction.editReply({
+                content: '⏰ O tempo para selecionar uma lembrança expirou. Suas memórias permanecem intactas.',
+                embeds: [],
+                components: []
+            });
         }
     });
 }

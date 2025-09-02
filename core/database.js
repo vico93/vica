@@ -1,6 +1,6 @@
 /*
 ** caminho: core/database.js
-** últimaMod: 16/07/2025 22:22
+** últimaMod: 2025-09-02 22:17
 ** autor: Vico
 ** colaboração: ChatGPT, Gemini, Kimi AI, Roo Sonic
 */
@@ -275,17 +275,18 @@ const stmts = {
 
   /* --- MEMÓRIAS DE USUÁRIO --- */
   memInsert: db.prepare(`INSERT OR IGNORE INTO user_memories
-                         (guild_id, user_id, fact, fact_key, confidence, source_message_id, created_at)
-                         VALUES (?, ?, ?, ?, ?, ?, ?)`),
+                          (guild_id, user_id, fact, fact_key, confidence, source_message_id, created_at)
+                          VALUES (?, ?, ?, ?, ?, ?, ?)`),
   memList:   db.prepare(`SELECT id, fact, confidence, source_message_id, created_at
-                         FROM user_memories
-                         WHERE guild_id = ? AND user_id = ?
-                         ORDER BY created_at DESC
-                         LIMIT ? OFFSET ?`),
+                          FROM user_memories
+                          WHERE guild_id = ? AND user_id = ?
+                          ORDER BY created_at DESC
+                          LIMIT ? OFFSET ?`),
+  memDelete: db.prepare('DELETE FROM user_memories WHERE guild_id = ? AND user_id = ? AND fact_key = ?'),
  
  /* --- MEMÓRIAS DE GUILD --- */
  guildMemInsert: db.prepare('INSERT INTO guild_memories (guild_id, fact, created_at) VALUES (?, ?, ?)'),
- guildMemList:   db.prepare('SELECT id, fact, created_at FROM guild_memories WHERE guild_id = ? ORDER BY created_at DESC'),
+ guildMemList:   db.prepare(`SELECT id, fact, created_at FROM guild_memories WHERE guild_id = ? ORDER BY created_at DESC LIMIT ? OFFSET ?`),
  guildMemDelete: db.prepare('DELETE FROM guild_memories WHERE guild_id = ? AND id = ?'),
 
  /* --- Welcome/Leave Messages --- */
@@ -505,13 +506,15 @@ module.exports = {
   },
   listarMemoriasUsuario: (g, u, limit = 20, offset = 0) =>
     stmts.memList.all(g, u, limit, offset),
+  removerMemoriaUsuario: (g, u, factKey) =>
+    stmts.memDelete.run(g, u, factKey).changes,
 
  // memórias da guild
  adicionarMemoriaGuild: (g, fact) => {
    const res = stmts.guildMemInsert.run(g, fact, Date.now());
    return { id: res.lastInsertRowid, changes: res.changes };
  },
- listarMemoriasGuild: (g) => stmts.guildMemList.all(g),
+ listarMemoriasGuild: (g, limit = 20, offset = 0) => stmts.guildMemList.all(g, limit, offset),
  removerMemoriaGuild: (g, id) => stmts.guildMemDelete.run(g, id).changes,
 
  // Welcome/Leave messages
