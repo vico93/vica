@@ -27,6 +27,7 @@
     "minimist": "^1.2.8",
     "node-fetch": "^2.7.0",
     "openai": "^5.8.2",
-    "sqlite3": "^5.1.7"
-  }
+    "sqlite3": "^5.1.7",
+      "lru-cache": "^7.18.3"
+      }
 }

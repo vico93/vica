@@ -1,13 +1,14 @@
 /*
 ** path: events/guildBanAdd.js
-** lastMod: 25/08/2025 15:39
+** lastMod: 2025-09-02 21:56
 ** author: Vico
-** collaboration: Roo Sonic
+** colaboração: Roo Sonic e Kimi AI
 */
 
 const { AuditLogEvent } = require('discord.js');
 const database = require('../core/database');
 const oai_interface = require('../core/oai_interface');
+const auditCache = require('../core/auditCache');
 
 module.exports = {
   name: 'GuildAuditLogEntryCreate',
@@ -17,6 +18,11 @@ module.exports = {
 
     // Ignore events from guilds where the bot might not be fully ready
     if (!auditLog.guild) return;
+
+    // Cache logic to prevent deduplication
+    const key = `ban:${auditLog.guild.id}:${auditLog.target.id}`;
+    if (auditCache.has(key)) return;
+    auditCache.set(key, Date.now());
 
     try {
       // Get ban message configuration

@@ -1,18 +1,24 @@
 /*
 ** caminho: events/guildMemberRemove.js
-** últimaMod: 25/08/2025 12:40
+** últimaMod: 02/09/2025 18:51
 ** autor: Vico
-** colaboração: Gemini, ChatGPT, Roo Sonic
+** colaboração: Gemini, ChatGPT, Roo Sonic e Kimi AI
 */
 
 const database = require('../core/database');
 const oai_interface = require('../core/oai_interface');
+const auditCache = require('../core/auditCache');
 
 module.exports = {
   name: 'guildMemberRemove',
   async execute(member, client) {
     // Ignora eventos de servidores onde o bot pode não estar totalmente pronto
     if (!member.guild) return;
+
+    // Cache deduplication logic
+    const key = `leave:${member.guild.id}:${member.id}`;
+    if (auditCache.has(key)) return;
+    auditCache.set(key, Date.now());
 
     try {
       const changes = database.removerUsuarioXP(member.guild.id, member.id);
@@ -48,7 +54,7 @@ module.exports = {
       });
 
       const kickLog = fetchedLogs.entries.first();
-      const wasKicked = kickLog && kickLog.target.id === member.id && kickLog.createdAt > Date.now() - 5000;
+      const wasKicked = kickLog && kickLog.target.id === member.id;
 
       // Check for ban
       const banLogs = await member.guild.fetchAuditLogs({
@@ -57,7 +63,7 @@ module.exports = {
       });
 
       const banLog = banLogs.entries.first();
-      const wasBanned = banLog && banLog.target.id === member.id && banLog.createdAt > Date.now() - 5000;
+      const wasBanned = banLog && banLog.target.id === member.id;
 
       let messageConfig = null;
       let messageType = 'leave';
