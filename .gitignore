@@ -21,3 +21,14 @@ Thumbs.db
 /data/
 /.github/instructions
 /.roo/rules
+
+# Ferramentas de depuração
+.vscode/
+
+# Environment variables
+.env
+*.env.local
+.env.*.local
+
+# If you add Jest tests with coverage reports.
+coverage/
