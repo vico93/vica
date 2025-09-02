@@ -161,21 +161,34 @@ function sanitizeFato(fato) {
      const commands = [];
      const tagRegex = /<vica>(.*?)<\/vica>/gs;
      let match;
-   
+
+     // Log original content before processing
+     console.log(`[PARSE_TAG][DEBUG] Iniciando processamento de tags. Conteúdo original: "${content}"`);
+
      while ((match = tagRegex.exec(content)) !== null) {
        const tagContent = match[1];
-       const parts = tagContent.split(':');
-       if (parts.length >= 2) {
-         const commandName = parts[0];
-         const params = {};
-         for (let i = 1; i < parts.length; i += 2) {
-           if (i + 1 < parts.length) {
-             params[parts[i]] = parts[i + 1];
+       console.log(`[PARSE_TAG][DEBUG] Tag encontrada: "<vica>${tagContent}</vica>"`);
+
+       try {
+         const parts = tagContent.split(':');
+         if (parts.length >= 2) {
+           const commandName = parts[0];
+           const params = {};
+           for (let i = 1; i < parts.length; i += 2) {
+             if (i + 1 < parts.length) {
+               params[parts[i]] = parts[i + 1];
+             }
            }
+           commands.push({ command: commandName, params });
+         } else {
+           console.warn(`[PARSE_TAG][WARN] Tag malformada detectada: "${tagContent}". Poucas partes encontradas (${parts.length}). Continuando processamento.`);
          }
-         commands.push({ command: commandName, params });
+       } catch (error) {
+         console.error(`[PARSE_TAG][ERRO] Erro ao processar tag "${tagContent}": ${error.message}. Continuando processamento.`, error);
        }
      }
+
+     console.log(`[PARSE_TAG][INFO] ${commands.length} comandos extraídos com sucesso`);
      return commands;
    }
    
@@ -185,25 +198,25 @@ function sanitizeFato(fato) {
        console.log('[PROCESS_TAG][INFO] Nenhuma tag para processar');
        return { success: true, processed: 0 };
      }
-   
+
      console.log(`[PROCESS_TAG][INFO] Processando ${commands.length} comandos de tags`);
-   
+
      let processed = 0;
      const results = [];
-   
+
      for (const cmd of commands) {
        try {
          if (cmd.command === 'salvar_memoria') {
            const args = cmd.params;
            const sanitizedFato = sanitizeFato(args.fato || '');
-           
+
            let importance = parseFloat(args.importance) || 5;
            if (importance < 1 || importance > 10) importance = 5;
            importance = Math.round(importance);
-           
+
            let confidence = parseFloat(args.confidence) || 0.5;
            if (confidence < 0 || confidence > 1) confidence = 0.5;
-           
+
            const result = database.adicionarMemoriaUsuario(
              args.guild_id || guildId,
              args.user_id,
@@ -215,7 +228,7 @@ function sanitizeFato(fato) {
                createdAt: parseInt(args.timestamp) || Date.now()
              }
            );
-           
+
            console.log(`[${context.moduleTag || 'TAG'}][TAG] salvar_memoria guild=${args.guild_id || guildId} user=${args.user_id} fact="${sanitizedFato}" importance=${importance} confidence=${confidence} inserted=${result.inserted} duplicate=${result.duplicate}`);
            results.push({ command: 'salvar_memoria', result, success: true });
            processed++;
@@ -228,7 +241,8 @@ function sanitizeFato(fato) {
          results.push({ command: cmd.command, error: e.message, success: false });
        }
      }
-   
+
+     console.log(`[PROCESS_TAG][INFO] Finalizado processamento de comandos. Comandos encontrados: ${commands.length}, Processados com sucesso: ${processed}`);
      return { success: true, processed, results };
    }
    
@@ -378,7 +392,9 @@ async function gerarParabensCargoViaAPI(guildId, userId, promptUsuario, roleName
     }
 
     // Strip tags from content before returning
+    const originalTaggedContent = content;
     content = content.replace(/<vica>.*?<\/vica>/gs, '').trim();
+    console.log(`[ROLE-CONGRATS][CLEAN] Conteúdo limpo após remoção de tags. Original (com tags): "${originalTaggedContent}". Limpo: "${content}"`);
     return content;
   } catch (error) {
     console.error('[ERRO] Não consegui gerar parabéns pela API da OpenAI:', error.message);
@@ -423,7 +439,9 @@ async function gerarParabensCargoViaAPI(guildId, userId, promptUsuario, roleName
      if (!content) throw new Error('A API não retornou conteúdo na resposta.');
  
      // Strip tags from content before returning
+     const originalTaggedContent = content;
      content = content.replace(/<vica>.*?<\/vica>/gs, '').trim();
+     console.log(`[WELCOME][CLEAN] Conteúdo limpo após remoção de tags. Original (com tags): "${originalTaggedContent}". Limpo: "${content}"`);
      return content;
    } catch (error) {
      console.error(`[ERRO] Não consegui gerar mensagem de ${messageType} pela API da OpenAI:`, error.message);
@@ -553,7 +571,9 @@ async function gerarParabensCargoViaAPI(guildId, userId, promptUsuario, roleName
      }
 
      // Strip tags from content before returning
+     const originalTaggedContent = content;
      content = content.replace(/<vica>.*?<\/vica>/gs, '').trim();
+     console.log(`[VICA][CLEAN] Conteúdo limpo após remoção de tags. Original (com tags): "${originalTaggedContent}". Limpo: "${content}"`);
      return content;
    } catch (error) {
      console.error('[ERRO] Não consegui gerar uma resposta pela API da OpenAI:', error.message);

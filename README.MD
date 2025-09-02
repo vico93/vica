@@ -73,6 +73,9 @@ node bot.js
 
 ---
 
+## Sistema de Memórias:
+Vica usa um sistema de tags SGML (`<vica>`) para armazenar memórias de longo prazo. Os comandos são processados automaticamente e removidos da resposta final antes do envio para Discord, garantindo compatibilidade universal.
+
 ## Próximos Passos
 
 * Implementar armazenamento e gerenciamento do histórico de mensagens com SQLite
