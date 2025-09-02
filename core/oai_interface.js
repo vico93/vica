@@ -573,7 +573,7 @@ async function gerarParabensCargoViaAPI(guildId, userId, promptUsuario, roleName
      // Strip tags from content before returning
      const originalTaggedContent = content;
      content = content.replace(/<vica>.*?<\/vica>/gs, '').trim();
-     console.log(`[VICA][CLEAN] Conteúdo limpo após remoção de tags. Original (com tags): "${originalTaggedContent}". Limpo: "${content}"`);
+     // console.log(`[VICA][CLEAN] Conteúdo limpo após remoção de tags. Original (com tags): "${originalTaggedContent}". Limpo: "${content}"`);
      return content;
    } catch (error) {
      console.error('[ERRO] Não consegui gerar uma resposta pela API da OpenAI:', error.message);
