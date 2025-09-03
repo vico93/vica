@@ -2,7 +2,7 @@
 ** caminho: core/tagParser.js
 ** últimaMod: 2025-09-03 17:45
 ** autor: Vico
-** colaboração: modelo utilizados: Roo Sonic
+** colaboração: modelo utilizados: Roo Sonic e ChatGPT
 */
 
 // Módulo de parser de tags especiais
