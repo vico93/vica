@@ -1416,6 +1416,18 @@ async function handleModalSubmit(interaction) {
         const userIdToAdd = customId.split('_').pop();
         const memory = interaction.fields.getTextInputValue('user_memory');
 
+        // Defer the reply to handle async operations
+        await interaction.deferReply({ ephemeral: true });
+
+        if (!memory || !memory.trim()) {
+            return interaction.editReply({
+                content: '❌ A memória não pode estar vazia.',
+                flags: [MessageFlags.Ephemeral]
+            });
+        }
+
+        // ---
+
         if (!memory || !memory.trim()) {
             return interaction.reply({
                 content: '❌ A memória não pode estar vazia.',
@@ -1437,7 +1449,7 @@ async function handleModalSubmit(interaction) {
             console.log('[CONFIG][SUCCESS] Memória adicionada para usuário:', userIdToAdd);
         } catch (dbError) {
             console.error('[CONFIG][ERROR] Erro ao adicionar memória no banco de dados:', dbError);
-            return interaction.reply({
+            return interaction.editReply({
                 content: '❌ Erro interno ao salvar memória. Tente novamente mais tarde.',
                 flags: [MessageFlags.Ephemeral]
             });
@@ -1453,17 +1465,17 @@ async function handleModalSubmit(interaction) {
 
             // Verificar tipo específico de erro
             if (memberError.code === 10013) { // Unknown user
-                return interaction.reply({
+                return interaction.editReply({
                     content: '❌ Usuário não encontrado. Verifique se o ID está correto.',
                     flags: [MessageFlags.Ephemeral]
                 });
             } else if (memberError.code === 50035) { // Invalid Form Body
-                return interaction.reply({
+                return interaction.editReply({
                     content: '❌ ID do usuário inválido. Verifique o identificador fornecido.',
                     flags: [MessageFlags.Ephemeral]
                 });
             } else {
-                return interaction.reply({
+                return interaction.editReply({
                     content: '❌ Erro ao verificar usuário. Verifique se o bot tem permissões adequadas.',
                     flags: [MessageFlags.Ephemeral]
                 });
@@ -1472,12 +1484,12 @@ async function handleModalSubmit(interaction) {
 
         // Responder baseado no resultado da operação
         if (result.duplicate) {
-            await interaction.reply({
+            await interaction.editReply({
                 content: `ℹ️ Esta memória já existia para ${user} e não foi duplicada.`,
                 flags: [MessageFlags.Ephemeral]
             });
         } else {
-            await interaction.reply({
+            await interaction.editReply({
                 content: `✅ Memória adicionada para ${user}.`,
                 flags: [MessageFlags.Ephemeral]
             });
