@@ -2533,5 +2533,7 @@ module.exports = {
                 flags: [MessageFlags.Ephemeral]
             });
         }
-    }
+    },
+
+    handleModalSubmit
 };
