@@ -1412,32 +1412,31 @@ async function handleModalSubmit(interaction) {
         });
 
     } else if (customId.includes('set_user_memory_modal_')) {
+        console.log('[CONFIG][DEBUG] Starting set_user_memory_modal handling, customId:', customId);
+
         // Manipular modal de memória de usuário
         const userIdToAdd = customId.split('_').pop();
         const memory = interaction.fields.getTextInputValue('user_memory');
 
+        console.log('[CONFIG][DEBUG] Extracted userIdToAdd:', userIdToAdd);
+        console.log('[CONFIG][DEBUG] Memory input length:', memory ? memory.length : 'undefined/null');
+
         // Defer the reply to handle async operations
+        console.log('[CONFIG][DEBUG] About to call deferReply...');
         await interaction.deferReply({ ephemeral: true });
+        console.log('[CONFIG][DEBUG] deferReply completed successfully');
 
         if (!memory || !memory.trim()) {
+            console.log('[CONFIG][DEBUG] Memory validation failed - empty memory, calling editReply');
             return interaction.editReply({
                 content: '❌ A memória não pode estar vazia.',
                 flags: [MessageFlags.Ephemeral]
             });
         }
-
-        // ---
-
-        if (!memory || !memory.trim()) {
-            return interaction.reply({
-                content: '❌ A memória não pode estar vazia.',
-                flags: [MessageFlags.Ephemeral]
-            });
-        }
-
-        // ---
+        console.log('[CONFIG][DEBUG] Memory validation passed');
 
         // Primeiro, tentar adicionar memória ao banco de dados (síncrono)
+        console.log('[CONFIG][DEBUG] About to call database.adicionarMemoriaUsuario');
         let result;
         try {
             result = database.adicionarMemoriaUsuario(
@@ -1449,6 +1448,7 @@ async function handleModalSubmit(interaction) {
             console.log('[CONFIG][SUCCESS] Memória adicionada para usuário:', userIdToAdd);
         } catch (dbError) {
             console.error('[CONFIG][ERROR] Erro ao adicionar memória no banco de dados:', dbError);
+            console.log('[CONFIG][DEBUG] About to call editReply for database error');
             return interaction.editReply({
                 content: '❌ Erro interno ao salvar memória. Tente novamente mais tarde.',
                 flags: [MessageFlags.Ephemeral]
@@ -1456,25 +1456,30 @@ async function handleModalSubmit(interaction) {
         }
 
         // Segundo, tentar buscar informações do membro (assíncrono)
+        console.log('[CONFIG][DEBUG] About to fetch Discord member:', userIdToAdd);
         let user;
         try {
             user = await interaction.guild.members.fetch(userIdToAdd);
             console.log('[CONFIG][SUCCESS] Informações do membro obtidas:', user.displayName);
         } catch (memberError) {
             console.error('[CONFIG][ERROR] Erro ao buscar membro Discord:', memberError);
+            console.log('[CONFIG][DEBUG] Member fetch error code:', memberError.code);
 
             // Verificar tipo específico de erro
             if (memberError.code === 10013) { // Unknown user
+                console.log('[CONFIG][DEBUG] User not found, calling editReply with error message');
                 return interaction.editReply({
                     content: '❌ Usuário não encontrado. Verifique se o ID está correto.',
                     flags: [MessageFlags.Ephemeral]
                 });
             } else if (memberError.code === 50035) { // Invalid Form Body
+                console.log('[CONFIG][DEBUG] Invalid user ID, calling editReply with error message');
                 return interaction.editReply({
                     content: '❌ ID do usuário inválido. Verifique o identificador fornecido.',
                     flags: [MessageFlags.Ephemeral]
                 });
             } else {
+                console.log('[CONFIG][DEBUG] Generic member fetch error, calling editReply with error message');
                 return interaction.editReply({
                     content: '❌ Erro ao verificar usuário. Verifique se o bot tem permissões adequadas.',
                     flags: [MessageFlags.Ephemeral]
@@ -1483,17 +1488,21 @@ async function handleModalSubmit(interaction) {
         }
 
         // Responder baseado no resultado da operação
+        console.log('[CONFIG][DEBUG] Checking result for duplicate status:', result.duplicate);
         if (result.duplicate) {
+            console.log('[CONFIG][DEBUG] Duplicate memory detected, calling editReply with info message');
             await interaction.editReply({
                 content: `ℹ️ Esta memória já existia para ${user} e não foi duplicada.`,
                 flags: [MessageFlags.Ephemeral]
             });
         } else {
+            console.log('[CONFIG][DEBUG] New memory added successfully, calling editReply with success message');
             await interaction.editReply({
                 content: `✅ Memória adicionada para ${user}.`,
                 flags: [MessageFlags.Ephemeral]
             });
         }
+        console.log('[CONFIG][DEBUG] set_user_memory_modal_ handling completed successfully');
 
     } else if (customId.includes('add_guild_memory_modal')) {
         // Manipular modal de memória da guild
@@ -2418,10 +2427,10 @@ module.exports = {
             });
 
             collector.on('collect', async i => {
-                console.log('[CONFIG] Main collector recebeu interação');
-                console.log('[CONFIG] Tipo de interação:', i.constructor.name);
-                console.log('[CONFIG] CustomId:', i.customId);
-                console.log('[CONFIG] Usuário:', i.user.tag);
+                console.log('[CONFIG][COLLECTOR] Main collector recebeu interação');
+                console.log('[CONFIG][COLLECTOR] Tipo de interação:', i.constructor.name);
+                console.log('[CONFIG][COLLECTOR] CustomId:', i.customId);
+                console.log('[CONFIG][COLLECTOR] Usuário:', i.user.tag);
 
                 if (i.user.id !== interaction.user.id) {
                     console.log('[CONFIG] Usuário incorreto tentou interagir');
@@ -2451,10 +2460,25 @@ module.exports = {
                             const userId = i.values[0];
                             const user = await i.guild.members.fetch(userId);
 
+                            // Diagnostic logs for modal creation
+                            console.log('[CONFIG][DEBUG MODAL] Admin user ID:', i.user.id);
+                            console.log('[CONFIG][DEBUG MODAL] Target user ID:', userId);
+                            const modalCustomId = generateComponentId(i.user.id, `set_user_memory_modal_${userId}`);
+                            console.log('[CONFIG][DEBUG MODAL] Generated modal customId:', modalCustomId);
+
                             // Criar modal para input da memória
                             const modal = new ModalBuilder()
-                                .setCustomId(generateComponentId(i.user.id, `set_user_memory_modal_${userId}`))
+                                .setCustomId(modalCustomId)
                                 .setTitle(`Adicionar Memória para ${user.displayName}`);
+
+                            // After creating modal, log before showing
+                            console.log('[CONFIG][DEBUG MODAL] About to call i.showModal()');
+
+                            await i.showModal(modal);
+
+                            // After showing modal, log success
+                            console.log('[CONFIG][DEBUG MODAL] Modal shown successfully');
+                            console.log('[CONFIG][DEBUG MODAL] Collector should now listen for modal submit');
 
                             const memoryInput = new TextInputBuilder()
                                 .setCustomId('user_memory')
@@ -2484,7 +2508,8 @@ module.exports = {
                         console.log('[CONFIG] Processando Button');
                         await handleButtonClick(i);
                     } else if (i.isModalSubmit()) {
-                        console.log('[CONFIG] Processando ModalSubmit');
+                        console.log('[CONFIG][MODALSUBMIT] Processando ModalSubmit');
+                        console.log('[CONFIG][MODALSUBMIT] CustomId:', i.customId);
                         await handleModalSubmit(i);
                     } else {
                         console.log('[CONFIG] Tipo de interação não reconhecido:', i.constructor.name);
