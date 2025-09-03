@@ -156,10 +156,10 @@ function sanitizeFato(fato) {
    
    /* --- Funções Para Processar Comandos de Tags SGML --- */
    
-   // Função para extrair comandos das tags <vica>...</vica>
+   // Função para extrair comandos das tags [vica]...[/vica]
    function parseTagCommands(content) {
      const commands = [];
-     const tagRegex = /<vica>(.*?)<\/vica>/gs;
+     const tagRegex = /\[vica\](.*?)\[\/vica\]/gs;
      let match;
 
      // Log original content before processing
@@ -393,7 +393,7 @@ async function gerarParabensCargoViaAPI(guildId, userId, promptUsuario, roleName
 
     // Strip tags from content before returning
     const originalTaggedContent = content;
-    content = content.replace(/<vica>.*?<\/vica>/gs, '').trim();
+    content = content.replace(/\[vica\].*?\[\/vica\]/gs, '').trim();
     console.log(`[ROLE-CONGRATS][CLEAN] Conteúdo limpo após remoção de tags. Original (com tags): "${originalTaggedContent}". Limpo: "${content}"`);
     return content;
   } catch (error) {
@@ -440,7 +440,7 @@ async function gerarParabensCargoViaAPI(guildId, userId, promptUsuario, roleName
  
      // Strip tags from content before returning
      const originalTaggedContent = content;
-     content = content.replace(/<vica>.*?<\/vica>/gs, '').trim();
+     content = content.replace(/\[vica\].*?\[\/vica\]/gs, '').trim();
      console.log(`[WELCOME][CLEAN] Conteúdo limpo após remoção de tags. Original (com tags): "${originalTaggedContent}". Limpo: "${content}"`);
      return content;
    } catch (error) {
@@ -572,7 +572,7 @@ async function gerarParabensCargoViaAPI(guildId, userId, promptUsuario, roleName
 
      // Strip tags from content before returning
      const originalTaggedContent = content;
-     content = content.replace(/<vica>.*?<\/vica>/gs, '').trim();
+     content = content.replace(/\[vica\].*?\[\/vica\]/gs, '').trim();
      // console.log(`[VICA][CLEAN] Conteúdo limpo após remoção de tags. Original (com tags): "${originalTaggedContent}". Limpo: "${content}"`);
      return content;
    } catch (error) {
