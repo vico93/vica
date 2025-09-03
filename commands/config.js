@@ -1,6 +1,6 @@
 /*
 ** caminho: commands/config.js
-** últimaMod: 2025-09-03 18:21
+** últimaMod: 2025-09-03 21:45
 ** autor: Vico
 ** colaboração: Roo Sonic
 */
@@ -1423,15 +1423,54 @@ async function handleModalSubmit(interaction) {
             });
         }
 
-        const result = database.adicionarMemoriaUsuario(
-            interaction.guild.id,
-            userIdToAdd,
-            memory.trim(),
-            { sourceMessageId: interaction.id, createdAt: Date.now() }
-        );
+        // ---
 
-        const user = await interaction.guild.members.fetch(userIdToAdd);
+        // Primeiro, tentar adicionar memória ao banco de dados (síncrono)
+        let result;
+        try {
+            result = database.adicionarMemoriaUsuario(
+                interaction.guild.id,
+                userIdToAdd,
+                memory.trim(),
+                { sourceMessageId: interaction.id, createdAt: Date.now() }
+            );
+            console.log('[CONFIG][SUCCESS] Memória adicionada para usuário:', userIdToAdd);
+        } catch (dbError) {
+            console.error('[CONFIG][ERROR] Erro ao adicionar memória no banco de dados:', dbError);
+            return interaction.reply({
+                content: '❌ Erro interno ao salvar memória. Tente novamente mais tarde.',
+                flags: [MessageFlags.Ephemeral]
+            });
+        }
 
+        // Segundo, tentar buscar informações do membro (assíncrono)
+        let user;
+        try {
+            user = await interaction.guild.members.fetch(userIdToAdd);
+            console.log('[CONFIG][SUCCESS] Informações do membro obtidas:', user.displayName);
+        } catch (memberError) {
+            console.error('[CONFIG][ERROR] Erro ao buscar membro Discord:', memberError);
+
+            // Verificar tipo específico de erro
+            if (memberError.code === 10013) { // Unknown user
+                return interaction.reply({
+                    content: '❌ Usuário não encontrado. Verifique se o ID está correto.',
+                    flags: [MessageFlags.Ephemeral]
+                });
+            } else if (memberError.code === 50035) { // Invalid Form Body
+                return interaction.reply({
+                    content: '❌ ID do usuário inválido. Verifique o identificador fornecido.',
+                    flags: [MessageFlags.Ephemeral]
+                });
+            } else {
+                return interaction.reply({
+                    content: '❌ Erro ao verificar usuário. Verifique se o bot tem permissões adequadas.',
+                    flags: [MessageFlags.Ephemeral]
+                });
+            }
+        }
+
+        // Responder baseado no resultado da operação
         if (result.duplicate) {
             await interaction.reply({
                 content: `ℹ️ Esta memória já existia para ${user} e não foi duplicada.`,
