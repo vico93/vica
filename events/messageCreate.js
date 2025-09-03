@@ -16,6 +16,7 @@
 
 const oai      = require('../core/oai_interface');
 const database = require('../core/database');
+const tagParser = require('../core/tagParser');
 
 /* ----------------------------------------------------------
    Cooldown local em memória (guildId:userId -> timestamp)
@@ -133,8 +134,36 @@ module.exports = {
     try {
       await message.channel.sendTyping();
 
-      let prompt = message.content.replace(/<@!?\d+>/g, '').trim();
+      // Parse message for tags and extract memories before AI processing
+      const parsedContent = tagParser.parseTags(message.content);
+
+      let prompt = parsedContent.cleanedMessage.replace(/<@!?\d+>/g, '').trim();
       let imageUrl = null;
+
+      // Process memories found in tags
+      if (parsedContent.memories && parsedContent.memories.length > 0) {
+        for (const memory of parsedContent.memories) {
+          if (!memory.hasErrors) {
+            try {
+              const memoryResult = database.adicionarMemoriaUsuario(
+                memory.guildId,
+                memory.userId,
+                memory.fact,
+                {
+                  confidence: memory.confidence,
+                  sourceMessageId: message.id,
+                  importance: memory.importance
+                }
+              );
+              console.log(`[TAG_PROCESSOR] Salvando memória: ${memory.guildId}:${memory.userId}:${memory.fact}(importance=${memory.importance}, confidence=${memory.confidence})`);
+            } catch (memoryErr) {
+              console.error('[TAG_PROCESSOR][ERROR] Falhou ao salvar memória:', memoryErr.message);
+            }
+          } else {
+            console.error(`[TAG_PROCESSOR][ERROR] Memória malformada: ${memory.errorMessage}`);
+          }
+        }
+      }
 
       if (message.attachments.size) {
         const att = message.attachments.first();

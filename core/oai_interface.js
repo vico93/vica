@@ -10,6 +10,7 @@ const path = require('path');
 const OpenAI = require('openai');
 const config = require('../config.json');
 const database = require('../core/database');
+const tagParser = require('../core/tagParser');
 
 
 /* --- Funções Helper Para Processar Chamadas de Ferramentas --- */
@@ -561,31 +562,54 @@ async function gerarParabensCargoViaAPI(guildId, userId, promptUsuario, roleName
      const message = choice?.message;
      let content = message?.content || '';
 
-     // Processa chamadas de ferramentas usando helpers robustos
-     const commands = parseTagCommands(content);
-     const tagResults = processTagCommands(commands, guildId, {
-       moduleTag: '[VICA]',
-       sourceMessageId
-     });
+     // Processa tags [save_memory] usando tagParser
+     const parsedTags = tagParser.parseTags(content);
+     let memoriesProcessed = 0;
 
-     if (tagResults.processed > 0) {
-       console.log(`[VICA][TAG] Processadas ${tagResults.processed} comandos de tags`);
+     // Processa memórias encontradas nas tags
+     if (parsedTags.memories && parsedTags.memories.length > 0) {
+       for (const memory of parsedTags.memories) {
+         if (!memory.hasErrors) {
+           try {
+             console.log(`[AI_RESPONSE_PROCESSOR][INFO] Processando memória: ${memory.guildId}:${memory.userId}:${memory.fact}...`);
+             const result = database.adicionarMemoriaUsuario(
+               memory.guildId,
+               memory.userId,
+               memory.fact,
+               {
+                 importance: memory.importance,
+                 confidence: memory.confidence,
+                 sourceMessageId: sourceMessageId,
+                 createdAt: Date.now()
+               }
+             );
+             console.log(`[AI_RESPONSE_PROCESSOR][SUCCESS] Memória salva: inserted=${result.inserted} duplicate=${result.duplicate} importance=${memory.importance} confidence=${memory.confidence}`);
+             memoriesProcessed++;
+           } catch (memError) {
+             console.error(`[AI_RESPONSE_PROCESSOR][ERROR] Falha ao salvar memória: ${memError.message}`);
+           }
+         } else {
+           console.warn(`[AI_RESPONSE_PROCESSOR][WARN] Memória com erros ignorada: ${memory.errorMessage}`);
+         }
+       }
      }
 
+     if (memoriesProcessed > 0) {
+       console.log(`[AI_RESPONSE_PROCESSOR][INFO] Total memórias processadas: ${memoriesProcessed}`);
+     }
+
+     // Usa o conteúdo limpo do tagParser (tags já removidas)
+     content = parsedTags.cleanedMessage;
+
      if (!content) {
-       // Caso não haja conteúdo mas houve comandos de tags, assume sucesso
-       if (tagResults.processed > 0) {
-         console.log('[VICA][TAG] Sem conteúdo textual, mas comandos de tags executados com sucesso');
+       // Caso não haja conteúdo mas houve impegnias memórias processadas, assume sucesso
+       if (memoriesProcessed > 0) {
+         console.log('[AI_RESPONSE_PROCESSOR][INFO] Sem conteúdo textual, mas memórias salvas com sucesso');
          content = 'Memória salva/atualizada com sucesso!';
        } else {
          throw new Error('A API não retornou conteúdo na resposta.');
        }
      }
-
-     // Strip tags from content before returning
-     const originalTaggedContent = content;
-     content = content.replace(/\[vica\].*?\[\/vica\]/gs, '').trim();
-     // console.log(`[VICA][CLEAN] Conteúdo limpo após remoção de tags. Original (com tags): "${originalTaggedContent}". Limpo: "${content}"`);
      return content;
    } catch (error) {
      console.error('[ERRO] Não consegui gerar uma resposta pela API da OpenAI:', error.message);

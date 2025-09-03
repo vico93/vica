@@ -101,6 +101,21 @@ db.pragma('synchronous = NORMAL');    // commits mais rápidos
     // tabela ainda não existe, será criada abaixo
   }
 
+  // Migração para adicionar coluna importance na tabela user_memories
+  try {
+    const memoryCols = db.prepare('PRAGMA table_info(user_memories)').all();
+    const hasImportance = memoryCols.some(c => c.name === 'importance');
+
+    if (memoryCols.length > 0 && !hasImportance) {
+      console.warn('[DB] Migrando tabela user_memories -> adicionando coluna importance.');
+      db.exec('ALTER TABLE user_memories ADD COLUMN importance INTEGER');
+      console.log('[DB] Adicionada coluna importance à tabela user_memories');
+    }
+  } catch (e) {
+    console.error('[DB] Erro durante migração da coluna importance:', e.message);
+    // tabela ainda não existe, será criada abaixo
+  }
+
   db.exec(`
 CREATE TABLE IF NOT EXISTS mensagens (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -275,13 +290,13 @@ const stmts = {
 
   /* --- MEMÓRIAS DE USUÁRIO --- */
   memInsert: db.prepare(`INSERT OR IGNORE INTO user_memories
-                          (guild_id, user_id, fact, fact_key, confidence, source_message_id, created_at)
-                          VALUES (?, ?, ?, ?, ?, ?, ?)`),
-  memList:   db.prepare(`SELECT id, fact, confidence, source_message_id, created_at
-                          FROM user_memories
-                          WHERE guild_id = ? AND user_id = ?
-                          ORDER BY created_at DESC
-                          LIMIT ? OFFSET ?`),
+                        (guild_id, user_id, fact, fact_key, confidence, source_message_id, importance, created_at)
+                        VALUES (?, ?, ?, ?, ?, ?, ?, ?)`),
+  memList:   db.prepare(`SELECT id, fact, confidence, importance, source_message_id, created_at
+                        FROM user_memories
+                        WHERE guild_id = ? AND user_id = ?
+                        ORDER BY created_at DESC
+                        LIMIT ? OFFSET ?`),
   memDelete: db.prepare('DELETE FROM user_memories WHERE guild_id = ? AND user_id = ? AND fact_key = ?'),
  
  /* --- MEMÓRIAS DE GUILD --- */
@@ -494,14 +509,14 @@ module.exports = {
 
   // memórias de usuário (por guild)
   adicionarMemoriaUsuario: (g, u, fact, opts = {}) => {
-    const { confidence = null, sourceMessageId = null, createdAt = Date.now() } = opts || {};
+    const { confidence = null, sourceMessageId = null, importance = null, createdAt = Date.now() } = opts || {};
     const factKey = String(fact ?? '')
       .normalize('NFKD')
       .replace(/[\u0300-\u036f]/g, '')
       .toLowerCase()
       .replace(/\s+/g, ' ')
       .trim();
-    const res = stmts.memInsert.run(g, u, fact, factKey, confidence, sourceMessageId, createdAt);
+    const res = stmts.memInsert.run(g, u, fact, factKey, confidence, sourceMessageId, importance, createdAt);
     return { inserted: res.changes > 0, duplicate: res.changes === 0, id: res.lastInsertRowid };
   },
   listarMemoriasUsuario: (g, u, limit = 20, offset = 0) =>
