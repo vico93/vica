@@ -1,8 +1,8 @@
 /*
 ** caminho: commands/config.js
-** últimaMod: 2025-09-02 22:17
+** últimaMod: 2025-09-03 18:12
 ** autor: Vico
-** colaboração: Roo Sonic, Kimi AI
+** colaboração: Roo Sonic
 */
 
 /*
@@ -1905,13 +1905,23 @@ async function handleListUserMemories(interaction, userId, page = 1) {
  * Manipula adição de memória de usuário
  */
 async function handleAddUserMemory(interaction) {
-    const users = interaction.guild.members.cache
-        .filter(m => !m.user.bot)
-        .map(m => ({
-            label: m.displayName,
-            value: m.id,
-            description: `ID: ${m.id}`
-        }));
+    /* Busca todos os membros do servidor, incluindo offlines */
+    try {
+        const fetchedMembers = await interaction.guild.members.fetch();
+        var users = fetchedMembers
+            .filter(m => !m.user.bot)
+            .map(m => ({
+                label: m.displayName,
+                value: m.id,
+                description: `ID: ${m.id}`
+            }));
+    } catch (error) {
+        console.error('[CONFIG][ERROR] Erro ao buscar membros do servidor:', error);
+        return interaction.reply({
+            content: '❌ Erro ao buscar lista de membros. Tente novamente mais tarde.',
+            flags: [MessageFlags.Ephemeral]
+        });
+    }
 
     if (users.length === 0) {
         return interaction.reply({
