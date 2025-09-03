@@ -2466,20 +2466,8 @@ module.exports = {
                             const modalCustomId = generateComponentId(i.user.id, `set_user_memory_modal_${userId}`);
                             console.log('[CONFIG][DEBUG MODAL] Generated modal customId:', modalCustomId);
 
-                            // Criar modal para input da memória
-                            const modal = new ModalBuilder()
-                                .setCustomId(modalCustomId)
-                                .setTitle(`Adicionar Memória para ${user.displayName}`);
-
-                            // After creating modal, log before showing
-                            console.log('[CONFIG][DEBUG MODAL] About to call i.showModal()');
-
-                            await i.showModal(modal);
-
-                            // After showing modal, log success
-                            console.log('[CONFIG][DEBUG MODAL] Modal shown successfully');
-                            console.log('[CONFIG][DEBUG MODAL] Collector should now listen for modal submit');
-
+                            // Criar componentes primeiro
+                            console.log('[CONFIG][DEBUG MODAL] Creating TextInput component');
                             const memoryInput = new TextInputBuilder()
                                 .setCustomId('user_memory')
                                 .setLabel('Memória a ser adicionada')
@@ -2489,10 +2477,20 @@ module.exports = {
                                 .setMinLength(1)
                                 .setMaxLength(500);
 
+                            console.log('[CONFIG][DEBUG MODAL] Creating ActionRow with component');
                             const firstActionRow = new ActionRowBuilder().addComponents(memoryInput);
-                            modal.addComponents(firstActionRow);
 
+                            // Criar modal completo com componentes
+                            console.log('[CONFIG][DEBUG MODAL] Creating modal with components');
+                            const modal = new ModalBuilder()
+                                .setCustomId(modalCustomId)
+                                .setTitle(`Adicionar Memória para ${user.displayName}`)
+                                .addComponents(firstActionRow);
+
+                            // Mostrar modal uma única vez
+                            console.log('[CONFIG][DEBUG MODAL] About to call i.showModal()');
                             await i.showModal(modal);
+                            console.log('[CONFIG][DEBUG MODAL] Modal shown successfully with components');
                         } else if (customId.includes('message_subcategory_select')) {
                             console.log('[CONFIG] Chamando handleMessageSubcategorySelect');
                             await handleMessageSubcategorySelect(i);
