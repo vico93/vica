@@ -141,8 +141,11 @@ module.exports = {
         if (att.contentType?.startsWith('image/')) imageUrl = att.url;
       }
 
-      if (!prompt && imageUrl) prompt = 'Em anexo...';
-      if (!prompt && !imageUrl) return;
+      if (imageUrl) {
+        prompt = prompt ? '[imagem] ' + prompt : '[imagem]';
+      }
+
+      if (!prompt) return;
 
       const resposta = await oai.gerarRespostaContextual(
         guildId, canalId, usuarioId, message.client.user.id, prompt, imageUrl, message.channel, message.id

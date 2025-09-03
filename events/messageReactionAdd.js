@@ -59,8 +59,15 @@ module.exports = {
         if (att.contentType?.startsWith('image/')) imageUrl = att.url;
       }
 
-      if (!prompt && imageUrl) prompt = 'Em anexo...';
-      if (!prompt && !imageUrl) return;
+      if (imageUrl) {
+        if (prompt) {
+          prompt = '[imagem] ' + prompt;
+        } else {
+          prompt = '[imagem]';
+        }
+      }
+
+      if (!prompt) return;
 
       console.log(`[VICA][REACTION] Gatilho por ${user.tag} na msg de ${message.author.tag}`);
 

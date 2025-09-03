@@ -321,7 +321,7 @@ async function gerarPerguntaViaAPI(promptUsuario = null) {
     { role: 'system', content: systemPrompt },
     {
       role: 'user',
-      content: promptUsuario || '/perguntar acionado!',
+      content: promptUsuario || '[pergunta]',
     },
   ];
   try {
@@ -403,51 +403,62 @@ async function gerarParabensCargoViaAPI(guildId, userId, promptUsuario, roleName
 }
 
    // Função para gerar mensagens de boas-vindas/saída via API
- async function gerarMensagemBemVindoViaAPI(guildId, userId, userName, messageType, prompt) {
-   const systemPrompt = await carregarSystemPrompt();
-   const messages = [
-     { role: 'system', content: systemPrompt },
-     {
-       role: 'user',
-       content: prompt.replace(/\{@USER\}/g, `<@${userId}>`).replace(/\{USER\}/g, userName),
-     },
-   ];
+   async function gerarMensagemBemVindoViaAPI(guildId, userId, userName, messageType, prompt) {
+     // Mapeamento de tipos de mensagem para tags correspondentes (case-insensitive)
+     const messageTypeMapping = {
+       'welcome': 'welcome',
+       'leave': 'leave',
+       'kick': 'kick',
+       'ban': 'ban'
+     };
  
-   try {
-     const response = await openai.chat.completions.create({
-       model: config.openai.model,
-       messages,
-       temperature: 0.8,
-       max_tokens: config.settings.maxTokens,
-     });
+     // Obter tag baseada no tipo de mensagem (case-insensitive, default para 'welcome')
+     const tag = (messageType && messageTypeMapping[messageType.toLowerCase()]) || 'welcome';
  
-     const choice = response?.choices?.[0];
-     const message = choice?.message;
-     let content = message?.content || '';
+     const systemPrompt = await carregarSystemPrompt();
+     const messages = [
+       { role: 'system', content: systemPrompt },
+       {
+         role: 'user',
+         content: `[${tag}]` + prompt.replace(/\{@USER\}/g, `<@${userId}>`).replace(/\{USER\}/g, userName),
+       },
+     ];
  
-     // Processa comandos de tags usando helpers de tags
-     const commands = parseTagCommands(content);
-     const tagResults = processTagCommands(commands, guildId, {
-       moduleTag: '[WELCOME]',
-       sourceMessageId: null
-     });
+     try {
+       const response = await openai.chat.completions.create({
+         model: config.openai.model,
+         messages,
+         temperature: 0.8,
+         max_tokens: config.settings.maxTokens,
+       });
  
-     if (tagResults.processed > 0) {
-       console.log(`[WELCOME][TAG] Processadas ${tagResults.processed} comandos de tags`);
+       const choice = response?.choices?.[0];
+       const message = choice?.message;
+       let content = message?.content || '';
+ 
+       // Processa comandos de tags usando helpers de tags
+       const commands = parseTagCommands(content);
+       const tagResults = processTagCommands(commands, guildId, {
+         moduleTag: `[${tag.toUpperCase()}]`,
+         sourceMessageId: null
+       });
+ 
+       if (tagResults.processed > 0) {
+         console.log(`[${tag.toUpperCase()}][TAG] Processadas ${tagResults.processed} comandos de tags`);
+       }
+ 
+       if (!content) throw new Error('A API não retornou conteúdo na resposta.');
+ 
+       // Strip tags from content before returning
+       const originalTaggedContent = content;
+       content = content.replace(/\[vica\].*?\[\/vica\]/gs, '').trim();
+       console.log(`[${tag.toUpperCase()}][CLEAN] Conteúdo limpo após remoção de tags. Original (com tags): "${originalTaggedContent}". Limpo: "${content}"`);
+       return content;
+     } catch (error) {
+       console.error(`[ERRO] Não consegui gerar mensagem de ${messageType} pela API da OpenAI:`, error.message);
+       throw error;
      }
- 
-     if (!content) throw new Error('A API não retornou conteúdo na resposta.');
- 
-     // Strip tags from content before returning
-     const originalTaggedContent = content;
-     content = content.replace(/\[vica\].*?\[\/vica\]/gs, '').trim();
-     console.log(`[WELCOME][CLEAN] Conteúdo limpo após remoção de tags. Original (com tags): "${originalTaggedContent}". Limpo: "${content}"`);
-     return content;
-   } catch (error) {
-     console.error(`[ERRO] Não consegui gerar mensagem de ${messageType} pela API da OpenAI:`, error.message);
-     throw error;
    }
- }
  
  // Função para gerar uma resposta à partir da API
  async function gerarRespostaContextual(guildId, canalId, usuarioId, botUserId, mensagemUsuario, imageUrl = null, channel = null, sourceMessageId = null) {
