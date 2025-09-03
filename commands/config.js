@@ -1,6 +1,6 @@
 /*
 ** caminho: commands/config.js
-** últimaMod: 2025-09-03 18:12
+** últimaMod: 2025-09-03 18:21
 ** autor: Vico
 ** colaboração: Roo Sonic
 */
@@ -1917,16 +1917,18 @@ async function handleAddUserMemory(interaction) {
             }));
     } catch (error) {
         console.error('[CONFIG][ERROR] Erro ao buscar membros do servidor:', error);
-        return interaction.reply({
+        return interaction.update({
             content: '❌ Erro ao buscar lista de membros. Tente novamente mais tarde.',
-            flags: [MessageFlags.Ephemeral]
+            components: [],
+            embeds: []
         });
     }
 
     if (users.length === 0) {
-        return interaction.reply({
+        return interaction.update({
             content: '❌ Nenhum usuário encontrado no servidor.',
-            flags: [MessageFlags.Ephemeral]
+            components: [],
+            embeds: []
         });
     }
 
@@ -1937,49 +1939,10 @@ async function handleAddUserMemory(interaction) {
 
     const row = new ActionRowBuilder().addComponents(selectMenu);
 
-    const reply = await interaction.reply({
+    await interaction.update({
         content: 'Selecione o usuário para adicionar uma memória:',
-        components: [row],
-        flags: [MessageFlags.Ephemeral]
-    });
-
-    const collector = reply.createMessageComponentCollector({
-        componentType: ComponentType.StringSelect,
-        time: 60000
-    });
-
-    collector.on('collect', async i => {
-        if (i.user.id !== interaction.user.id) {
-            return i.reply({ content: '⛔ Apenas quem executou o comando pode interagir aqui.', ephemeral: true });
-        }
-
-        const userId = i.values[0];
-        const user = await interaction.guild.members.fetch(userId);
-
-        // Criar modal para input da memória
-        const modal = new ModalBuilder()
-            .setCustomId(generateComponentId(interaction.user.id, `set_user_memory_modal_${userId}`))
-            .setTitle(`Adicionar Memória para ${user.displayName}`);
-
-        const memoryInput = new TextInputBuilder()
-            .setCustomId('user_memory')
-            .setLabel('Memória a ser adicionada')
-            .setPlaceholder('Digite a informação que o bot deve lembrar sobre este usuário')
-            .setStyle(TextInputStyle.Paragraph)
-            .setRequired(true)
-            .setMinLength(1)
-            .setMaxLength(500);
-
-        const firstActionRow = new ActionRowBuilder().addComponents(memoryInput);
-        modal.addComponents(firstActionRow);
-
-        await i.showModal(modal);
-    });
-
-    collector.on('end', collected => {
-        if (collected.size === 0) {
-            interaction.editReply({ content: '⏰ O tempo para selecionar um usuário expirou.', components: [] });
-        }
+        embeds: [],
+        components: [row]
     });
 }
 
@@ -2432,6 +2395,29 @@ module.exports = {
                         } else if (customId.includes('memory_actions_select')) {
                             console.log('[CONFIG] Chamando handleMemoryActionsSelect');
                             await handleMemoryActionsSelect(i);
+                        } else if (customId.includes('add_user_memory_select')) {
+                            console.log('[CONFIG] Processando seleção de usuário para memória');
+                            const userId = i.values[0];
+                            const user = await i.guild.members.fetch(userId);
+
+                            // Criar modal para input da memória
+                            const modal = new ModalBuilder()
+                                .setCustomId(generateComponentId(i.user.id, `set_user_memory_modal_${userId}`))
+                                .setTitle(`Adicionar Memória para ${user.displayName}`);
+
+                            const memoryInput = new TextInputBuilder()
+                                .setCustomId('user_memory')
+                                .setLabel('Memória a ser adicionada')
+                                .setPlaceholder('Digite a informação que o bot deve lembrar sobre este usuário')
+                                .setStyle(TextInputStyle.Paragraph)
+                                .setRequired(true)
+                                .setMinLength(1)
+                                .setMaxLength(500);
+
+                            const firstActionRow = new ActionRowBuilder().addComponents(memoryInput);
+                            modal.addComponents(firstActionRow);
+
+                            await i.showModal(modal);
                         } else if (customId.includes('message_subcategory_select')) {
                             console.log('[CONFIG] Chamando handleMessageSubcategorySelect');
                             await handleMessageSubcategorySelect(i);
