@@ -1,8 +1,8 @@
 /*
 ** caminho: events/messageCreate.js
-** últimaMod: 16/07/2025 22:23
+** últimaMod: 2025-09-03 14:47
 ** autor: Vico
-** colaboração: ChatGPT, Gemini, Kimi AI
+** colaboração: Roo Sonic
 */
 
 /*
@@ -144,6 +144,11 @@ module.exports = {
       if (imageUrl) {
         prompt = prompt ? '[imagem] ' + prompt : '[imagem]';
       }
+
+      // Adicionar contexto do usuário para o prompt
+      const username = message.author.username;
+      const userId = message.author.id;
+      prompt = `${username}: ${prompt} [meta]user:${username}|id:${userId}[/meta]`;
 
       if (!prompt) return;
 

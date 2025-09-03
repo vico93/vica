@@ -1,6 +1,6 @@
 /*
 ** caminho: core/oai_interface.js
-** últimaMod: 02/09/2025 18:14
+** últimaMod: 2025-09-03 14:47
 ** autor: Vico
 ** colaboração: Gemini, ChatGPT, Roo Sonic
 */
@@ -516,7 +516,7 @@ async function gerarParabensCargoViaAPI(guildId, userId, promptUsuario, roleName
            try {
              const m = await channel.messages.fetch(id);
              if (m?.content) {
-               return { content: m.content, authorId: m.author.id };
+               return { content: m.content, authorId: m.author.id, username: m.author.username };
              }
              return null;
            } catch {
@@ -532,7 +532,8 @@ async function gerarParabensCargoViaAPI(guildId, userId, promptUsuario, roleName
 
    for (const msg of historicoTextos) {
      const isBot = msg.authorId === botUserId;
-     messages.push({ role: isBot ? 'assistant' : 'user', content: msg.content });
+     const content = isBot ? msg.content : `${msg.username}: ${msg.content} [meta]user:${msg.username}|id:${msg.authorId}[/meta]`;
+     messages.push({ role: isBot ? 'assistant' : 'user', content: content });
    }
 
    // Add the current user message
