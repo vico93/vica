@@ -2427,10 +2427,6 @@ module.exports = {
             });
 
             collector.on('collect', async i => {
-                console.log('[CONFIG][COLLECTOR] Main collector recebeu interação');
-                console.log('[CONFIG][COLLECTOR] Tipo de interação:', i.constructor.name);
-                console.log('[CONFIG][COLLECTOR] CustomId:', i.customId);
-                console.log('[CONFIG][COLLECTOR] Usuário:', i.user.tag);
 
                 if (i.user.id !== interaction.user.id) {
                     console.log('[CONFIG] Usuário incorreto tentou interagir');
@@ -2460,14 +2456,9 @@ module.exports = {
                             const userId = i.values[0];
                             const user = await i.guild.members.fetch(userId);
 
-                            // Diagnostic logs for modal creation
-                            console.log('[CONFIG][DEBUG MODAL] Admin user ID:', i.user.id);
-                            console.log('[CONFIG][DEBUG MODAL] Target user ID:', userId);
                             const modalCustomId = generateComponentId(i.user.id, `set_user_memory_modal_${userId}`);
-                            console.log('[CONFIG][DEBUG MODAL] Generated modal customId:', modalCustomId);
 
                             // Criar componentes primeiro
-                            console.log('[CONFIG][DEBUG MODAL] Creating TextInput component');
                             const memoryInput = new TextInputBuilder()
                                 .setCustomId('user_memory')
                                 .setLabel('Memória a ser adicionada')
@@ -2477,20 +2468,16 @@ module.exports = {
                                 .setMinLength(1)
                                 .setMaxLength(500);
 
-                            console.log('[CONFIG][DEBUG MODAL] Creating ActionRow with component');
                             const firstActionRow = new ActionRowBuilder().addComponents(memoryInput);
 
                             // Criar modal completo com componentes
-                            console.log('[CONFIG][DEBUG MODAL] Creating modal with components');
                             const modal = new ModalBuilder()
                                 .setCustomId(modalCustomId)
                                 .setTitle(`Adicionar Memória para ${user.displayName}`)
                                 .addComponents(firstActionRow);
 
                             // Mostrar modal uma única vez
-                            console.log('[CONFIG][DEBUG MODAL] About to call i.showModal()');
                             await i.showModal(modal);
-                            console.log('[CONFIG][DEBUG MODAL] Modal shown successfully with components');
                         } else if (customId.includes('message_subcategory_select')) {
                             console.log('[CONFIG] Chamando handleMessageSubcategorySelect');
                             await handleMessageSubcategorySelect(i);

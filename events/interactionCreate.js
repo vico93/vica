@@ -20,13 +20,6 @@ const { MessageFlags } = require('discord.js');
 module.exports = {
   name: 'interactionCreate',
   async execute(interaction) {
-    console.log('[VICA][INTERACTION] Received interaction:', {
-      type: interaction.constructor.name,
-      isCommand: interaction.isChatInputCommand(),
-      isModalSubmit: interaction.isModalSubmit(),
-      customId: interaction.customId || 'N/A',
-      user: interaction.user?.id
-    });
 
     // /* --- PROCESSAMENTO DE COMANDOS DE BARRA --- */
     if (interaction.isChatInputCommand()) {
@@ -58,7 +51,6 @@ module.exports = {
 
     // /* --- PROCESSAMENTO DE INTERAÇÕES MODAIS --- */
     if (interaction.isModalSubmit()) {
-      console.log('[VICA][MODAL] Processing modal submit:', interaction.customId);
 
       try {
         // Routing baseado no padrão do customId
@@ -72,7 +64,6 @@ module.exports = {
           // Route to config command's modal handler
           const configCommand = interaction.client.commands.get('config');
           if (!configCommand) {
-            console.error('[VICA][MODAL] Command "config" não encontrado para modal routing.');
             return interaction.reply({
               content: '❌ Erro interno: handler de configuração não encontrado.',
               flags: [MessageFlags.Ephemeral]
@@ -80,7 +71,6 @@ module.exports = {
           }
 
           if (!configCommand.handleModalSubmit) {
-            console.error('[VICA][MODAL] handleModalSubmit não encontrado no comando config.');
             return interaction.reply({
               content: '❌ Erro interno: handler de modal não implementado.',
               flags: [MessageFlags.Ephemeral]
@@ -90,7 +80,6 @@ module.exports = {
           await configCommand.handleModalSubmit(interaction);
         } else {
           // Modal não reconhecido
-          console.warn(`[VICA][MODAL] Modal customId não reconhecido: "${interaction.customId}"`);
           await interaction.reply({
             content: '❌ Interação não reconhecida. Isso pode indicar uma versão desatualizada.',
             flags: [MessageFlags.Ephemeral]
@@ -113,13 +102,5 @@ module.exports = {
       }
       return;
     }
-
-    // /* --- INTERAÇÃO DESCONHECIDA --- */
-    console.log('[VICA][INTERACTION] Interação não processada:', {
-      type: interaction.constructor.name,
-      isCommand: interaction.isChatInputCommand(),
-      isModalSubmit: interaction.isModalSubmit(),
-      customId: interaction.customId
-    });
   }
 };
