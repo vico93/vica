@@ -1,6 +1,6 @@
 /*
 ** caminho: events/messageCreate.js
-** últimaMod: 2025-09-03 14:47
+** últimaMod: 2025-09-05 23:28
 ** autor: Vico
 ** colaboração: Roo Sonic
 */
@@ -134,10 +134,21 @@ module.exports = {
     try {
       await message.channel.sendTyping();
 
+      // Buscar contexto da mensagem respondida se for resposta ao bot
+      let repliedContext = '';
+      if (respondeuBot) {
+        try {
+          const repliedMsg = await message.channel.messages.fetch(message.reference.messageId);
+          repliedContext = `Contexto da pergunta anterior do bot: "${repliedMsg.content}"\n`;
+        } catch (err) {
+          console.warn('[VICA][CHATBOT] Falha ao buscar mensagem respondida para contexto:', err.message);
+        }
+      }
+
       // Parse message for tags and extract memories before AI processing
       const parsedContent = tagParser.parseTags(message.content);
 
-      let prompt = parsedContent.cleanedMessage.replace(/<@!?\d+>/g, '').trim();
+      let prompt = repliedContext + parsedContent.cleanedMessage.replace(/<@!?\d+>/g, '').trim();
       let imageUrl = null;
 
       // Process memories found in tags
