@@ -1,6 +1,6 @@
 /*
 ** caminho: commands/mmemories.js
-** últimaMod: 2024-09-06 17:49
+** últimaMod: 2025-09-06 21:42
 ** autor: Vico
 ** colaboração: Roo Sonic
 */
@@ -70,14 +70,11 @@ async function execute(interaction) {
         /* --- List Subcommand --- */
         const memories = listarMemoriasUsuario(guildId, member.id);
 
-        console.log('[MMEMORIES][DEBUG] memories array:', JSON.stringify(memories, null, 2));
-        console.log('[MMEMORIES][DEBUG] first memory keys:', memories.length > 0 ? Object.keys(memories[0]).join(', ') : 'no memories');
-
         const embed = new EmbedBuilder()
             .setTitle(`Memórias de ${member.displayName}`)
             .setColor(0x0099FF)
             .setDescription(memories.length > 0
-                ? memories.map((m, i) => `${i + 1}. ${m.memory}`).join('\n')
+                ? memories.map((m, i) => `${i + 1}. ${m.fact}`).join('\n')
                 : 'Nenhuma memória encontrada.'
             );
 
@@ -112,7 +109,7 @@ async function execute(interaction) {
                 memories.map((m, i) => ({
                     label: `Memória ${i + 1}`,
                     value: m.id.toString(),
-                    description: m.memory.length > 50 ? m.memory.substring(0, 47) + '...' : m.memory
+                    description: m.fact.length > 50 ? m.fact.substring(0, 47) + '...' : m.fact
                 }))
             );
 
@@ -149,7 +146,7 @@ async function execute(interaction) {
             const buttonRow = new ActionRowBuilder().addComponents(confirmButton, cancelButton);
 
             await selectInteraction.update({
-                content: `Tem certeza que deseja deletar a memória "${memory.memory}" de ${member.displayName}?`,
+                content: `Tem certeza que deseja deletar a memória "${memory.fact}" de ${member.displayName}?`,
                 components: [buttonRow]
             });
 

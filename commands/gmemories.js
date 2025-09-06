@@ -1,6 +1,6 @@
 /*
 ** caminho: commands/gmemories.js
-** últimaMod: 2025-09-06 20:53
+** últimaMod: 2025-09-06 21:42
 ** autor: Vico
 ** colaboração: Roo Sonic
 */
@@ -54,14 +54,11 @@ async function execute(interaction) {
         /* --- List Subcommand --- */
         const memories = listarMemoriasGuild(guildId);
 
-        console.log('[GMEMORIES][DEBUG] memories array:', JSON.stringify(memories, null, 2));
-        console.log('[GMEMORIES][DEBUG] first memory keys:', memories.length > 0 ? Object.keys(memories[0]).join(', ') : 'no memories');
-
         const embed = new EmbedBuilder()
             .setTitle('Memórias do Servidor')
             .setColor(0x0099FF)
             .setDescription(memories.length > 0
-                ? memories.map((m, i) => `${i + 1}. ${m.memory}`).join('\n')
+                ? memories.map((m, i) => `${i + 1}. ${m.fact}`).join('\n')
                 : 'Nenhuma memória encontrada para este servidor.'
             );
 
@@ -96,7 +93,7 @@ async function execute(interaction) {
                 memories.map((m, i) => ({
                     label: `Memória ${i + 1}`,
                     value: m.id.toString(),
-                    description: m.memory.length > 50 ? m.memory.substring(0, 47) + '...' : m.memory
+                    description: m.fact.length > 50 ? m.fact.substring(0, 47) + '...' : m.fact
                 }))
             );
 
@@ -133,7 +130,7 @@ async function execute(interaction) {
             const buttonRow = new ActionRowBuilder().addComponents(confirmButton, cancelButton);
 
             await selectInteraction.update({
-                content: `Tem certeza que deseja deletar a memória "${memory.memory}" do servidor?`,
+                content: `Tem certeza que deseja deletar a memória "${memory.fact}" do servidor?`,
                 components: [buttonRow]
             });
 
