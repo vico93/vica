@@ -131,7 +131,9 @@ async function execute(interaction) {
 
         selectCollector.on('collect', async (selectInteraction) => {
             const memoryId = selectInteraction.values[0];
+            console.log('[MMEMORIES][DEBUG] memoryId selected:', memoryId);
             const memory = memories.find(m => m.id == memoryId);
+            console.log('[MMEMORIES][DEBUG] memory found:', memory);
 
             const confirmButton = new ButtonBuilder()
                 .setCustomId('confirm_delete')
@@ -160,8 +162,10 @@ async function execute(interaction) {
 
             buttonCollector.on('collect', async (buttonInteraction) => {
                 if (buttonInteraction.customId === 'confirm_delete') {
-                    const memoryIndex = memories.findIndex(m => m.id == memoryId);
-                    removerMemoriaUsuario(guildId, member.id, memoryIndex);
+                    console.log('[MMEMORIES][DEBUG] memory object:', memory);
+                    console.log('[MMEMORIES][DEBUG] calling removerMemoriaUsuario with params:', { guildId, memberId: member.id, factKey: memory.fact });
+                    const result = removerMemoriaUsuario(guildId, member.id, memory.fact);
+                    console.log('[MMEMORIES][DEBUG] removerMemoriaUsuario result:', result);
                     await buttonInteraction.update({
                         content: 'Memória deletada com sucesso.',
                         components: []
