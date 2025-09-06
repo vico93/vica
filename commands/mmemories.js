@@ -70,6 +70,9 @@ async function execute(interaction) {
         /* --- List Subcommand --- */
         const memories = listarMemoriasUsuario(guildId, member.id);
 
+        console.log('[MMEMORIES][DEBUG] memories array:', JSON.stringify(memories, null, 2));
+        console.log('[MMEMORIES][DEBUG] first memory keys:', memories.length > 0 ? Object.keys(memories[0]).join(', ') : 'no memories');
+
         const embed = new EmbedBuilder()
             .setTitle(`Memórias de ${member.displayName}`)
             .setColor(0x0099FF)

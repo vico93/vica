@@ -54,6 +54,9 @@ async function execute(interaction) {
         /* --- List Subcommand --- */
         const memories = listarMemoriasGuild(guildId);
 
+        console.log('[GMEMORIES][DEBUG] memories array:', JSON.stringify(memories, null, 2));
+        console.log('[GMEMORIES][DEBUG] first memory keys:', memories.length > 0 ? Object.keys(memories[0]).join(', ') : 'no memories');
+
         const embed = new EmbedBuilder()
             .setTitle('Memórias do Servidor')
             .setColor(0x0099FF)
