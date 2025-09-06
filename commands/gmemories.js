@@ -2,7 +2,7 @@
 ** caminho: commands/gmemories.js
 ** últimaMod: 2025-09-06 21:42
 ** autor: Vico
-** colaboração: Roo Sonic
+** colaboração: Roo Sonic e ChatGPT
 */
 
 /* --- Imports --- */
@@ -144,8 +144,7 @@ async function execute(interaction) {
 
             buttonCollector.on('collect', async (buttonInteraction) => {
                 if (buttonInteraction.customId === 'confirm_delete_guild') {
-                    const memoryIndex = memories.findIndex(m => m.id == memoryId);
-                    removerMemoriaGuild(guildId, memoryIndex);
+                    removerMemoriaGuild(guildId, memoryId);
                     await buttonInteraction.update({
                         content: 'Memória deletada com sucesso.',
                         components: []

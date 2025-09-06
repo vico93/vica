@@ -2,7 +2,7 @@
 ** caminho: commands/mmemories.js
 ** últimaMod: 2025-09-06 21:42
 ** autor: Vico
-** colaboração: Roo Sonic
+** colaboração: Roo Sonic e ChatGPT
 */
 
 /* --- Imports --- */
@@ -164,7 +164,15 @@ async function execute(interaction) {
                 if (buttonInteraction.customId === 'confirm_delete') {
                     console.log('[MMEMORIES][DEBUG] memory object:', memory);
                     console.log('[MMEMORIES][DEBUG] calling removerMemoriaUsuario with params:', { guildId, memberId: member.id, factKey: memory.fact });
-                    const result = removerMemoriaUsuario(guildId, member.id, memory.fact);
+                    // gera a mesma chave usada no insert
+                    const factKey = String(memory.fact ?? '')
+                      .normalize('NFKD')
+                      .replace(/[\u0300-\u036f]/g, '')
+                      .toLowerCase()
+                      .replace(/\s+/g, ' ')
+                      .trim();
+
+                    const result = removerMemoriaUsuario(guildId, member.id, factKey);
                     console.log('[MMEMORIES][DEBUG] removerMemoriaUsuario result:', result);
                     await buttonInteraction.update({
                         content: 'Memória deletada com sucesso.',
