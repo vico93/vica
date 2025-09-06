@@ -17,7 +17,7 @@ const {
     ComponentType,
     MessageFlags
 } = require('discord.js');
-const { listarMemoriasGuild, adicionarMemoriaGuild, deletarMemoriaGuild } = require('../core/database');
+const { listarMemoriasGuild, adicionarMemoriaGuild, removerMemoriaGuild } = require('../core/database');
 
 /* --- Command Data --- */
 const data = new SlashCommandBuilder()
@@ -144,7 +144,8 @@ async function execute(interaction) {
 
             buttonCollector.on('collect', async (buttonInteraction) => {
                 if (buttonInteraction.customId === 'confirm_delete_guild') {
-                    deletarMemoriaGuild(memoryId);
+                    const memoryIndex = memories.findIndex(m => m.id == memoryId);
+                    removerMemoriaGuild(guildId, memoryIndex);
                     await buttonInteraction.update({
                         content: 'Memória deletada com sucesso.',
                         components: []

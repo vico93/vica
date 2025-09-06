@@ -17,7 +17,7 @@ const {
     ComponentType,
     MessageFlags
 } = require('discord.js');
-const { listarMemoriasUsuario, adicionarMemoriaUsuario, deletarMemoriaUsuario } = require('../core/database');
+const { listarMemoriasUsuario, adicionarMemoriaUsuario, removerMemoriaUsuario } = require('../core/database');
 
 /* --- Command Data --- */
 const data = new SlashCommandBuilder()
@@ -64,10 +64,11 @@ const data = new SlashCommandBuilder()
 async function execute(interaction) {
     const subcommand = interaction.options.getSubcommand();
     const member = interaction.options.getUser('member');
+    const guildId = interaction.guild.id;
 
     if (subcommand === 'list') {
         /* --- List Subcommand --- */
-        const memories = listarMemoriasUsuario(member.id);
+        const memories = listarMemoriasUsuario(guildId, member.id);
 
         const embed = new EmbedBuilder()
             .setTitle(`Memórias de ${member.displayName}`)
@@ -83,7 +84,7 @@ async function execute(interaction) {
         /* --- Add Subcommand --- */
         const memory = interaction.options.getString('memory');
 
-        adicionarMemoriaUsuario(member.id, memory);
+        adicionarMemoriaUsuario(guildId, member.id, memory);
 
         await interaction.reply({
             content: `Memória adicionada com sucesso a ${member.displayName}.`,
@@ -92,7 +93,7 @@ async function execute(interaction) {
 
     } else if (subcommand === 'delete') {
         /* --- Delete Subcommand --- */
-        const memories = listarMemoriasUsuario(member.id);
+        const memories = listarMemoriasUsuario(guildId, member.id);
 
         if (memories.length === 0) {
             return await interaction.reply({
@@ -159,7 +160,8 @@ async function execute(interaction) {
 
             buttonCollector.on('collect', async (buttonInteraction) => {
                 if (buttonInteraction.customId === 'confirm_delete') {
-                    deletarMemoriaUsuario(memoryId);
+                    const memoryIndex = memories.findIndex(m => m.id == memoryId);
+                    removerMemoriaUsuario(guildId, member.id, memoryIndex);
                     await buttonInteraction.update({
                         content: 'Memória deletada com sucesso.',
                         components: []
