@@ -562,8 +562,9 @@ async function gerarParabensCargoViaAPI(guildId, userId, promptUsuario, roleName
      const message = choice?.message;
      let content = message?.content || '';
 
-     // Processa tags [save_memory] usando tagParser
-     const parsedTags = tagParser.parseTags(content);
+     // Processa tags [salvar_memoria] usando tagParser com contexto (guildId)
+     const context = { guildId };
+     const parsedTags = tagParser.parseTags(content, context);
      let memoriesProcessed = 0;
 
      // Processa memórias encontradas nas tags

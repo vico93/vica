@@ -1,12 +1,11 @@
 /*
 ** caminho: core/tagParser.js
-** últimaMod: 2025-09-03 17:45
+** últimaMod: 2025-09-06 17:20
 ** autor: Vico
-** colaboração: modelo utilizados: Roo Sonic e ChatGPT
-*/
+** colaboração: Gemini, ChatGPT, Roo Sonic, Kimi
 
 // Módulo de parser de tags especiais
-// Responsável por analisar mensagens com tags específicas como [imagem], [meta]...[/meta] e [save_memory]...[/save_memory]
+// Responsável por analisar mensagens com tags específicas como [imagem], [meta]...[/meta] e [salvar_memoria]...[/salvar_memoria] (case-insensitive)
 
 /* --- Funções de Validação --- */
 
@@ -39,18 +38,42 @@ function isValidConfidence(confidence) {
     return !isNaN(num) && num >= 0.0 && num <= 1.0;
 }
 
+/* --- Funções de Substituição de Placeholders --- */
+
 /**
- * Processa uma tag [save_memory] e extrai os parâmetros validados
+ * Substitui placeholders na tag com valores do contexto
+ * @param {string} content - Conteúdo da tag com possíveis placeholders
+ * @param {object} context - Objeto de contexto com valores para substituição (ex: { guildId: '123456789012345678' })
+ * @returns {string} Conteúdo com placeholders substituídos
+ */
+function replacePlaceholders(content, context = {}) {
+    let result = content;
+
+    // Substitui {GUILD_ID} pelo valor do guildId do contexto
+    if (context.guildId && result.includes('{GUILD_ID}')) {
+        result = result.replace(/\{GUILD_ID\}/g, context.guildId);
+        console.log('[TAG_PARSER][PLACEHOLDER] Placeholder {GUILD_ID} substituído por:', context.guildId);
+    }
+
+    return result;
+}
+
+/**
+ * Processa uma tag [salvar_memoria] e extrai os parâmetros validados
  * @param {string} content - Conteúdo interno da tag (sem as tags de abertura/fechamento)
  * @param {number} position - Posição da tag na mensagem original (para logging)
+ * @param {object} context - Objeto de contexto para substituição de placeholders
  * @returns {object} Objeto com dados da memória parseado e validado
  */
-function parseMemoryTag(content, position = 0) {
+function parseMemoryTag(content, position = 0, context = {}) {
     let hasErrors = false;
     const errors = [];
 
+    // Aplicar substituição de placeholders no conteúdo antes de processar
+    const processedContent = replacePlaceholders(content, context);
+
     // Dividir o conteúdo por ':' em exatamente 5 partes
-    const parts = content.split(':');
+    const parts = processedContent.split(':');
 
     if (parts.length !== 5) {
         hasErrors = true;
@@ -103,7 +126,7 @@ function parseMemoryTag(content, position = 0) {
 
     // Log de erro se houver problemas
     if (hasErrors) {
-        console.error('[TAG_PARSER][ERROR] Tag save_memory malformada na posição', position, '-', errors.join('; '));
+        console.error('[TAG_PARSER][ERROR] Tag salvar_memoria malformada na posição', position, '-', errors.join('; '));
     }
 
     return {
@@ -127,10 +150,11 @@ function parseMemoryTag(content, position = 0) {
  * @param {boolean} [params.imagem=false] - Flag para adicionar tag [imagem]
  * @param {object|null} [params.meta=null] - Objeto com pares chave-valor para tag meta
  * @param {object|null} [params.memories=null] - Array de objetos de memória para salvar
+ * @param {object} [params.context=null] - Objeto de contexto para substituição de placeholders
  * @returns {string} Mensagem formatada com tags
  * @throws {Error} Se texto não for fornecido ou for inválido
  */
-function buildTaggedMessage({ text, imagem = false, meta = null, memories = null }) {
+function buildTaggedMessage({ text, imagem = false, meta = null, memories = null, context = null }) {
     // Validação do texto (sempre obrigatório e deve ser string)
     if (!text || typeof text !== 'string') {
         throw new Error('Texto é obrigatório e deve ser uma string válida');
@@ -164,7 +188,7 @@ function buildTaggedMessage({ text, imagem = false, meta = null, memories = null
             if (memory && typeof memory === 'object') {
                 const { guildId, userId, fact, importance, confidence } = memory;
                 if (guildId && userId && fact) {
-                    components.push(`[save_memory]${guildId}:${userId}:${fact}:${importance}:${confidence}[/save_memory]`);
+                    components.push(`[salvar_memoria]${guildId}:${userId}:${fact}:${importance}:${confidence}[/salvar_memoria]`);
                 }
             }
         }
@@ -178,9 +202,10 @@ function buildTaggedMessage({ text, imagem = false, meta = null, memories = null
  * Função para analisar mensagens com tags especiais.
  * Utiliza regex para detectar e extrair conteúdo das tags, removendo-as do texto principal.
  * @param {string} message - A mensagem original contendo as tags.
+ * @param {object} [context={}] - Objeto de contexto para substituição de placeholders.
  * @returns {object} Objeto com cleanedMessage (texto limpo), flags e conteúdos extraídos.
  */
-function parseTags(message) {
+function parseTags(message, context = {}) {
     // Clonando a mensagem para modificações
     let text = message;
 
@@ -200,20 +225,20 @@ function parseTags(message) {
         text = text.replace(/\[meta\].*?\[\/meta\]/gs, '');
     }
 
-    // Processar tags [save_memory]...[/save_memory]
+    // Processar tags [salvar_memoria]...[/salvar_memoria] (case-insensitive)
     const memories = [];
-    const saveMemoryRegex = /\[save_memory\](.*?)\[\/save_memory\]/gs;
+    const saveMemoryRegex = /\[salvar_memoria\](.*?)\[\/salvar_memoria\]/gi;
     let saveMemoryMatch;
 
     while ((saveMemoryMatch = saveMemoryRegex.exec(message)) !== null) {
         const content = saveMemoryMatch[1];
-        const memory = parseMemoryTag(content, saveMemoryMatch.index + 14); // +14 to account for "[save_memory]" length
+        const memory = parseMemoryTag(content, saveMemoryMatch.index + 15, context); // +15 to account for "[salvar_memoria]" length
 
         memories.push(memory);
     }
 
-    // Remover tags [save_memory] do texto
-    text = text.replace(/\[save_memory\].*?\[\/save_memory\]/gs, '');
+    // Remover tags [salvar_memoria] do texto (case-insensitive)
+    text = text.replace(/\[salvar_memoria\].*?\[\/salvar_memoria\]/gi, '');
 
     // Limpar espaços extras do texto resultante
     const cleanedMessage = text.trim().replace(/\s+/g, ' ');
@@ -231,7 +256,7 @@ module.exports = { parseTags, buildTaggedMessage };
 
 // Exemplos de uso:
 //
-// const result = parseTags("Olá [imagem] como vai? [meta]Isso é meta[/meta] Olá novamente [save_memory]123456789012345678:987654321098765432:Este usuário é amigável:8:0.95[/save_memory]");
+// const result = parseTags("Olá [imagem] como vai? [meta]Isso é meta[/meta] Olá novamente [salvar_memoria]123456789012345678:987654321098765432:Este usuário é amigável:8:0.95[/salvar_memoria]");
 // console.log(result);
 // // Output: { cleanedMessage: "Olá como vai? Olá novamente", hasImage: true, meta: "Isso é meta", memories: [{guildId: "123456789012345678", userId: "987654321098765432", fact: "Este usuário é amigável", importance: 8, confidence: 0.95, hasErrors: false}] }
 //
@@ -242,4 +267,4 @@ module.exports = { parseTags, buildTaggedMessage };
 //   memories: [{ guildId: "123456789012345678", userId: "987654321098765432", fact: "João é muito amigável", importance: 7, confidence: 0.9 }]
 // });
 // console.log(constructed);
-// // Output: "[imagem] Como você está? [meta]user:João|id:123[/meta] [save_memory]123456789012345678:987654321098765432:João é muito amigável:7:0.9[/save_memory]"
+// // Output: "[imagem] Como você está? [meta]user:João|id:123[/meta] [salvar_memoria]123456789012345678:987654321098765432:João é muito amigável:7:0.9[/salvar_memoria]"
