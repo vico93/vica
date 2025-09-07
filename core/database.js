@@ -1,9 +1,9 @@
 /*
 ** caminho: core/database.js
-** últimaMod: 2025-09-07 01:50
+** últimaMod: 2025-09-07 01:02
 ** autor: Vico
 ** colaboração: Roo Sonic
-** modificações: Adição de funções para buscar memórias com embeddings
+** modificações: Resolução da dependência circular com oai_interface.js
 */
 
 /*
@@ -15,11 +15,19 @@
 
 const Database = require('better-sqlite3');
 const path = require('path');
-const { generateEmbedding } = require('./oai_interface');
 
-// Caminho absoluto para o arquivo do banco
 const dbPath = path.join(__dirname, '..', 'data', 'database.db');
 const db = new Database(dbPath);
+
+// Lazy import to avoid circular dependency
+let generateEmbedding = null;
+function getGenerateEmbedding() {
+  if (!generateEmbedding) {
+    const { generateEmbedding: embedFunc } = require('./oai_interface');
+    generateEmbedding = embedFunc;
+  }
+  return generateEmbedding;
+}
 
 /* ----------------------------------------------------------
    Tuning de performance
@@ -563,7 +571,7 @@ module.exports = {
       /* --- Geração do embedding para o fato --- */
       let embeddingJson = null;
       try {
-        const embedding = await generateEmbedding(fact);
+        const embedding = await getGenerateEmbedding()(fact);
         embeddingJson = JSON.stringify(embedding);
         console.log('[DATABASE][INFO] Embedding gerado para memória de usuário');
       } catch (embedError) {
@@ -599,7 +607,7 @@ module.exports = {
      /* --- Geração do embedding para o fato --- */
      let embeddingJson = null;
      try {
-       const embedding = await generateEmbedding(fact);
+       const embedding = await getGenerateEmbedding()(fact);
        embeddingJson = JSON.stringify(embedding);
        console.log('[DATABASE][INFO] Embedding gerado para memória da guild');
      } catch (embedError) {
