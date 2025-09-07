@@ -813,25 +813,25 @@ async function gerarParabensCargoViaAPI(guildId, userId, promptUsuario, roleName
  /* --- Funções de Processamento de Embeddings --- */
 
  // Função para gerar embedding usando o modelo especificado no config
- async function generateEmbedding(text) {
+ async function gerarEmbedding(text) {
    if (!text || typeof text !== 'string') {
-     console.error('[EMBEDDING][ERRO] Texto inválido fornecido para generateEmbedding');
+     console.error('[EMBEDDING][ERRO] Texto inválido fornecido para gerarEmbedding');
      throw new Error('Texto deve ser uma string não vazia');
    }
- 
+
    try {
      console.log(`[EMBEDDING][INFO] Gerando embedding para texto de ${text.length} caracteres usando modelo ${config.openai.model_embeddings}`);
- 
+
      const response = await openai.embeddings.create({
        model: config.openai.model_embeddings,
        input: text,
      });
- 
+
      const embedding = response?.data?.[0]?.embedding;
      if (!embedding) {
        throw new Error('A API não retornou os dados de embedding na resposta');
      }
- 
+
      console.log(`[EMBEDDING][INFO] Embedding gerado com sucesso: ${embedding.length} dimensões`);
      return embedding; // Retorna o array de floats diretamente
    } catch (error) {
@@ -899,7 +899,7 @@ async function gerarParabensCargoViaAPI(guildId, userId, promptUsuario, roleName
    gerarParabensCargoViaAPI,
    gerarMensagemBemVindoViaAPI,
    gerarComentarioViaAPI,
-   generateEmbedding,
+   gerarEmbedding,
    cosineSimilarity,
    // Funções de busca semântica
    buscarMemoriasUsuarioSemanitcas,

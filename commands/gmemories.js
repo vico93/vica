@@ -17,7 +17,8 @@ const {
     ComponentType,
     MessageFlags
 } = require('discord.js');
-const { listarMemoriasGuild, adicionarMemoriaGuild, removerMemoriaGuild } = require('../core/database');
+const { listarMemoriasGuild, adicionarMemoriaGuild, removerMemoriaGuild, listarMemoriasGuildComEmbedding } = require('../core/database');
+const embeddingHelper = require('../helpers/embeddingHelper');
 
 /* --- Command Data --- */
 const data = new SlashCommandBuilder()
@@ -43,6 +44,16 @@ const data = new SlashCommandBuilder()
         subcommand
             .setName('delete')
             .setDescription('Deletar uma memória do servidor')
+    )
+    .addSubcommand(subcommand =>
+        subcommand
+            .setName('search')
+            .setDescription('Buscar memórias por similaridade semântica')
+            .addStringOption(option =>
+                option.setName('query')
+                    .setDescription('Query de busca')
+                    .setRequired(true)
+            )
     );
 
 /* --- Execute Function --- */
@@ -74,6 +85,29 @@ async function execute(interaction) {
             content: 'Memória adicionada com sucesso ao servidor.',
             flags: [MessageFlags.Ephemeral]
         });
+
+    } else if (subcommand === 'search') {
+        /* --- Search Subcommand --- */
+        const query = interaction.options.getString('query');
+
+        const memories = listarMemoriasGuildComEmbedding(guildId, 100, 0);
+
+        const relevant = await embeddingHelper.buscarMemoriasRelevantes({
+            memoriaArray: memories,
+            contexto: query,
+            topK: 5
+        });
+
+        const embed = new EmbedBuilder()
+            .setTitle(`Memórias do Servidor - Busca por "${query}"`)
+            .setColor(0x0099FF)
+            .setDescription(relevant.length > 0
+                ? relevant.map((m, i) => `${i + 1}. ${m.fact}`).join('\n')
+                : 'Nenhuma memória relevante encontrada.'
+            )
+            .setFooter({ text: `Encontradas ${relevant.length} memórias` });
+
+        await interaction.reply({ embeds: [embed] });
 
     } else if (subcommand === 'delete') {
         /* --- Delete Subcommand --- */

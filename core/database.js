@@ -20,13 +20,13 @@ const dbPath = path.join(__dirname, '..', 'data', 'database.db');
 const db = new Database(dbPath);
 
 // Lazy import to avoid circular dependency
-let generateEmbedding = null;
-function getGenerateEmbedding() {
-  if (!generateEmbedding) {
-    const { generateEmbedding: embedFunc } = require('./oai_interface');
-    generateEmbedding = embedFunc;
+let gerarEmbedding = null;
+function getGerarEmbedding() {
+  if (!gerarEmbedding) {
+    const { gerarEmbedding: embedFunc } = require('./oai_interface');
+    gerarEmbedding = embedFunc;
   }
-  return generateEmbedding;
+  return gerarEmbedding;
 }
 
 /* ----------------------------------------------------------
@@ -571,7 +571,7 @@ module.exports = {
       /* --- Geração do embedding para o fato --- */
       let embeddingJson = null;
       try {
-        const embedding = await getGenerateEmbedding()(fact);
+        const embedding = await getGerarEmbedding()(fact);
         embeddingJson = JSON.stringify(embedding);
         console.log('[DATABASE][INFO] Embedding gerado para memória de usuário');
       } catch (embedError) {
@@ -607,7 +607,7 @@ module.exports = {
      /* --- Geração do embedding para o fato --- */
      let embeddingJson = null;
      try {
-       const embedding = await getGenerateEmbedding()(fact);
+       const embedding = await getGerarEmbedding()(fact);
        embeddingJson = JSON.stringify(embedding);
        console.log('[DATABASE][INFO] Embedding gerado para memória da guild');
      } catch (embedError) {

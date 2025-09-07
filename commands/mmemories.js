@@ -17,7 +17,8 @@ const {
     ComponentType,
     MessageFlags
 } = require('discord.js');
-const { listarMemoriasUsuario, adicionarMemoriaUsuario, removerMemoriaUsuario } = require('../core/database');
+const { listarMemoriasUsuario, adicionarMemoriaUsuario, removerMemoriaUsuario, listarMemoriasUsuarioComEmbedding } = require('../core/database');
+const embeddingHelper = require('../helpers/embeddingHelper');
 
 /* --- Command Data --- */
 const data = new SlashCommandBuilder()
@@ -58,6 +59,21 @@ const data = new SlashCommandBuilder()
                     .setDescription('Membro cuja memória será deletada')
                     .setRequired(true)
             )
+    )
+    .addSubcommand(subcommand =>
+        subcommand
+            .setName('search')
+            .setDescription('Buscar memórias de um membro por similaridade semântica')
+            .addUserOption(option =>
+                option.setName('member')
+                    .setDescription('Membro cuja memórias serão buscadas')
+                    .setRequired(true)
+            )
+            .addStringOption(option =>
+                option.setName('query')
+                    .setDescription('Query de busca')
+                    .setRequired(true)
+            )
     );
 
 /* --- Execute Function --- */
@@ -90,6 +106,29 @@ async function execute(interaction) {
             content: `Memória adicionada com sucesso a ${member.displayName}.`,
             flags: [MessageFlags.Ephemeral]
         });
+
+    } else if (subcommand === 'search') {
+        /* --- Search Subcommand --- */
+        const query = interaction.options.getString('query');
+
+        const memories = listarMemoriasUsuarioComEmbedding(guildId, member.id, 100, 0);
+
+        const relevant = await embeddingHelper.buscarMemoriasRelevantes({
+            memoriaArray: memories,
+            contexto: query,
+            topK: 5
+        });
+
+        const embed = new EmbedBuilder()
+            .setTitle(`Memórias de ${member.displayName} - Busca por "${query}"`)
+            .setColor(0x0099FF)
+            .setDescription(relevant.length > 0
+                ? relevant.map((m, i) => `${i + 1}. ${m.fact}`).join('\n')
+                : 'Nenhuma memória relevante encontrada.'
+            )
+            .setFooter({ text: `Encontradas ${relevant.length} memórias` });
+
+        await interaction.reply({ embeds: [embed] });
 
     } else if (subcommand === 'delete') {
         /* --- Delete Subcommand --- */
