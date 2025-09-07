@@ -469,7 +469,7 @@ async function gerarParabensCargoViaAPI(guildId, userId, promptUsuario, roleName
    /* --- Busca Semântica de Memórias por Similaridade de Embedding --- */
    try {
      // Gera embedding para a mensagem do usuário
-     const userEmbedding = await generateEmbedding(mensagemUsuario);
+     const userEmbedding = await gerarEmbedding(mensagemUsuario);
      console.log('[OAI_SEMANTIC][INFO] Embedding da mensagem do usuário gerado com sucesso');
 
      // Busca memórias de usuário mais similares
