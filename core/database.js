@@ -1,8 +1,9 @@
 /*
 ** caminho: core/database.js
-** últimaMod: 2025-09-02 22:17
+** últimaMod: 2025-09-07 01:50
 ** autor: Vico
-** colaboração: ChatGPT, Gemini, Kimi AI, Roo Sonic
+** colaboração: Roo Sonic
+** modificações: Adição de funções para buscar memórias com embeddings
 */
 
 /*
@@ -14,6 +15,7 @@
 
 const Database = require('better-sqlite3');
 const path = require('path');
+const { generateEmbedding } = require('./oai_interface');
 
 // Caminho absoluto para o arquivo do banco
 const dbPath = path.join(__dirname, '..', 'data', 'database.db');
@@ -116,6 +118,36 @@ db.pragma('synchronous = NORMAL');    // commits mais rápidos
     // tabela ainda não existe, será criada abaixo
   }
 
+  // Migração para adicionar coluna embedding na tabela user_memories
+  try {
+    const memoryCols = db.prepare('PRAGMA table_info(user_memories)').all();
+    const hasEmbedding = memoryCols.some(c => c.name === 'embedding');
+
+    if (memoryCols.length > 0 && !hasEmbedding) {
+      console.warn('[DB] Migrando tabela user_memories -> adicionando coluna embedding.');
+      db.exec('ALTER TABLE user_memories ADD COLUMN embedding TEXT');
+      console.log('[DB] Adicionada coluna embedding à tabela user_memories');
+    }
+  } catch (e) {
+    console.error('[DB] Erro durante migração da coluna embedding:', e.message);
+    // tabela ainda não existe, será criada abaixo
+  }
+
+  // Migração para adicionar coluna embedding na tabela guild_memories
+  try {
+    const guildCols = db.prepare('PRAGMA table_info(guild_memories)').all();
+    const hasEmbedding = guildCols.some(c => c.name === 'embedding');
+
+    if (guildCols.length > 0 && !hasEmbedding) {
+      console.warn('[DB] Migrando tabela guild_memories -> adicionando coluna embedding.');
+      db.exec('ALTER TABLE guild_memories ADD COLUMN embedding TEXT');
+      console.log('[DB] Adicionada coluna embedding à tabela guild_memories');
+    }
+  } catch (e) {
+    console.error('[DB] Erro durante migração da coluna embedding:', e.message);
+    // tabela ainda não existe, será criada abaixo
+  }
+
   db.exec(`
 CREATE TABLE IF NOT EXISTS mensagens (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -182,6 +214,8 @@ CREATE TABLE IF NOT EXISTS user_memories (
   fact_key TEXT NOT NULL,
   confidence REAL,
   source_message_id TEXT,
+  importance INTEGER,
+  embedding TEXT,
   created_at INTEGER NOT NULL,
   UNIQUE (guild_id, user_id, fact_key) ON CONFLICT IGNORE
 );
@@ -204,10 +238,11 @@ INSERT OR IGNORE INTO role_congrats (guild_id, role_id, prompt)
 
 -- TABELA DE MEMÓRIAS DA GUILD --
 CREATE TABLE IF NOT EXISTS guild_memories (
- id INTEGER PRIMARY KEY AUTOINCREMENT,
- guild_id TEXT NOT NULL,
- fact TEXT NOT NULL,
- created_at INTEGER NOT NULL
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  guild_id TEXT NOT NULL,
+  fact TEXT NOT NULL,
+  embedding TEXT,
+  created_at INTEGER NOT NULL
 );
 CREATE INDEX IF NOT EXISTS idx_guild_memories_guild_created
  ON guild_memories (guild_id, created_at DESC);
@@ -290,19 +325,26 @@ const stmts = {
 
   /* --- MEMÓRIAS DE USUÁRIO --- */
   memInsert: db.prepare(`INSERT OR IGNORE INTO user_memories
-                        (guild_id, user_id, fact, fact_key, confidence, source_message_id, importance, created_at)
-                        VALUES (?, ?, ?, ?, ?, ?, ?, ?)`),
+                        (guild_id, user_id, fact, fact_key, confidence, source_message_id, importance, embedding, created_at)
+                        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`),
   memList:   db.prepare(`SELECT id, fact, confidence, importance, source_message_id, created_at
                         FROM user_memories
                         WHERE guild_id = ? AND user_id = ?
                         ORDER BY created_at DESC
                         LIMIT ? OFFSET ?`),
   memDelete: db.prepare('DELETE FROM user_memories WHERE guild_id = ? AND user_id = ? AND fact_key = ?'),
- 
+  /* --- Novo prepared statements para embeddings --- */
+  memUpdateEmbedding: db.prepare('UPDATE user_memories SET embedding = ? WHERE id = ?'),
+  memGetWithEmbedding: db.prepare(`SELECT id, fact, embedding, confidence, importance, source_message_id, created_at FROM user_memories WHERE guild_id = ? AND user_id = ? AND embedding IS NOT NULL ORDER BY created_at DESC LIMIT ? OFFSET ?`),
+
  /* --- MEMÓRIAS DE GUILD --- */
- guildMemInsert: db.prepare('INSERT INTO guild_memories (guild_id, fact, created_at) VALUES (?, ?, ?)'),
+ guildMemInsert: db.prepare('INSERT INTO guild_memories (guild_id, fact, embedding, created_at) VALUES (?, ?, ?, ?)'),
  guildMemList:   db.prepare(`SELECT id, fact, created_at FROM guild_memories WHERE guild_id = ? ORDER BY created_at DESC LIMIT ? OFFSET ?`),
  guildMemDelete: db.prepare('DELETE FROM guild_memories WHERE guild_id = ? AND id = ?'),
+
+ /* --- Prepared statements para embeddings de guild --- */
+ guildMemUpdateEmbedding: db.prepare('UPDATE guild_memories SET embedding = ? WHERE id = ?'),
+ guildMemGetWithEmbedding: db.prepare(`SELECT id, fact, embedding, created_at FROM guild_memories WHERE guild_id = ? AND embedding IS NOT NULL ORDER BY created_at DESC LIMIT ? OFFSET ?`),
 
  /* --- Welcome/Leave Messages --- */
  welcomeSettingsSet: db.prepare(`
@@ -508,26 +550,71 @@ module.exports = {
   },
 
   // memórias de usuário (por guild)
-  adicionarMemoriaUsuario: (g, u, fact, opts = {}) => {
-    const { confidence = null, sourceMessageId = null, importance = null, createdAt = Date.now() } = opts || {};
-    const factKey = String(fact ?? '')
-      .normalize('NFKD')
-      .replace(/[\u0300-\u036f]/g, '')
-      .toLowerCase()
-      .replace(/\s+/g, ' ')
-      .trim();
-    const res = stmts.memInsert.run(g, u, fact, factKey, confidence, sourceMessageId, importance, createdAt);
-    return { inserted: res.changes > 0, duplicate: res.changes === 0, id: res.lastInsertRowid };
+  adicionarMemoriaUsuario: async (g, u, fact, opts = {}) => {
+    try {
+      /* --- Geração do fact_key --- */
+      const factKey = String(fact ?? '')
+        .normalize('NFKD')
+        .replace(/[\u0300-\u036f]/g, '')
+        .toLowerCase()
+        .replace(/\s+/g, ' ')
+        .trim();
+
+      /* --- Geração do embedding para o fato --- */
+      let embeddingJson = null;
+      try {
+        const embedding = await generateEmbedding(fact);
+        embeddingJson = JSON.stringify(embedding);
+        console.log('[DATABASE][INFO] Embedding gerado para memória de usuário');
+      } catch (embedError) {
+        console.warn('[DATABASE][WARN] Falha ao gerar embedding, salvando sem embedding:', embedError.message);
+      }
+
+      /* --- Extração das opções --- */
+      const { confidence = null, sourceMessageId = null, importance = null, createdAt = Date.now() } = opts || {};
+
+      /* --- Inserção no banco de dados --- */
+      const res = stmts.memInsert.run(g, u, fact, factKey, confidence, sourceMessageId, importance, embeddingJson, createdAt);
+      return { inserted: res.changes > 0, duplicate: res.changes === 0, id: res.lastInsertRowid };
+
+    } catch (error) {
+      console.error('[DATABASE][ERROR] Falha ao adicionar memória de usuário:', error.message);
+      throw error;
+    }
   },
   listarMemoriasUsuario: (g, u, limit = 20, offset = 0) =>
     stmts.memList.all(g, u, limit, offset),
   removerMemoriaUsuario: (g, u, factKey) =>
     stmts.memDelete.run(g, u, factKey).changes,
 
+  // Funções para buscar memórias com embeddings
+  listarMemoriasUsuarioComEmbedding: (g, u, limit = 100, offset = 0) =>
+    stmts.memGetWithEmbedding.all(g, u, limit, offset),
+  listarMemoriasGuildComEmbedding: (g, limit = 100, offset = 0) =>
+    stmts.guildMemGetWithEmbedding.all(g, limit, offset),
+
  // memórias da guild
- adicionarMemoriaGuild: (g, fact) => {
-   const res = stmts.guildMemInsert.run(g, fact, Date.now());
-   return { id: res.lastInsertRowid, changes: res.changes };
+ adicionarMemoriaGuild: async (g, fact) => {
+   try {
+     /* --- Geração do embedding para o fato --- */
+     let embeddingJson = null;
+     try {
+       const embedding = await generateEmbedding(fact);
+       embeddingJson = JSON.stringify(embedding);
+       console.log('[DATABASE][INFO] Embedding gerado para memória da guild');
+     } catch (embedError) {
+       console.warn('[DATABASE][WARN] Falha ao gerar embedding da guild, salvando sem embedding:', embedError.message);
+     }
+
+     /* --- Inserção no banco de dados --- */
+     const createdAt = Date.now();
+     const res = stmts.guildMemInsert.run(g, fact, embeddingJson, createdAt);
+     return { id: res.lastInsertRowid, changes: res.changes };
+
+   } catch (error) {
+     console.error('[DATABASE][ERROR] Falha ao adicionar memória da guild:', error.message);
+     throw error;
+   }
  },
  listarMemoriasGuild: (g, limit = 20, offset = 0) => stmts.guildMemList.all(g, limit, offset),
  removerMemoriaGuild: (g, id) => stmts.guildMemDelete.run(g, id).changes,

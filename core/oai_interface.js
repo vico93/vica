@@ -1,8 +1,9 @@
 /*
 ** caminho: core/oai_interface.js
-** últimaMod: 2025-09-03 14:47
+** últimaMod: 2025-09-07 01:49
 ** autor: Vico
 ** colaboração: Gemini, ChatGPT, Roo Sonic
+** modificações: Implementação de busca semântica com embeddings para memórias
 */
 
 const fs = require('fs');
@@ -465,15 +466,61 @@ async function gerarParabensCargoViaAPI(guildId, userId, promptUsuario, roleName
  async function gerarRespostaContextual(guildId, canalId, usuarioId, botUserId, mensagemUsuario, imageUrl = null, channel = null, sourceMessageId = null) {
    let systemPrompt = await carregarSystemPrompt();
 
-   // Carrega memórias da guild e injeta no system prompt
+   /* --- Busca Semântica de Memórias por Similaridade de Embedding --- */
    try {
-     const guildMems = database.listarMemoriasGuild(guildId);
-     if (guildMems && guildMems.length > 0) {
-       const memoriasTexto = guildMems.map(m => `- ${m.fact}`).join('\n');
-       systemPrompt += `\n\n**Memórias sobre este servidor (use-as para guiar suas respostas):**\n${memoriasTexto}`;
+     // Gera embedding para a mensagem do usuário
+     const userEmbedding = await generateEmbedding(mensagemUsuario);
+     console.log('[OAI_SEMANTIC][INFO] Embedding da mensagem do usuário gerado com sucesso');
+
+     // Busca memórias de usuário mais similares
+     const topUserMemories = await buscarMemoriasUsuarioSemanitcas(guildId, usuarioId, userEmbedding, 3); // top 3
+
+     // Busca memórias da guild mais similares
+     const topGuildMemories = await buscarMemoriasGuildSemanticas(guildId, userEmbedding, 2); // top 2
+
+     // Combina e injeta memórias relevantes no system prompt
+     const allRelevantMemories = [...topUserMemories, ...topGuildMemories];
+
+     if (allRelevantMemories.length > 0) {
+       // Separa memórias do usuário e da guild
+       const userMemoryFacts = topUserMemories.map(m => `- ${m.fact}`);
+       const guildMemoryFacts = topGuildMemories.map(m => `- ${m.fact}`);
+
+       if (userMemoryFacts.length > 0) {
+         systemPrompt += `\n\n[user_memories]\n${userMemoryFacts.join('\n')}\n[/user_memories]`;
+       }
+
+       if (guildMemoryFacts.length > 0) {
+         systemPrompt += `\n\n**Memórias relevantes sobre este servidor:**\n${guildMemoryFacts.join('\n')}`;
+       }
+
+       console.log(`[OAI_SEMANTIC][INFO] Injetadas ${topUserMemories.length} memórias de usuário e ${topGuildMemories.length} memórias da guild`);
+     } else {
+       console.log('[OAI_SEMANTIC][INFO] Nenhuma memória relevante encontrada via busca semântica');
      }
-   } catch (e) {
-     console.error('[OAI] Erro ao buscar memórias da guild:', e);
+   } catch (embedError) {
+     console.error('[OAI_SEMANTIC][ERRO] Falha na busca semântica de memórias:', embedError.message);
+     // Fallback: carrega memórias recentes caso a busca semântica falhe
+     try {
+       console.log('[OAI_SEMANTIC][INFO] Tentando fallback para carregamento de memórias recentes...');
+
+       // Carrega últimas memórias como fallback (não semântico)
+       const guildMems = database.listarMemoriasGuild(guildId, 5); // últimos 5
+       if (guildMems && guildMems.length > 0) {
+         const memoriasTexto = guildMems.map(m => `- ${m.fact}`).join('\n');
+         systemPrompt += `\n\n**Memórias recentes sobre este servidor:**\n${memoriasTexto}`;
+       }
+
+       const userMems = database.listarMemoriasUsuario(guildId, usuarioId, 5); // últimos 5
+       if (userMems && userMems.length > 0) {
+         const memoriasUsuarioTexto = userMems.map(m => `- ${m.fact}`).join('\n');
+         systemPrompt += `\n\n[user_memories]${memoriasUsuarioTexto}[/user_memories]`;
+       }
+
+       console.log('[OAI_SEMANTIC][INFO] Fallback realizado com sucesso');
+     } catch (fallbackError) {
+       console.error('[OAI_SEMANTIC][ERRO] Fallback também falhou:', fallbackError.message);
+     }
    }
 
    // Carrega ranking de participação e injeta no system prompt
@@ -487,17 +534,6 @@ async function gerarParabensCargoViaAPI(guildId, userId, promptUsuario, roleName
      }
    } catch (e) {
      console.error('[OAI] Erro ao buscar ranking de participação:', e);
-   }
-
-   // Carrega memórias específicas do usuário e injeta no system prompt
-   try {
-     const userMems = database.listarMemoriasUsuario(guildId, usuarioId);
-     if (userMems && userMems.length > 0) {
-       const memoriasUsuarioTexto = userMems.map(m => `- ${m.fact}`).join('\n');
-       systemPrompt += `\n\n**Memórias sobre este usuário (use-as para guiar suas respostas):**\n${memoriasUsuarioTexto}`;
-     }
-   } catch (e) {
-     console.error('[OAI] Erro ao buscar memórias do usuário:', e);
    }
 
 
@@ -677,12 +713,197 @@ async function gerarParabensCargoViaAPI(guildId, userId, promptUsuario, roleName
      console.error('[ERRO] Não consegui gerar comentário pela API da OpenAI:', error.message);
      throw error;
    }
+   }
+ 
+ /* --- Funções de Busca Semântica com Embeddings --- */
+
+ // Função auxiliar para calcular similaridade ponderada considerando importância
+ function calculateWeightedSimilarity(baseSimilarity, importance, configWeight) {
+   const weight = configWeight || 0.1; // peso padrão de 0.1
+   const importanceMultiplier = 1 + (importance || 5) * weight / 10; // normaliza 1-10 para multiplicador
+   return baseSimilarity * importanceMultiplier;
  }
 
-module.exports = {
-  gerarPerguntaViaAPI,
-  gerarRespostaContextual,
-  gerarParabensCargoViaAPI,
-  gerarMensagemBemVindoViaAPI,
-  gerarComentarioViaAPI,
-};
+ // Função para buscar memórias de usuário por similaridade de embedding
+ async function buscarMemoriasUsuarioSemanitcas(guildId, userId, userEmbedding, topK = 3) {
+   try {
+     console.log(`[SEMANTIC_SEARCH][INFO] Buscando memórias semânticas de usuário ${userId} em guild ${guildId}, topK=${topK}`);
+
+     const userMemories = database.listarMemoriasUsuarioComEmbedding(guildId, userId, 100); // limit to 100 for performance
+     console.log(`[SEMANTIC_SEARCH][INFO] Encontradas ${userMemories.length} memórias de usuário com embeddings`);
+
+     const similarities = [];
+
+     for (const memory of userMemories) {
+       try {
+         if (memory.embedding) {
+           const memoryEmbedding = JSON.parse(memory.embedding);
+           const similarity = cosineSimilarity(userEmbedding, memoryEmbedding);
+
+           // Calcula similaridade ponderada pela importância
+           const weightedSimilarity = calculateWeightedSimilarity(similarity, memory.importance, config.ai?.memory_weight || 0.1);
+
+           similarities.push({
+             ...memory,
+             embedding: undefined, // remove embedding to save memory
+             baseSimilarity: similarity,
+             weightedSimilarity: weightedSimilarity
+           });
+         }
+       } catch (embedParseError) {
+         console.warn(`[SEMANTIC_SEARCH][WARN] Erro ao processar embedding da memória ${memory.id}:`, embedParseError.message);
+       }
+     }
+
+     // Ordenar por similaridade ponderada decrescente e retornar top K
+     similarities.sort((a, b) => b.weightedSimilarity - a.weightedSimilarity);
+     const topMemories = similarities.slice(0, topK);
+
+     console.log(`[SEMANTIC_SEARCH][INFO] Retornadas ${topMemories.length} memórias de usuário mais similares`);
+     return topMemories;
+
+   } catch (error) {
+     console.error('[SEMANTIC_SEARCH][ERRO] Falha ao buscar memórias semânticas de usuário:', error.message);
+     return [];
+   }
+ }
+
+ // Função para buscar memórias da guild por similaridade de embedding
+ async function buscarMemoriasGuildSemanticas(guildId, userEmbedding, topK = 2) {
+   try {
+     console.log(`[SEMANTIC_SEARCH][INFO] Buscando memórias semânticas da guild ${guildId}, topK=${topK}`);
+
+     const guildMemories = database.listarMemoriasGuildComEmbedding(guildId, 100); // limit to 100 for performance
+     console.log(`[SEMANTIC_SEARCH][INFO] Encontradas ${guildMemories.length} memórias da guild com embeddings`);
+
+     const similarities = [];
+
+     for (const memory of guildMemories) {
+       try {
+         if (memory.embedding) {
+           const memoryEmbedding = JSON.parse(memory.embedding);
+           const similarity = cosineSimilarity(userEmbedding, memoryEmbedding);
+
+           // Memórias da guild não têm campo importance, similaridade simples
+           similarities.push({
+             ...memory,
+             embedding: undefined, // remove embedding to save memory
+             baseSimilarity: similarity,
+             weightedSimilarity: similarity
+           });
+         }
+       } catch (embedParseError) {
+         console.warn(`[SEMANTIC_SEARCH][WARN] Erro ao processar embedding da memória da guild ${memory.id}:`, embedParseError.message);
+       }
+     }
+
+     // Ordenar por similaridade decrescente e retornar top K
+     similarities.sort((a, b) => b.weightedSimilarity - a.weightedSimilarity);
+     const topMemories = similarities.slice(0, topK);
+
+     console.log(`[SEMANTIC_SEARCH][INFO] Retornadas ${topMemories.length} memórias da guild mais similares`);
+     return topMemories;
+
+   } catch (error) {
+     console.error('[SEMANTIC_SEARCH][ERRO] Falha ao buscar memórias semânticas da guild:', error.message);
+     return [];
+   }
+ }
+
+ /* --- Funções de Processamento de Embeddings --- */
+
+ // Função para gerar embedding usando o modelo especificado no config
+ async function generateEmbedding(text) {
+   if (!text || typeof text !== 'string') {
+     console.error('[EMBEDDING][ERRO] Texto inválido fornecido para generateEmbedding');
+     throw new Error('Texto deve ser uma string não vazia');
+   }
+ 
+   try {
+     console.log(`[EMBEDDING][INFO] Gerando embedding para texto de ${text.length} caracteres usando modelo ${config.openai.model_embeddings}`);
+ 
+     const response = await openai.embeddings.create({
+       model: config.openai.model_embeddings,
+       input: text,
+     });
+ 
+     const embedding = response?.data?.[0]?.embedding;
+     if (!embedding) {
+       throw new Error('A API não retornou os dados de embedding na resposta');
+     }
+ 
+     console.log(`[EMBEDDING][INFO] Embedding gerado com sucesso: ${embedding.length} dimensões`);
+     return embedding; // Retorna o array de floats diretamente
+   } catch (error) {
+     console.error('[EMBEDDING][ERRO] Falha ao gerar embedding:', error.message);
+     throw error;
+   }
+ }
+ 
+ // Função para calcular similaridade coseno entre dois vetores
+ function cosineSimilarity(vecA, vecB) {
+   if (!Array.isArray(vecA) || !Array.isArray(vecB)) {
+     console.error('[COSINE][ERRO] Ambos os parâmetros devem ser arrays');
+     throw new Error('vecA e vecB devem ser arrays');
+   }
+ 
+   if (vecA.length !== vecB.length) {
+     console.error('[COSINE][ERRO] Vetores devem ter o mesmo tamanho:', vecA.length, 'vs', vecB.length);
+     throw new Error('Vetores devem ter o mesmo comprimento');
+   }
+ 
+   if (vecA.length === 0) {
+     console.error('[COSINE][ERRO] Vetores não podem estar vazios');
+     throw new Error('Vetores não podem estar vazios');
+   }
+ 
+   try {
+     let dotProduct = 0;
+     let normA = 0;
+     let normB = 0;
+ 
+     for (let i = 0; i < vecA.length; i++) {
+       const a = parseFloat(vecA[i]);
+       const b = parseFloat(vecB[i]);
+ 
+       if (isNaN(a) || isNaN(b)) {
+         console.error('[COSINE][ERRO] Valores não numéricos encontrados nos vetores');
+         throw new Error('Todos os elementos dos vetores devem ser números');
+       }
+ 
+       dotProduct += a * b;
+       normA += a * a;
+       normB += b * b;
+     }
+ 
+     const magnitudeA = Math.sqrt(normA);
+     const magnitudeB = Math.sqrt(normB);
+ 
+     if (magnitudeA === 0 || magnitudeB === 0) {
+       console.warn('[COSINE][WARN] Um dos vetores tem magnitude zero, retornando similaridade 0');
+       return 0;
+     }
+ 
+     const similarity = dotProduct / (magnitudeA * magnitudeB);
+     console.log(`[COSINE][INFO] Similaridade coseno calculada: ${similarity.toFixed(4)}`);
+     return similarity;
+   } catch (error) {
+     console.error('[COSINE][ERRO] Falha ao calcular similaridade coseno:', error.message);
+     throw error;
+   }
+ }
+ 
+ module.exports = {
+   gerarPerguntaViaAPI,
+   gerarRespostaContextual,
+   gerarParabensCargoViaAPI,
+   gerarMensagemBemVindoViaAPI,
+   gerarComentarioViaAPI,
+   generateEmbedding,
+   cosineSimilarity,
+   // Funções de busca semântica
+   buscarMemoriasUsuarioSemanitcas,
+   buscarMemoriasGuildSemanticas,
+   // Configuração de peso para memórias (função auxiliar)
+   calculateWeightedSimilarity,
+ };
