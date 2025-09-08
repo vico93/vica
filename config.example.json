@@ -12,6 +12,7 @@
   },
   "settings": {
     "historyLimit": 6,
-    "maxTokens": 500
+    "maxTokens": 500,
+    "rate_limit_ms": 5000
   }
 }

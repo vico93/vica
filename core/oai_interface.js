@@ -1,9 +1,9 @@
 /*
 ** caminho: core/oai_interface.js
-** últimaMod: 2025-09-07 01:49
+** últimaMod: 2025-09-08 20:00
 ** autor: Vico
 ** colaboração: Gemini, ChatGPT, Roo Sonic
-** modificações: Implementação de busca semântica com embeddings para memórias
+** modificações: Implementação de busca semântica com embeddings para memórias, Adição de rate limiting per user+guild
 */
 
 const fs = require('fs');
@@ -464,6 +464,18 @@ async function gerarParabensCargoViaAPI(guildId, userId, promptUsuario, roleName
  
  // Função para gerar uma resposta à partir da API
  async function gerarRespostaContextual(guildId, canalId, usuarioId, botUserId, mensagemUsuario, imageUrl = null, channel = null, sourceMessageId = null) {
+    // Rate limiting check per user+guild
+    const rateLimitMs = config.settings.rate_limit_ms || 5000; // fallback 5 seconds
+    if (guildId && usuarioId) {
+      const rateLimitKey = `${guildId}:${usuarioId}`;
+      const lastTimestamp = rateLimitMap.get(rateLimitKey);
+      if (lastTimestamp && (Date.now() - lastTimestamp < rateLimitMs)) {
+        console.log(`[RATE_LIMIT][BLOCK] Request blocked for user ${usuarioId} in guild ${guildId}`);
+        return "⚠️ Please wait a few seconds before asking me again!";
+      }
+      // Update cooldown timestamp
+      rateLimitMap.set(rateLimitKey, Date.now());
+    }
    let systemPrompt = await carregarSystemPrompt();
 
    /* --- Busca Semântica de Memórias por Similaridade de Embedding --- */
