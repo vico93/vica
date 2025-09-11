@@ -1353,6 +1353,7 @@ async function handleClearSystemChannel(interaction) {
  */
 async function handleModalSubmit(interaction) {
     const customId = interaction.customId;
+    console.log('[DEBUG] Received modal submission with customId:', customId);
     const userId = interaction.user.id;
 
     if (customId.includes('set_multiplier_modal_')) {
@@ -1593,6 +1594,32 @@ async function handleModalSubmit(interaction) {
             content: `✅ O XP de ${user} foi definido para **${xp}** (Nível ${level}).`,
             flags: [MessageFlags.Ephemeral]
         });
+    } else if (customId.includes('set_reaction_emoji_modal')) {
+        console.log('[DEBUG] Handling set_reaction_emoji_modal');
+        const emojiId = interaction.fields.getTextInputValue('reaction_emoji_id');
+
+        if (!/^\d{17,20}$/.test(emojiId)) {
+            console.log('[DEBUG] Invalid emoji ID:', emojiId);
+            return interaction.reply({
+                content: '❌ O ID do emoji é inválido. Certifique-se de que é um número entre 17 e 20 dígitos.',
+                flags: [MessageFlags.Ephemeral]
+            });
+        }
+
+        try {
+            database.setReactionEmoji(interaction.guild.id, emojiId);
+            console.log('[DEBUG] Reaction emoji set successfully:', emojiId);
+            await interaction.reply({
+                content: `✅ Emoji de reação configurado com sucesso! Novo emoji: **<:${emojiId}>**`,
+                flags: [MessageFlags.Ephemeral]
+            });
+        } catch (error) {
+            console.error('[ERROR] Failed to set reaction emoji:', error);
+            await interaction.reply({
+                content: '❌ Ocorreu um erro ao salvar o emoji. Tente novamente mais tarde.',
+                flags: [MessageFlags.Ephemeral]
+            });
+        }
     }
 }
 
