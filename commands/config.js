@@ -1,6 +1,6 @@
 /*
 ** caminho: commands/config.js
-** últimaMod: 2025-09-11 04:35
+** últimaMod: 2025-09-11 22:08
 ** autor: Vico
 ** colaboração: Roo Sonic (xai/grok-code-fast-1), Copilot (gpt-4o), GLM 4.5 Air, Gemini-2.5-Flash
 */
@@ -34,8 +34,7 @@ const CATEGORIES = {
     XP_SYSTEM: { id: 'xp_system', name: '💰 Configuração do Sistema XP', desc: 'Configurar XP e multiplicadores' },
     MESSAGES: { id: 'messages', name: '📢 Configurações de Mensagens e Canais', desc: 'Mensagens e canais do sistema' },
     MEMORIES: { id: 'memories', name: '🧠 Gerenciamento de Memórias', desc: 'Gerenciar memórias do servidor' },
-    USER_CONTROLS: { id: 'user_controls', name: '👥 Controles Manuais de Usuário', desc: 'Controles manuais de usuário' },
-    REACTION_EMOJIS: { id: 'reaction_emojis', name: '😊 Configuração de Emojis de Reação', desc: 'Configurar emojis de reação para o servidor' }
+    USER_CONTROLS: { id: 'user_controls', name: '👥 Controles Manuais de Usuário', desc: 'Controles manuais de usuário' }
 };
 
 // Sub-categorias para melhor organização
@@ -51,8 +50,7 @@ const CATEGORY_ACTIONS = {
     [CATEGORIES.XP_SYSTEM.id]: ['add_channel', 'remove_channel', 'list_channels', 'set_multiplier', 'remove_multiplier', 'list_multipliers', 'back'],
     [CATEGORIES.MESSAGES.id]: ['select_subcategory', 'back'], // Agora usa sub-categorias
     [CATEGORIES.MEMORIES.id]: ['select_memory_type', 'back'],
-    [CATEGORIES.USER_CONTROLS.id]: ['set_user_xp', 'reset_all_xp', 'back'],
-    [CATEGORIES.REACTION_EMOJIS.id]: ['set_reaction_emoji', 'get_reaction_emoji', 'clear_reaction_emoji', 'back']
+    [CATEGORIES.USER_CONTROLS.id]: ['set_user_xp', 'reset_all_xp', 'back']
 };
 
 // Ações para cada sub-categoria de mensagens
@@ -139,15 +137,7 @@ function createMainDashboardEmbed(guild) {
         value: `Total de usuários: **${totalUsers}**`,
         inline: true
     });
-
-    // Status dos Emojis de Reação
-    const currentReactionEmoji = database.getReactionEmoji(guild.id);
-    embed.addFields({
-        name: '😊 Reaction Emojis',
-        value: currentReactionEmoji ? `Emoji atual: **${currentReactionEmoji}**` : 'Nenhum emoji configurado',
-        inline: true
-    });
-
+    
     return embed;
 }
 
@@ -582,24 +572,6 @@ function createCategoryButtons(userId, categoryId) {
                     .setLabel('💥 Resetar Todo XP')
                     .setStyle(ButtonStyle.Danger);
                 break;
-            case 'set_reaction_emoji':
-                button = new ButtonBuilder()
-                    .setCustomId(generateComponentId(userId, 'set_reaction_emoji'))
-                    .setLabel('😊 Definir Emoji')
-                    .setStyle(ButtonStyle.Success);
-                break;
-            case 'get_reaction_emoji':
-                button = new ButtonBuilder()
-                    .setCustomId(generateComponentId(userId, 'get_reaction_emoji'))
-                    .setLabel('👁️ Ver Emoji Atual')
-                    .setStyle(ButtonStyle.Primary);
-                break;
-            case 'clear_reaction_emoji':
-                button = new ButtonBuilder()
-                    .setCustomId(generateComponentId(userId, 'clear_reaction_emoji'))
-                    .setLabel('🗑️ Limpar Emoji')
-                    .setStyle(ButtonStyle.Danger);
-                break;
         }
 
         if (button) buttons.push(button);
@@ -857,15 +829,6 @@ async function handleButtonClick(interaction) {
             break;
         case 'reset_all_xp':
             await handleResetAllXP(interaction);
-            break;
-        case 'set_reaction_emoji':
-            await handleSetReactionEmoji(interaction);
-            break;
-        case 'get_reaction_emoji':
-            await handleGetReactionEmoji(interaction);
-            break;
-        case 'clear_reaction_emoji':
-            await handleClearReactionEmoji(interaction);
             break;
         default:
             await interaction.reply({
@@ -1594,33 +1557,6 @@ async function handleModalSubmit(interaction) {
             content: `✅ O XP de ${user} foi definido para **${xp}** (Nível ${level}).`,
             flags: [MessageFlags.Ephemeral]
         });
-    } else if (customId.includes('set_reaction_emoji_modal')) {
-        console.log('[DEBUG] Handling set_reaction_emoji_modal for customId:', customId);
-        const emojiId = interaction.fields.getTextInputValue('reaction_emoji_id');
-        console.log('[DEBUG] Extracted emojiId:', emojiId);
-
-        if (!/^\d{17,20}$/.test(emojiId)) {
-            console.log('[DEBUG] Invalid emoji ID:', emojiId);
-            return interaction.reply({
-                content: '❌ O ID do emoji é inválido. Certifique-se de que é um número entre 17 e 20 dígitos.',
-                flags: [MessageFlags.Ephemeral]
-            });
-        }
-
-        try {
-            database.setReactionEmoji(interaction.guild.id, emojiId);
-            console.log('[DEBUG] Reaction emoji set successfully in database for guild:', interaction.guild.id, 'emojiId:', emojiId);
-            await interaction.reply({
-                content: `✅ Emoji de reação configurado com sucesso! Novo emoji: **<:${emojiId}>**`,
-                flags: [MessageFlags.Ephemeral]
-            });
-        } catch (error) {
-            console.error('[ERROR] Failed to set reaction emoji:', error);
-            await interaction.reply({
-                content: '❌ Ocorreu um erro ao salvar o emoji. Tente novamente mais tarde.',
-                flags: [MessageFlags.Ephemeral]
-            });
-        }
     }
 }
 
@@ -2469,136 +2405,6 @@ async function handleResetAllXP(interaction) {
     });
 }
 
-/**
- * Manipula definição de emoji de reação
- */
-async function handleSetReactionEmoji(interaction) {
-    console.log('[DEBUG] Triggered handleSetReactionEmoji for user:', interaction.user.id);
-    // Criar modal para input do emoji ID
-    const modal = new ModalBuilder()
-        .setCustomId(generateComponentId(interaction.user.id, 'set_reaction_emoji_modal'))
-        .setTitle('Definir Emoji de Reação');
-
-    const emojiInput = new TextInputBuilder()
-        .setCustomId('reaction_emoji_id')
-        .setLabel('ID do Emoji (ex: 123456789012345678)')
-        .setPlaceholder('Digite o ID numérico do emoji')
-        .setStyle(TextInputStyle.Short)
-        .setRequired(true)
-        .setMinLength(17)
-        .setMaxLength(20);
-
-    const firstActionRow = new ActionRowBuilder().addComponents(emojiInput);
-    modal.addComponents(firstActionRow);
-
-    await interaction.showModal(modal);
-}
-
-/**
- * Manipula exibição do emoji de reação atual
- */
-async function handleGetReactionEmoji(interaction) {
-    const currentEmoji = database.getReactionEmoji(interaction.guild.id);
-    
-    if (currentEmoji) {
-        const embed = new EmbedBuilder()
-            .setTitle('😊 Emoji de Reação Atual')
-            .setDescription(`O emoji de reação atual para este servidor é: **${currentEmoji}**`)
-            .setColor('#00AA00')
-            .setTimestamp();
-
-        const backButton = new ButtonBuilder()
-            .setCustomId(generateComponentId(interaction.user.id, 'back_to_main'))
-            .setLabel('⬅️ Voltar')
-            .setStyle(ButtonStyle.Secondary);
-
-        return interaction.reply({
-            embeds: [embed],
-            components: [new ActionRowBuilder().addComponents(backButton)],
-            flags: [MessageFlags.Ephemeral]
-        });
-    } else {
-        const embed = new EmbedBuilder()
-            .setTitle('😊 Emoji de Reação Atual')
-            .setDescription('Nenhum emoji de reação está configurado para este servidor.')
-            .setColor('#FFAA00')
-            .setTimestamp();
-
-        const backButton = new ButtonBuilder()
-            .setCustomId(generateComponentId(interaction.user.id, 'back_to_main'))
-            .setLabel('⬅️ Voltar')
-            .setStyle(ButtonStyle.Secondary);
-
-        return interaction.reply({
-            embeds: [embed],
-            components: [new ActionRowBuilder().addComponents(backButton)],
-            flags: [MessageFlags.Ephemeral]
-        });
-    }
-}
-
-/**
- * Manipula limpeza do emoji de reação
- */
-async function handleClearReactionEmoji(interaction) {
-    // Criar confirmação com botões
-    const confirmButton = new ButtonBuilder()
-        .setCustomId(generateComponentId(interaction.user.id, 'confirm_clear_reaction_emoji'))
-        .setLabel('✅ Confirmar Limpeza')
-        .setStyle(ButtonStyle.Danger);
-
-    const cancelButton = new ButtonBuilder()
-        .setCustomId(generateComponentId(interaction.user.id, 'cancel_clear_reaction_emoji'))
-        .setLabel('❌ Cancelar')
-        .setStyle(ButtonStyle.Secondary);
-
-    const row = new ActionRowBuilder().addComponents(confirmButton, cancelButton);
-
-    const reply = await interaction.reply({
-        content: '⚠️ **ATENÇÃO: Esta ação é irreversível!**\n\nVocê está prestes a remover o emoji de reação atual do servidor.\n\nTem certeza de que deseja continuar?',
-        components: [row],
-        flags: [MessageFlags.Ephemeral]
-    });
-
-    const collector = reply.createMessageComponentCollector({
-        componentType: ComponentType.Button,
-        time: 30000 // 30 segundos para confirmar
-    });
-
-    collector.on('collect', async i => {
-        if (i.user.id !== interaction.user.id) {
-            return i.reply({ content: '⛔ Apenas quem executou o comando pode interagir aqui.', ephemeral: true });
-        }
-
-        if (i.customId === generateComponentId(interaction.user.id, 'confirm_clear_reaction_emoji')) {
-            // Executar a limpeza
-            const currentEmoji = database.getReactionEmoji(interaction.guild.id);
-            const changes = database.setReactionEmoji(interaction.guild.id, null); // Definir como null para limpar
-
-            await i.update({
-                content: currentEmoji
-                    ? `✅ **Emoji de reação removido com sucesso!**\n\nO emoji \`${currentEmoji}\` foi removido do servidor.`
-                    : 'ℹ️ Nenhum emoji de reação estava configurado para este servidor.',
-                components: []
-            });
-        } else if (i.customId === generateComponentId(interaction.user.id, 'cancel_clear_reaction_emoji')) {
-            // Cancelar
-            await i.update({
-                content: '✅ Operação cancelada. O emoji de reação permaneceu inalterado.',
-                components: []
-            });
-        }
-    });
-
-    collector.on('end', collected => {
-        if (collected.size === 0) {
-            interaction.editReply({
-                content: '⏰ Tempo para confirmação expirou. Operação cancelada.',
-                components: []
-            });
-        }
-    });
-}
 
 // --- COMANDO PRINCIPAL ---
 
