@@ -1,8 +1,8 @@
 /*
 ** caminho: core/oai_interface.js
-** últimaMod: 2025-09-08 20:00
+** últimaMod: 2025-09-11 20:10
 ** autor: Vico
-** colaboração: Gemini, ChatGPT, Roo Sonic
+** colaboração: Gemini, ChatGPT, Roo Sonic (xai/grok-code-fast-1)
 ** modificações: Implementação de busca semântica com embeddings para memórias, Adição de rate limiting per user+guild
 */
 
@@ -13,6 +13,7 @@ const config = require('../config.json');
 const database = require('../core/database');
 const tagParser = require('../core/tagParser');
 
+const rateLimitMap = new Map();
 
 /* --- Funções Helper Para Processar Chamadas de Ferramentas --- */
 
