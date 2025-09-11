@@ -1,8 +1,8 @@
 /*
 ** caminho: commands/config.js
-** últimaMod: 2025-09-11 04:05
+** últimaMod: 2025-09-11 04:35
 ** autor: Vico
-** colaboração: Roo Sonic (xai/grok-code-fast-1), Copilot (gpt-4o), GLM 4.5 Air
+** colaboração: Roo Sonic (xai/grok-code-fast-1), Copilot (gpt-4o), GLM 4.5 Air, Gemini-2.5-Flash
 */
 
 /*
@@ -1292,10 +1292,15 @@ async function handleSetSystemChannel(interaction) {
 
         database.setSystemChannel(interaction.guild.id, channelId);
 
-        // Sucesso! Atualizamos a mensagem final
+        // Criar embed atualizado com o novo canal do sistema
+        const embed = createSubcategoryEmbed(MESSAGE_SUBCATEGORIES.SYSTEM_CHANNEL.id, interaction.guild);
+        const buttons = createSubcategoryButtons(interaction.user.id, MESSAGE_SUBCATEGORIES.SYSTEM_CHANNEL.id);
+
+        // Sucesso! Atualizamos a mensagem final com o embed atualizado
         await selectInteraction.update({
             content: `✅ Beleza! De agora em diante, enviarei mensagens de sistema no canal ${channel}.`,
-            components: []
+            embeds: [embed],
+            components: buttons
         });
 
     } catch (error) {
@@ -1322,14 +1327,22 @@ async function handleSetSystemChannel(interaction) {
 async function handleClearSystemChannel(interaction) {
     const changes = database.setSystemChannel(interaction.guild.id, null);
 
+    // Criar embed atualizado sem o canal do sistema
+    const embed = createSubcategoryEmbed(MESSAGE_SUBCATEGORIES.SYSTEM_CHANNEL.id, interaction.guild);
+    const buttons = createSubcategoryButtons(interaction.user.id, MESSAGE_SUBCATEGORIES.SYSTEM_CHANNEL.id);
+
     if (changes > 0) {
         await interaction.reply({
             content: '✅ Canal de sistema limpo com sucesso! As mensagens voltarão aos canais originais.',
+            embeds: [embed],
+            components: buttons,
             flags: [MessageFlags.Ephemeral]
         });
     } else {
         await interaction.reply({
             content: 'ℹ️ Nenhum canal de sistema estava configurado.',
+            embeds: [embed],
+            components: buttons,
             flags: [MessageFlags.Ephemeral]
         });
     }
