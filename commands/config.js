@@ -1595,8 +1595,9 @@ async function handleModalSubmit(interaction) {
             flags: [MessageFlags.Ephemeral]
         });
     } else if (customId.includes('set_reaction_emoji_modal')) {
-        console.log('[DEBUG] Handling set_reaction_emoji_modal');
+        console.log('[DEBUG] Handling set_reaction_emoji_modal for customId:', customId);
         const emojiId = interaction.fields.getTextInputValue('reaction_emoji_id');
+        console.log('[DEBUG] Extracted emojiId:', emojiId);
 
         if (!/^\d{17,20}$/.test(emojiId)) {
             console.log('[DEBUG] Invalid emoji ID:', emojiId);
@@ -1608,7 +1609,7 @@ async function handleModalSubmit(interaction) {
 
         try {
             database.setReactionEmoji(interaction.guild.id, emojiId);
-            console.log('[DEBUG] Reaction emoji set successfully:', emojiId);
+            console.log('[DEBUG] Reaction emoji set successfully in database for guild:', interaction.guild.id, 'emojiId:', emojiId);
             await interaction.reply({
                 content: `✅ Emoji de reação configurado com sucesso! Novo emoji: **<:${emojiId}>**`,
                 flags: [MessageFlags.Ephemeral]
@@ -2472,6 +2473,7 @@ async function handleResetAllXP(interaction) {
  * Manipula definição de emoji de reação
  */
 async function handleSetReactionEmoji(interaction) {
+    console.log('[DEBUG] Triggered handleSetReactionEmoji for user:', interaction.user.id);
     // Criar modal para input do emoji ID
     const modal = new ModalBuilder()
         .setCustomId(generateComponentId(interaction.user.id, 'set_reaction_emoji_modal'))
