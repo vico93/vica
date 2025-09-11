@@ -20,7 +20,7 @@ Thumbs.db
 /config.json
 /data/
 /.github/instructions
-/.roo/rules
+/.roo/
 
 # Ferramentas de depuração
 .vscode/
