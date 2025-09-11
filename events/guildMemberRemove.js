@@ -1,19 +1,23 @@
 /*
 ** caminho: events/guildMemberRemove.js
-** últimaMod: 02/09/2025 18:51
+** últimaMod: 11/09/2025 20:47
 ** autor: Vico
-** colaboração: Gemini, ChatGPT, Roo Sonic e Kimi AI
+** colaboração: Gemini, ChatGPT, Kimi AI e Roo Sonic (xai/grok-code-fast-1)
 */
 
 const database = require('../core/database');
 const oai_interface = require('../core/oai_interface');
 const auditCache = require('../core/auditCache');
+const { PermissionsBitField } = require('discord.js');
 
 module.exports = {
   name: 'guildMemberRemove',
   async execute(member, client) {
     // Ignora eventos de servidores onde o bot pode não estar totalmente pronto
     if (!member.guild) return;
+
+    // Ignora se o membro removido for o próprio bot (audit logs irrelevantes)
+    if (member.id === client.user.id) return;
 
     // Cache deduplication logic
     const key = `leave:${member.guild.id}:${member.id}`;
@@ -47,22 +51,48 @@ module.exports = {
         return;
       }
 
-      // Check if this was a kick or ban by looking at audit logs
-      const fetchedLogs = await member.guild.fetchAuditLogs({
-        limit: 1,
-        type: 20, // MEMBER_KICK
-      });
+      // Verifica se o bot possui permissão para ver logs de auditoria
+      const hasAuditPermission = member.guild.members.me.permissions.has(PermissionsBitField.Flags.ViewAuditLog);
+      if (!hasAuditPermission) {
+        console.warn('[GUILDMEMBERREMOVE][WARN] Bot não possui permissão VIEW_AUDIT_LOG, pulando detecção de kick/ban');
+      }
 
-      const kickLog = fetchedLogs.entries.first();
+      // Check if this was a kick or ban by looking at audit logs
+      let kickLog = null;
+      if (hasAuditPermission) {
+        try {
+          const fetchedLogs = await member.guild.fetchAuditLogs({
+            limit: 1,
+            type: 20, // MEMBER_KICK
+          });
+          kickLog = fetchedLogs.entries.first();
+        } catch (err) {
+          if (err.code === 10004) {
+            console.error('[GUILDMEMBERREMOVE][ERROR] Erro ao buscar logs de kick - Guild desconhecida:', err);
+          } else {
+            throw err;
+          }
+        }
+      }
       const wasKicked = kickLog && kickLog.target.id === member.id;
 
       // Check for ban
-      const banLogs = await member.guild.fetchAuditLogs({
-        limit: 1,
-        type: 22, // MEMBER_BAN_ADD
-      });
-
-      const banLog = banLogs.entries.first();
+      let banLog = null;
+      if (hasAuditPermission) {
+        try {
+          const banLogs = await member.guild.fetchAuditLogs({
+            limit: 1,
+            type: 22, // MEMBER_BAN_ADD
+          });
+          banLog = banLogs.entries.first();
+        } catch (err) {
+          if (err.code === 10004) {
+            console.error('[GUILDMEMBERREMOVE][ERROR] Erro ao buscar logs de ban - Guild desconhecida:', err);
+          } else {
+            throw err;
+          }
+        }
+      }
       const wasBanned = banLog && banLog.target.id === member.id;
 
       let messageConfig = null;
