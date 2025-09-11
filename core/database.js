@@ -2,8 +2,7 @@
 ** caminho: core/database.js
 ** últimaMod: 2025-09-07 01:02
 ** autor: Vico
-** colaboração: Roo Sonic
-** modificações: Resolução da dependência circular com oai_interface.js
+** colaboração: Roo Sonic (xai/grok-code-fast-1), Copilot (gpt-4o), GLM 4.5 Air
 */
 
 /*
@@ -254,6 +253,12 @@ CREATE TABLE IF NOT EXISTS guild_memories (
 );
 CREATE INDEX IF NOT EXISTS idx_guild_memories_guild_created
  ON guild_memories (guild_id, created_at DESC);
+
+-- TABELA PARA EMOJIS DE REAÇÃO POR SERVIDOR --
+CREATE TABLE IF NOT EXISTS reaction_emojis (
+  guild_id TEXT PRIMARY KEY,
+  reaction_emoji_id TEXT NOT NULL
+);
 `);
 })();
 
@@ -448,7 +453,13 @@ const stmts = {
      ban_message = CASE WHEN ? = 'leave_ban' THEN NULL ELSE ban_message END,
      ban_is_prompt = CASE WHEN ? = 'leave_ban' THEN NULL ELSE ban_is_prompt END
    WHERE guild_id = ?
- `)
+ `),
+
+ /* --- EMOJIS DE REAÇÃO --- */
+ reactionEmojiSet: db.prepare(`INSERT INTO reaction_emojis (guild_id, reaction_emoji_id)
+                               VALUES (?, ?)
+                               ON CONFLICT(guild_id) DO UPDATE SET reaction_emoji_id = excluded.reaction_emoji_id`),
+ reactionEmojiGet: db.prepare('SELECT reaction_emoji_id FROM reaction_emojis WHERE guild_id = ?')
 };
 
 /* ----------------------------------------------------------
@@ -730,6 +741,13 @@ module.exports = {
    return stmts.deleteMessageByType.run(
      type, type, type, type, type, type, type, type, guildId
    ).changes;
+ },
+
+ /* --- EMOJIS DE REAÇÃO --- */
+ setReactionEmoji: (guildId, emojiId) => stmts.reactionEmojiSet.run(guildId, emojiId).changes,
+ getReactionEmoji: (guildId) => {
+   const row = stmts.reactionEmojiGet.get(guildId);
+   return row ? row.reaction_emoji_id : null;
  },
 
 // helper para graceful shutdown

@@ -1,8 +1,8 @@
 /*
 **  caminho: events/messageReactionAdd.js
-**  últimaMod: 2025-09-03 14:47
+**  últimaMod: 2025-09-11 04:10
 **  autor: Vico
-**  colaboração: Roo Sonic
+** colaboração: Roo Sonic (xai/grok-code-fast-1), Copilot (gpt-4o), GLM 4.5 Air
 */
 
 /*
@@ -15,10 +15,7 @@
 */
 
 const oai      = require('../core/oai_interface');
-const database = require('../core/database');   // <-- linha adicionada
-const config   = require('../config.json');
-
-const VICA_EMOJI_ID = config.discord.reactionEmojiId;
+const database = require('../core/database');
 
 module.exports = {
   name: 'messageReactionAdd',
@@ -35,7 +32,18 @@ module.exports = {
 
     // Filtros básicos
     if (user.bot) return;
-    if (!VICA_EMOJI_ID || reaction.emoji.id !== VICA_EMOJI_ID) return;
+    
+    // Buscar reactionEmojiId do banco de dados
+    const guildId = reaction.message.guild.id;
+    const reactionEmojiId = database.getReactionEmoji(guildId);
+    console.log(`[DEBUG][REACTION] Fetched reactionEmojiId: ${reactionEmojiId} for guildId: ${guildId}`);
+    
+    if (!reactionEmojiId || reaction.emoji.id !== reactionEmojiId) {
+      if (!reactionEmojiId) {
+        console.warn(`[VICA][REACTION] Nenhum reactionEmojiId configurado para guild ${guildId}`);
+      }
+      return;
+    }
 
     try {
       const message = reaction.message.partial
