@@ -1,6 +1,6 @@
 /*
 **  caminho: events/messageReactionAdd.js
-**  últimaMod: 2025-09-11 04:10
+**  últimaMod: 2025-09-11 20:07
 **  autor: Vico
 ** colaboração: Roo Sonic (xai/grok-code-fast-1), Copilot (gpt-4o), GLM 4.5 Air
 */
@@ -32,15 +32,15 @@ module.exports = {
 
     // Filtros básicos
     if (user.bot) return;
-    
-    // Buscar reactionEmojiId do banco de dados
+
+    // Buscar reactionEmojis do banco de dados
     const guildId = reaction.message.guild.id;
-    const reactionEmojiId = database.getReactionEmoji(guildId);
-    console.log(`[DEBUG][REACTION] Fetched reactionEmojiId: ${reactionEmojiId} for guildId: ${guildId}`);
-    
-    if (!reactionEmojiId || reaction.emoji.id !== reactionEmojiId) {
-      if (!reactionEmojiId) {
-        console.warn(`[VICA][REACTION] Nenhum reactionEmojiId configurado para guild ${guildId}`);
+    const reactionEmojis = database.listReactionEmojis(guildId);
+    console.log(`[DEBUG][REACTION] Fetched reactionEmojis: ${reactionEmojis.map(e => e.reaction_emoji_id).join(', ')} for guildId: ${guildId}`);
+
+    if (!reactionEmojis.length || !reactionEmojis.some(emoji => emoji.reaction_emoji_id === reaction.emoji.id)) {
+      if (!reactionEmojis.length) {
+        console.warn(`[VICA][REACTION] Nenhum reactionEmoji configurado para guild ${guildId}`);
       }
       return;
     }
