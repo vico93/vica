@@ -155,6 +155,35 @@ db.pragma('synchronous = NORMAL');    // commits mais rápidos
     // tabela ainda não existe, será criada abaixo
   }
 
+  // Migração para reaction_emojis: permitir múltiplos emojis por guild (de one-to-one para one-to-many)
+  try {
+    const reactionCols = db.prepare('PRAGMA table_info(reaction_emojis)').all();
+    const hasIdColumn = reactionCols.some(c => c.name === 'id');
+
+    if (reactionCols.length > 0 && !hasIdColumn) {
+      console.warn('[DB] Migrando tabela reaction_emojis -> convertendo para múltiplos emojis por guild.');
+      // Copiar dados existentes para tabela temporária
+      db.exec('CREATE TABLE reaction_emojis_temp AS SELECT * FROM reaction_emojis');
+      // Dropar tabela antiga
+      db.exec('DROP TABLE reaction_emojis');
+      // Criar nova tabela com estrutura atualizada
+      db.exec(`CREATE TABLE reaction_emojis (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        guild_id TEXT NOT NULL,
+        reaction_emoji_id TEXT NOT NULL,
+        UNIQUE(guild_id, reaction_emoji_id)
+      )`);
+      // Inserir dados da tabela temporária na nova
+      db.exec('INSERT INTO reaction_emojis (guild_id, reaction_emoji_id) SELECT guild_id, reaction_emoji_id FROM reaction_emojis_temp');
+      // Dropar tabela temporária
+      db.exec('DROP TABLE reaction_emojis_temp');
+      console.log('[DB] Migração da tabela reaction_emojis concluída');
+    }
+  } catch (e) {
+    console.error('[DB] Erro durante migração da tabela reaction_emojis:', e.message);
+    // tabela ainda não existe, será criada abaixo
+  }
+
   db.exec(`
 CREATE TABLE IF NOT EXISTS mensagens (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -256,8 +285,10 @@ CREATE INDEX IF NOT EXISTS idx_guild_memories_guild_created
 
 -- TABELA PARA EMOJIS DE REAÇÃO POR SERVIDOR --
 CREATE TABLE IF NOT EXISTS reaction_emojis (
-  guild_id TEXT PRIMARY KEY,
-  reaction_emoji_id TEXT NOT NULL
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  guild_id TEXT NOT NULL,
+  reaction_emoji_id TEXT NOT NULL,
+  UNIQUE(guild_id, reaction_emoji_id)
 );
 `);
 })();
@@ -456,10 +487,9 @@ const stmts = {
  `),
 
  /* --- EMOJIS DE REAÇÃO --- */
- reactionEmojiSet: db.prepare(`INSERT INTO reaction_emojis (guild_id, reaction_emoji_id)
-                               VALUES (?, ?)
-                               ON CONFLICT(guild_id) DO UPDATE SET reaction_emoji_id = excluded.reaction_emoji_id`),
- reactionEmojiGet: db.prepare('SELECT reaction_emoji_id FROM reaction_emojis WHERE guild_id = ?')
+ reactionEmojiAdd: db.prepare('INSERT OR IGNORE INTO reaction_emojis (guild_id, reaction_emoji_id) VALUES (?, ?)'),
+ reactionEmojiList: db.prepare('SELECT id, reaction_emoji_id FROM reaction_emojis WHERE guild_id = ?'),
+ reactionEmojiDelete: db.prepare('DELETE FROM reaction_emojis WHERE guild_id = ? AND id = ?')
 };
 
 /* ----------------------------------------------------------
@@ -744,11 +774,9 @@ module.exports = {
  },
 
  /* --- EMOJIS DE REAÇÃO --- */
- setReactionEmoji: (guildId, emojiId) => stmts.reactionEmojiSet.run(guildId, emojiId).changes,
- getReactionEmoji: (guildId) => {
-   const row = stmts.reactionEmojiGet.get(guildId);
-   return row ? row.reaction_emoji_id : null;
- },
+ addReactionEmoji: (guildId, emojiId) => stmts.reactionEmojiAdd.run(guildId, emojiId).changes,
+ listReactionEmojis: (guildId) => stmts.reactionEmojiList.all(guildId),
+ deleteReactionEmoji: (guildId, id) => stmts.reactionEmojiDelete.run(guildId, id).changes,
 
 // helper para graceful shutdown
 close: () => db.close()
