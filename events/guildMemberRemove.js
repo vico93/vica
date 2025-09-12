@@ -1,6 +1,6 @@
 /*
 ** caminho: events/guildMemberRemove.js
-** últimaMod: 2025-09-12 23:00
+** últimaMod: 2025-09-12 20:35
 ** autor: Vico
 ** colaboração: Gemini, ChatGPT, Kimi AI e Roo Sonic (xai/grok-code-fast-1)
 */
@@ -18,6 +18,9 @@ module.exports = {
 
     // Ignora se o membro removido for o próprio bot (audit logs irrelevantes)
     if (member.id === client.user.id) return;
+
+    // Ignora bots
+    if (member.user.bot) return;
 
     // Cache deduplication logic
     const key = `leave:${member.guild.id}:${member.id}`;

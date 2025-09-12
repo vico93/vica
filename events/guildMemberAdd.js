@@ -1,6 +1,6 @@
 /*
 ** caminho: events/guildMemberAdd.js
-** últimaMod: 2025-09-12
+** últimaMod: 2025-09-12 20:35
 ** autor: Vico
 ** colaboração: ChatGPT, Roo Sonic, Roo Sonic (xai/grok-code-fast-1)
 */
@@ -13,6 +13,9 @@ module.exports = {
   async execute(member) {
     // Ignora eventos de servidores onde o bot pode não estar totalmente pronto
     if (!member.guild) return;
+
+    // Ignora bots
+    if (member.user.bot) return;
 
     try {
       // Handle welcome messages

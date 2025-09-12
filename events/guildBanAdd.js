@@ -1,6 +1,6 @@
 /*
 ** path: events/guildBanAdd.js
-** lastMod: 2025-09-12 23:00
+** lastMod: 2025-09-12 20:35
 ** author: Vico
 ** colaboração: Roo Sonic e Kimi AI, Roo Sonic (xai/grok-code-fast-1)
 */
@@ -15,6 +15,9 @@ module.exports = {
   async execute(auditLog) {
     // Only process ban events
     if (auditLog.action !== AuditLogEvent.MemberBanAdd) return;
+
+    // Ignora bots
+    if (auditLog.target.bot) return;
 
     // Ignore events from guilds where the bot might not be fully ready
     if (!auditLog.guild) return;
