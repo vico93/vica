@@ -1,9 +1,8 @@
 /*
 ** caminho: core/oai_interface.js
-** últimaMod: 2025-09-11 20:10
+** últimaMod: 2025-09-12 23:13
 ** autor: Vico
 ** colaboração: Gemini, ChatGPT, Roo Sonic (xai/grok-code-fast-1)
-** modificações: Implementação de busca semântica com embeddings para memórias, Adição de rate limiting per user+guild
 */
 
 const fs = require('fs');
@@ -612,8 +611,11 @@ async function gerarParabensCargoViaAPI(guildId, userId, promptUsuario, roleName
      let content = message?.content || '';
 
      // Processa tags [salvar_memoria] usando tagParser com contexto (guildId)
+     console.log(`[AI_RESPONSE_PROCESSOR][DEBUG] Context guildId: ${guildId}, AI response content length: ${content.length}`);
+     console.log(`[AI_RESPONSE_PROCESSOR][DEBUG] AI response content (first 500 chars): ${content.substring(0, 500)}${content.length > 500 ? '...' : ''}`);
      const context = { guildId };
      const parsedTags = tagParser.parseTags(content, context);
+     console.log(`[AI_RESPONSE_PROCESSOR][DEBUG] Parsed tags result - cleanedMessage length: ${parsedTags.cleanedMessage.length}, memories found: ${parsedTags.memories.length}`);
      let memoriesProcessed = 0;
 
      // Processa memórias encontradas nas tags

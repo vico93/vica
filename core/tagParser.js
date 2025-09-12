@@ -1,8 +1,8 @@
 /*
 ** caminho: core/tagParser.js
-** últimaMod: 2025-09-06 17:20
+** últimaMod: 2025-09-12 20:15
 ** autor: Vico
-** colaboração: Gemini, ChatGPT, Roo Sonic, Kimi
+** colaboração: Gemini, ChatGPT, Roo Sonic, Kimi, Roo Sonic (xai/grok-code-fast-1)
 
 // Módulo de parser de tags especiais
 // Responsável por analisar mensagens com tags específicas como [imagem], [meta]...[/meta] e [salvar_memoria]...[/salvar_memoria] (case-insensitive)
@@ -70,7 +70,10 @@ function parseMemoryTag(content, position = 0, context = {}) {
     const errors = [];
 
     // Aplicar substituição de placeholders no conteúdo antes de processar
+    console.log(`[TAG_PARSER][DEBUG] Parsing memory tag at position ${position}, original content: "${content}"`);
+    console.log(`[TAG_PARSER][DEBUG] Context provided: ${JSON.stringify(context)}`);
     const processedContent = replacePlaceholders(content, context);
+    console.log(`[TAG_PARSER][DEBUG] Content after placeholder replacement: "${processedContent}"`);
 
     // Dividir o conteúdo por ':' em exatamente 5 partes
     const parts = processedContent.split(':');
@@ -91,12 +94,21 @@ function parseMemoryTag(content, position = 0, context = {}) {
         };
     }
 
-    const [guildId, userId, fact, importance, confidence] = parts;
+    let [guildId, userId, fact, importance, confidence] = parts;
 
-    // Validar guildId
+    // Validar guildId - se inválido, tentar usar o guildId do contexto (fallback para AI-generated tags)
     if (!isValidDiscordId(guildId)) {
-        hasErrors = true;
-        errors.push(`guildId inválido: deve ser ID do Discord (17-19 dígitos numéricos)`);
+        if (context.guildId && isValidDiscordId(context.guildId)) {
+            console.log(`[TAG_PARSER][FALLBACK] guildId inválido "${guildId}", usando contexto guildId: ${context.guildId}`);
+            processedContent = processedContent.replace(guildId, context.guildId);
+            const parts = processedContent.split(':');
+            if (parts.length >= 5) {
+                guildId = parts[0]; // Atualizar guildId com o do contexto
+            }
+        } else {
+            hasErrors = true;
+            errors.push(`guildId inválido: deve ser ID do Discord (17-19 dígitos numéricos)`);
+        }
     }
 
     // Validar userId
@@ -124,12 +136,15 @@ function parseMemoryTag(content, position = 0, context = {}) {
         errors.push(`confidence deve ser um número entre 0.0 e 1.0`);
     }
 
+    // Log de resultados de validação
+    console.log(`[TAG_PARSER][VALIDATION] Parsed memory validation results: guildId=${isValidDiscordId(guildId)}, userId=${isValidDiscordId(userId)}, fact=${!!trimmedFact}, importance=${isValidImportance(importance)}, confidence=${isValidConfidence(confidence)}`);
+
     // Log de erro se houver problemas
     if (hasErrors) {
         console.error('[TAG_PARSER][ERROR] Tag salvar_memoria malformada na posição', position, '-', errors.join('; '));
     }
 
-    return {
+    const result = {
         guildId: guildId || '',
         userId: userId || '',
         fact: trimmedFact,
@@ -138,6 +153,9 @@ function parseMemoryTag(content, position = 0, context = {}) {
         hasErrors,
         errorMessage: hasErrors ? errors.join('; ') : null
     };
+
+    console.log(`[TAG_PARSER][DEBUG] Parsed memory result: guildId=${result.guildId}, userId=${result.userId}, fact="${result.fact.substring(0, 50)}${result.fact.length > 50 ? '...' : ''}", importance=${result.importance}, confidence=${result.confidence}, hasErrors=${result.hasErrors}`);
+    return result;
 }
 
 /* --- Função de Construção de Mensagens --- */
