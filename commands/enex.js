@@ -151,10 +151,18 @@ module.exports = {
       const subcommand = interaction.options.getSubcommand();
       const guildId = interaction.guild.id;
 
+      console.log('[ENEX][DEBUG] Subcommand group:', subcommandGroup);
+      console.log('[ENEX][DEBUG] Subcommand:', subcommand);
+      console.log('[ENEX][DEBUG] Guild ID:', guildId);
+
       /*
         Determinar o tipo baseado no subcommand group
       */
       const type = subcommandGroup; // join, leave, kick, ban
+
+      console.log('[ENEX][DEBUG] Type determined:', type);
+      console.log('[ENEX][DEBUG] JOIN_LEAVE_TYPES keys:', Object.keys(JOIN_LEAVE_TYPES));
+      console.log('[ENEX][DEBUG] JOIN_LEAVE_TYPES[type]:', JOIN_LEAVE_TYPES[type]);
 
       if (subcommand === 'add') {
         /*
@@ -182,10 +190,15 @@ module.exports = {
         /*
           Subcomando: mostrar mensagem atual
         */
+        console.log('[ENEX][DEBUG] In show subcommand, type:', type);
+        console.log('[ENEX][DEBUG] Calling database.getMessageByType with type:', type);
         try {
           const currentMessage = database.getMessageByType(guildId, type);
+          console.log('[ENEX][DEBUG] currentMessage result:', currentMessage);
+          console.log('[ENEX][DEBUG] JOIN_LEAVE_TYPES[type] for display:', JOIN_LEAVE_TYPES[type]);
 
           if (!currentMessage) {
+            console.log('[ENEX][DEBUG] No message found, replying with undefined display');
             await interaction.reply({
               content: `📭 Nenhuma mensagem de ${JOIN_LEAVE_TYPES[type]} configurada.`,
               flags: [MessageFlags.Ephemeral]
