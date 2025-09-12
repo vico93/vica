@@ -1,8 +1,8 @@
 /*
 ** caminho: events/guildMemberRemove.js
-** últimaMod: 2025-09-12
+** últimaMod: 2025-09-12 23:00
 ** autor: Vico
-** colaboração: Gemini, ChatGPT, Kimi AI e Roo Sonic (xai/grok-code-fast-1), Roo Sonic (xai/grok-code-fast-1)
+** colaboração: Gemini, ChatGPT, Kimi AI e Roo Sonic (xai/grok-code-fast-1)
 */
 
 const database = require('../core/database');
@@ -95,9 +95,11 @@ module.exports = {
       let messageConfig = null;
       let messageType = 'leave';
       let kickReason = null;
+      let banReason = null;
 
       // Check for ban message first (highest priority)
       if (wasBanned) {
+        banReason = banLog.reason || 'No reason provided';
         messageConfig = database.getMessageByType(member.guild.id, 'ban');
         if (messageConfig) {
           messageType = 'ban';
@@ -125,9 +127,11 @@ module.exports = {
         // Replace placeholders - use username for leave/kick/ban (not mention)
         finalMessage = finalMessage.replace(/\{@USER\}/g, member.user.username).replace(/\{USER\}/g, member.user.username);
 
-        // Replace {REASON} placeholder for kicks
+        // Replace {reason} placeholder for kicks and bans
         if (messageType === 'kick') {
-          finalMessage = finalMessage.replace(/\{REASON\}/g, kickReason);
+          finalMessage = finalMessage.replace(/\{reason\}/g, kickReason);
+        } else if (messageType === 'ban') {
+          finalMessage = finalMessage.replace(/\{reason\}/g, banReason);
         }
 
         // If it's a prompt, generate message via AI

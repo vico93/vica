@@ -1,6 +1,6 @@
 /*
 ** caminho: commands/enex.js
-** últimaMod: 2025-09-11 21:21
+** últimaMod: 2025-09-12 19:56
 ** autor: Vico
 ** colaboração: Roo Sonic (xai/grok-code-fast-1)
 */
@@ -42,7 +42,7 @@ module.exports = {
             .setDescription('Adicionar mensagem de boas-vindas')
             .addStringOption(option =>
               option.setName('message')
-                .setDescription('Texto da mensagem ou prompt para IA')
+                .setDescription('Texto da mensagem ou prompt para IA. Placeholders: {USER} (nome), {@USER} (menção)')
                 .setRequired(true))
             .addBooleanOption(option =>
               option.setName('isprompt')
@@ -70,7 +70,7 @@ module.exports = {
             .setDescription('Adicionar mensagem de saída')
             .addStringOption(option =>
               option.setName('message')
-                .setDescription('Texto da mensagem ou prompt para IA')
+                .setDescription('Texto da mensagem ou prompt para IA. Placeholders: {USER} (nome), {@USER} (menção)')
                 .setRequired(true))
             .addBooleanOption(option =>
               option.setName('isprompt')
@@ -98,7 +98,7 @@ module.exports = {
             .setDescription('Adicionar mensagem de expulsão')
             .addStringOption(option =>
               option.setName('message')
-                .setDescription('Texto da mensagem ou prompt para IA')
+                .setDescription('Texto da mensagem ou prompt para IA. Placeholders: {USER}, {@USER}, {reason} (do audit log)')
                 .setRequired(true))
             .addBooleanOption(option =>
               option.setName('isprompt')
@@ -126,7 +126,7 @@ module.exports = {
             .setDescription('Adicionar mensagem de banimento')
             .addStringOption(option =>
               option.setName('message')
-                .setDescription('Texto da mensagem ou prompt para IA')
+                .setDescription('Texto da mensagem ou prompt para IA. Placeholders: {USER}, {@USER}, {reason} (do audit log)')
                 .setRequired(true))
             .addBooleanOption(option =>
               option.setName('isprompt')

@@ -1,6 +1,6 @@
 /*
 ** path: events/guildBanAdd.js
-** lastMod: 2025-09-12
+** lastMod: 2025-09-12 23:00
 ** author: Vico
 ** colaboração: Roo Sonic e Kimi AI, Roo Sonic (xai/grok-code-fast-1)
 */
@@ -55,9 +55,9 @@ module.exports = {
       const userName = bannedUser.username || bannedUser.displayName || 'Unknown User';
       finalMessage = finalMessage.replace(/\{@USER\}/g, userName).replace(/\{USER\}/g, userName);
 
-      // Get ban reason from audit log and replace {REASON} placeholder
-      const banReason = auditLog.reason || 'No reason provided';
-      finalMessage = finalMessage.replace(/\{REASON\}/g, banReason);
+      // Get ban reason from audit log and replace {reason} placeholder
+      const banReason = auditLog.reason || 'Nenhuma razão informada';
+      finalMessage = finalMessage.replace(/\{reason\}/g, banReason);
 
       // If it's a prompt, generate message via AI
       if (messageConfig.isPrompt) {
