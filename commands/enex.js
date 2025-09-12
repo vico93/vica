@@ -14,10 +14,11 @@ const { SlashCommandBuilder, PermissionsBitField, MessageFlags } = require('disc
 const database = require('../core/database');
 
 /*
-  Mapeamento de tipos de mensagem para nomes amigáveis (compatível com config existente)
+   Mapeamento de tipos de mensagem para nomes amigáveis (compatível com config existente)
+   Note: 'join' maps to 'welcome' for database operations
 */
 const JOIN_LEAVE_TYPES = {
-  welcome: '👋 Boas-vindas',
+  join: '👋 Boas-vindas',
   leave: '🚪 Saída (Normal)',
   kick: '👢 Saída (Expulsão)',
   ban: '🚫 Saída (Banimento)'
@@ -160,7 +161,22 @@ module.exports = {
       */
       const type = subcommandGroup; // join, leave, kick, ban
 
+      /*
+        Mapeamento para tipos de banco de dados (join -> welcome, kick -> leave_kick, etc.)
+      */
+      const getDbType = (cmdType) => {
+        switch (cmdType) {
+          case 'join': return 'welcome';
+          case 'leave': return 'leave';
+          case 'kick': return 'leave_kick';
+          case 'ban': return 'leave_ban';
+          default: return cmdType;
+        }
+      };
+      const dbType = getDbType(type);
+
       console.log('[ENEX][DEBUG] Type determined:', type);
+      console.log('[ENEX][DEBUG] DbType mapped:', dbType);
       console.log('[ENEX][DEBUG] JOIN_LEAVE_TYPES keys:', Object.keys(JOIN_LEAVE_TYPES));
       console.log('[ENEX][DEBUG] JOIN_LEAVE_TYPES[type]:', JOIN_LEAVE_TYPES[type]);
 
@@ -172,7 +188,7 @@ module.exports = {
         const isPrompt = interaction.options.getBoolean('isprompt');
 
         try {
-          database.setMessageByType(guildId, type, message, isPrompt);
+          database.setMessageByType(guildId, dbType, message, isPrompt);
           const promptText = isPrompt ? ' (como prompt para IA)' : ' (mensagem estática)';
           await interaction.reply({
             content: `✅ Mensagem de ${JOIN_LEAVE_TYPES[type]} configurada com sucesso${promptText}:\n\`${message}\``,
@@ -191,9 +207,9 @@ module.exports = {
           Subcomando: mostrar mensagem atual
         */
         console.log('[ENEX][DEBUG] In show subcommand, type:', type);
-        console.log('[ENEX][DEBUG] Calling database.getMessageByType with type:', type);
+        console.log('[ENEX][DEBUG] Calling database.getMessageByType with dbType:', dbType);
         try {
-          const currentMessage = database.getMessageByType(guildId, type);
+          const currentMessage = database.getMessageByType(guildId, dbType);
           console.log('[ENEX][DEBUG] currentMessage result:', currentMessage);
           console.log('[ENEX][DEBUG] JOIN_LEAVE_TYPES[type] for display:', JOIN_LEAVE_TYPES[type]);
 
@@ -223,7 +239,7 @@ module.exports = {
           Subcomando: deletar mensagem
         */
         try {
-          const changes = database.deleteMessageByType(guildId, type);
+          const changes = database.deleteMessageByType(guildId, dbType);
 
           if (changes > 0) {
             await interaction.reply({
