@@ -1,8 +1,8 @@
 /*
 ** caminho: events/guildMemberRemove.js
-** últimaMod: 11/09/2025 20:47
+** últimaMod: 2025-09-12
 ** autor: Vico
-** colaboração: Gemini, ChatGPT, Kimi AI e Roo Sonic (xai/grok-code-fast-1)
+** colaboração: Gemini, ChatGPT, Kimi AI e Roo Sonic (xai/grok-code-fast-1), Roo Sonic (xai/grok-code-fast-1)
 */
 
 const database = require('../core/database');
@@ -35,19 +35,16 @@ module.exports = {
 
     // Handle leave/kick/ban messages
     try {
-      const settings = database.getWelcomeLeaveSettings(member.guild.id);
-      if (!settings) return;
-
       // Use system channel
       const systemChannelId = database.getSystemChannel(member.guild.id);
       if (!systemChannelId) {
-        console.warn(`[WARN] No system channel configured for guild ${member.guild.name}`);
+        console.warn(`[GUILDMEMBERREMOVE][WARN] No system channel configured for guild ${member.guild.name}`);
         return;
       }
 
       const channel = member.guild.channels.cache.get(systemChannelId);
       if (!channel) {
-        console.warn(`[WARN] System channel ${systemChannelId} not found in guild ${member.guild.name}`);
+        console.warn(`[GUILDMEMBERREMOVE][WARN] System channel ${systemChannelId} not found in guild ${member.guild.name}`);
         return;
       }
 
@@ -99,32 +96,34 @@ module.exports = {
       let messageType = 'leave';
       let kickReason = null;
 
-      if (wasBanned && settings.ban_message) {
-        messageConfig = {
-          message: settings.ban_message,
-          isPrompt: settings.ban_is_prompt === 1
-        };
-        messageType = 'ban';
-      } else if (wasKicked && settings.kick_message) {
+      // Check for ban message first (highest priority)
+      if (wasBanned) {
+        messageConfig = database.getMessageByType(member.guild.id, 'ban');
+        if (messageConfig) {
+          messageType = 'ban';
+        }
+      }
+      // Check for kick message if not banned but was kicked
+      else if (wasKicked) {
         kickReason = kickLog.reason || 'No reason provided';
-        messageConfig = {
-          message: settings.kick_message,
-          isPrompt: settings.kick_is_prompt === 1
-        };
-        messageType = 'kick';
-      } else if (settings.leave_message) {
-        messageConfig = {
-          message: settings.leave_message,
-          isPrompt: settings.leave_is_prompt === 1
-        };
-        messageType = 'leave';
+        messageConfig = database.getMessageByType(member.guild.id, 'kick');
+        if (messageConfig) {
+          messageType = 'kick';
+        }
+      }
+      // Check for leave message if neither kicked nor banned
+      else {
+        messageConfig = database.getMessageByType(member.guild.id, 'leave');
+        if (messageConfig) {
+          messageType = 'leave';
+        }
       }
 
       if (messageConfig) {
         let finalMessage = messageConfig.message;
 
-        // Replace placeholders
-        finalMessage = finalMessage.replace(/\{@USER\}/g, `<@${member.id}>`).replace(/\{USER\}/g, member.user.username);
+        // Replace placeholders - use username for leave/kick/ban (not mention)
+        finalMessage = finalMessage.replace(/\{@USER\}/g, member.user.username).replace(/\{USER\}/g, member.user.username);
 
         // Replace {REASON} placeholder for kicks
         if (messageType === 'kick') {
@@ -142,13 +141,13 @@ module.exports = {
               messageConfig.message
             );
           } catch (error) {
-            console.error(`[ERROR] Failed to generate ${messageType} message via AI:`, error);
+            console.error(`[GUILDMEMBERREMOVE][ERROR] Failed to generate ${messageType} message via AI:`, error);
             // Fall back to the original message without AI generation
           }
         }
 
         await channel.send(finalMessage);
-        console.log(`[MEMBER-${messageType.toUpperCase()}] Sent ${messageType} message for ${member.user.tag} in ${member.guild.name}`);
+        console.log(`[GUILDMEMBERREMOVE][${messageType.toUpperCase()}] Sent ${messageType} message for ${member.user.tag} in ${member.guild.name}`);
       }
     } catch (err) {
       console.error(`[ERROR-MEMBER-LEAVE] Failed to handle member leave for ${member.user.tag}:`, err);

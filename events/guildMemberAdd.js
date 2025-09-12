@@ -1,8 +1,8 @@
 /*
 ** caminho: events/guildMemberAdd.js
-** últimaMod: 22/08/2025
+** últimaMod: 2025-09-12
 ** autor: Vico
-** colaboração: ChatGPT, Roo Sonic
+** colaboração: ChatGPT, Roo Sonic, Roo Sonic (xai/grok-code-fast-1)
 */
 
 const database = require('../core/database');
@@ -16,39 +16,39 @@ module.exports = {
 
     try {
       // Handle welcome messages
-      const settings = database.getWelcomeLeaveSettings(member.guild.id);
-      if (!settings || !settings.welcome_message) return;
+      const messageConfig = database.getMessageByType(member.guild.id, 'welcome');
+      if (!messageConfig || !messageConfig.message) return;
 
       // Use system channel
       const systemChannelId = database.getSystemChannel(member.guild.id);
       if (!systemChannelId) {
-        console.warn(`[WARN] No system channel configured for guild ${member.guild.name}`);
+        console.warn(`[GUILDMEMBERADD][WARN] No system channel configured for guild ${member.guild.name}`);
         return;
       }
 
       const channel = member.guild.channels.cache.get(systemChannelId);
       if (!channel) {
-        console.warn(`[WARN] System channel ${systemChannelId} not found in guild ${member.guild.name}`);
+        console.warn(`[GUILDMEMBERADD][WARN] System channel ${systemChannelId} not found in guild ${member.guild.name}`);
         return;
       }
 
-      let finalMessage = settings.welcome_message;
+      let finalMessage = messageConfig.message;
 
-      // Replace placeholders
-      finalMessage = finalMessage.replace(/\{@USER\}/g, `<@${member.id}>`).replace(/\{USER\}/g, member.user.username);
+      // Replace placeholders - use mention for welcome messages
+      finalMessage = finalMessage.replace(/\{@USER\}/g, `<@${member.id}>`).replace(/\{USER\}/g, `<@${member.id}>`);
 
       // If it's a prompt, generate message via AI
-      if (settings.welcome_is_prompt === 1) {
+      if (messageConfig.isPrompt) {
         try {
           finalMessage = await oai_interface.gerarMensagemBemVindoViaAPI(
             member.guild.id,
             member.id,
-            member.user.username,
+            `<@${member.id}>`,
             'welcome',
-            settings.welcome_message
+            messageConfig.message
           );
         } catch (error) {
-          console.error(`[ERROR] Failed to generate welcome message via AI:`, error);
+          console.error(`[GUILDMEMBERADD][ERROR] Failed to generate welcome message via AI:`, error);
           // Fall back to the original message without AI generation
         }
       }

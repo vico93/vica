@@ -759,17 +759,19 @@ module.exports = {
    };
  },
  setMessageByType: (guildId, type, message, isPrompt) => {
+   const sqlType = type === 'kick' ? 'leave_kick' : type === 'ban' ? 'leave_ban' : type;
    return stmts.setMessageByType.run(
      guildId,
-     type, message, isPrompt ? 1 : 0,
-     type, message, isPrompt ? 1 : 0,
-     type, message, isPrompt ? 1 : 0,
-     type, message, isPrompt ? 1 : 0
+     sqlType, message, sqlType, isPrompt ? 1 : 0,
+     sqlType, message, sqlType, isPrompt ? 1 : 0,
+     sqlType, message, sqlType, isPrompt ? 1 : 0,
+     sqlType, message, sqlType, isPrompt ? 1 : 0
    ).changes;
  },
  deleteMessageByType: (guildId, type) => {
+   const sqlType = type === 'kick' ? 'leave_kick' : type === 'ban' ? 'leave_ban' : type;
    return stmts.deleteMessageByType.run(
-     type, type, type, type, type, type, type, type, guildId
+     sqlType, sqlType, sqlType, sqlType, sqlType, sqlType, sqlType, sqlType, guildId
    ).changes;
  },
 
