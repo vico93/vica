@@ -31,7 +31,7 @@ module.exports = {
     }
 
     // Filtros básicos
-    if (user.bot) return;
+    if (user.bot && !reaction.message.webhookId) return;
 
     // Buscar reactionEmojis do banco de dados
     const guildId = reaction.message.guild.id;
