@@ -1,6 +1,6 @@
 /*
 ** caminho: core/database.js
-** últimaMod: 2025-09-07 01:02
+** últimaMod: 2025-09-13 01:12
 ** autor: Vico
 ** colaboração: Roo Sonic (xai/grok-code-fast-1), Copilot (gpt-4o), GLM 4.5 Air
 */
@@ -155,6 +155,23 @@ db.pragma('synchronous = NORMAL');    // commits mais rápidos
     // tabela ainda não existe, será criada abaixo
   }
 
+  // Migração para adicionar coluna is_prompt na tabela role_congrats
+  try {
+    const roleCongratsCols = db.prepare('PRAGMA table_info(role_congrats)').all();
+    const hasIsPrompt = roleCongratsCols.some(c => c.name === 'is_prompt');
+
+    if (roleCongratsCols.length > 0 && !hasIsPrompt) {
+      console.warn('[DB] Migrando tabela role_congrats -> adicionando coluna is_prompt.');
+      db.exec('ALTER TABLE role_congrats ADD COLUMN is_prompt INTEGER DEFAULT 0');
+      // Definir is_prompt = 0 para registros existentes
+      db.exec('UPDATE role_congrats SET is_prompt = 0 WHERE is_prompt IS NULL');
+      console.log('[DB] Adicionada coluna is_prompt à tabela role_congrats');
+    }
+  } catch (e) {
+    console.error('[DB] Erro durante migração da coluna is_prompt:', e.message);
+    // tabela ainda não existe, será criada abaixo
+  }
+
   // Migração para reaction_emojis: permitir múltiplos emojis por guild (de one-to-one para one-to-many)
   try {
     const reactionCols = db.prepare('PRAGMA table_info(reaction_emojis)').all();
@@ -263,12 +280,13 @@ CREATE TABLE IF NOT EXISTS role_congrats (
   guild_id TEXT NOT NULL,
   role_id  TEXT NOT NULL,
   prompt   TEXT NOT NULL,
+  is_prompt INTEGER DEFAULT 0,
   PRIMARY KEY (guild_id, role_id)
 );
 
 -- Migrações: se existir configuração legada em guild_settings, copie para role_congrats
-INSERT OR IGNORE INTO role_congrats (guild_id, role_id, prompt)
-  SELECT guild_id, role_congrats_role_id, role_congrats_prompt
+INSERT OR IGNORE INTO role_congrats (guild_id, role_id, prompt, is_prompt)
+  SELECT guild_id, role_congrats_role_id, role_congrats_prompt, 0
   FROM guild_settings
   WHERE role_congrats_role_id IS NOT NULL AND role_congrats_prompt IS NOT NULL;
 
@@ -360,12 +378,14 @@ const stmts = {
                                          WHERE guild_id = ?`),
 
   /* --- NOVA TABELA: MULTIPLAS CONFIGS role_congrats --- */
-  rcInsert:   db.prepare(`INSERT INTO role_congrats (guild_id, role_id, prompt)
-                         VALUES (?, ?, ?)
-                         ON CONFLICT(guild_id, role_id) DO UPDATE SET prompt=excluded.prompt`),
+  rcInsert:   db.prepare(`INSERT INTO role_congrats (guild_id, role_id, prompt, is_prompt)
+                          VALUES (?, ?, ?, ?)
+                          ON CONFLICT(guild_id, role_id) DO UPDATE SET
+                            prompt=excluded.prompt,
+                            is_prompt=excluded.is_prompt`),
   rcDelete:   db.prepare('DELETE FROM role_congrats WHERE guild_id=? AND role_id=?'),
   rcDeleteAll:db.prepare('DELETE FROM role_congrats WHERE guild_id=?'),
-  rcList:     db.prepare('SELECT role_id, prompt FROM role_congrats WHERE guild_id=?'),
+  rcList:     db.prepare('SELECT role_id, prompt, is_prompt FROM role_congrats WHERE guild_id=?'),
 
   /* --- MEMÓRIAS DE USUÁRIO --- */
   memInsert: db.prepare(`INSERT OR IGNORE INTO user_memories
@@ -556,28 +576,29 @@ module.exports = {
   // retorna a primeira configuração (compatibilidade) — prefer lista via listRoleCongratsConfigs
   getRoleCongratsConfig: (g) => {
     const rows = stmts.rcList.all(g);
-    if (rows && rows.length > 0) return { roleId: rows[0].role_id, prompt: rows[0].prompt };
+    if (rows && rows.length > 0) return { roleId: rows[0].role_id, prompt: rows[0].prompt, isPrompt: rows[0].is_prompt === 1 };
     const row = stmts.settingsGetRoleCongrats.get(g);
     if (!row || !row.role_congrats_role_id || !row.role_congrats_prompt) {
       return null;
     }
     return {
       roleId: row.role_congrats_role_id,
-      prompt: row.role_congrats_prompt
+      prompt: row.role_congrats_prompt,
+      isPrompt: false
     };
   },
   // lista todas as configurações de parabéns por cargo para uma guild
   listRoleCongratsConfigs: (g) => {
     const rows = stmts.rcList.all(g);
-    if (rows && rows.length > 0) return rows.map(r => ({ roleId: r.role_id, prompt: r.prompt }));
+    if (rows && rows.length > 0) return rows.map(r => ({ roleId: r.role_id, prompt: r.prompt, isPrompt: r.is_prompt === 1 }));
     // fallback para configuração legada em guild_settings
     const legacy = stmts.settingsGetRoleCongrats.get(g);
     if (legacy && legacy.role_congrats_role_id && legacy.role_congrats_prompt) {
-      return [{ roleId: legacy.role_congrats_role_id, prompt: legacy.role_congrats_prompt }];
+      return [{ roleId: legacy.role_congrats_role_id, prompt: legacy.role_congrats_prompt, isPrompt: false }];
     }
     return [];
   },
-  setRoleCongratsConfig: (g, roleId, prompt) => stmts.rcInsert.run(g, roleId, prompt).changes,
+  setRoleCongratsConfig: (g, roleId, prompt, isPrompt = 0) => stmts.rcInsert.run(g, roleId, prompt, isPrompt ? 1 : 0).changes,
   // clearRoleCongratsConfig(g) -> limpa todas; clearRoleCongratsConfig(g, roleId) -> remove só o role
   clearRoleCongratsConfig: (g, roleId = null) => {
     if (roleId) return stmts.rcDelete.run(g, roleId).changes;

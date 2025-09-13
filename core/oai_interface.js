@@ -1,8 +1,8 @@
 /*
 ** caminho: core/oai_interface.js
-** últimaMod: 2025-09-12 23:13
+** últimaMod: 2025-09-13 01:20
 ** autor: Vico
-** colaboração: Gemini, ChatGPT, Roo Sonic (xai/grok-code-fast-1)
+** colaboração: Gemini, ChatGPT, Roo Sonic (xai/grok-code-fast-1), Roo Sonic (xai/grok-code-fast-1)
 */
 
 const fs = require('fs');
@@ -405,13 +405,14 @@ async function gerarParabensCargoViaAPI(guildId, userId, promptUsuario, roleName
 }
 
    // Função para gerar mensagens de boas-vindas/saída via API
-   async function gerarMensagemBemVindoViaAPI(guildId, userId, userName, messageType, prompt) {
+   async function gerarMensagemBemVindoViaAPI(guildId, userId, userName, messageType, prompt, roleName = null, roleMention = null) {
      // Mapeamento de tipos de mensagem para tags correspondentes (case-insensitive)
      const messageTypeMapping = {
        'welcome': 'welcome',
        'leave': 'leave',
        'kick': 'kick',
-       'ban': 'ban'
+       'ban': 'ban',
+       'up_role': 'up_role'
      };
  
      // Obter tag baseada no tipo de mensagem (case-insensitive, default para 'welcome')
@@ -422,7 +423,7 @@ async function gerarParabensCargoViaAPI(guildId, userId, promptUsuario, roleName
        { role: 'system', content: systemPrompt },
        {
          role: 'user',
-         content: `[${tag}]` + prompt.replace(/\{@USER\}/g, `<@${userId}>`).replace(/\{USER\}/g, userName),
+         content: `[${tag}]` + prompt.replace(/\{@USER\}/g, `<@${userId}>`).replace(/\{USER\}/g, userName).replace(/\{ROLE\}/g, roleName || '').replace(/\{@ROLE\}/g, roleMention || ''),
        },
      ];
  

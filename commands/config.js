@@ -1,6 +1,6 @@
 /*
 ** caminho: commands/config.js
-** últimaMod: 2025-09-11 22:08
+** últimaMod: 2025-09-13 01:19
 ** autor: Vico
 ** colaboração: Roo Sonic (xai/grok-code-fast-1), Copilot (gpt-4o), GLM 4.5 Air, Gemini-2.5-Flash
 */
@@ -40,7 +40,6 @@ const CATEGORIES = {
 // Sub-categorias para melhor organização
 const MESSAGE_SUBCATEGORIES = {
     SYSTEM_CHANNEL: { id: 'system_channel', name: '📢 Canal do Sistema', desc: 'Configurar canal para mensagens automáticas' },
-    ROLE_CONGRATS: { id: 'role_congrats', name: '🎉 Parabéns por Cargo', desc: 'Configurar mensagens de parabéns automáticas' },
     JOIN_LEAVE: { id: 'join_leave', name: '🚪 Entrada/Saída', desc: 'Configurar mensagens de entrada e saída' }
 };
 
@@ -56,7 +55,6 @@ const CATEGORY_ACTIONS = {
 // Ações para cada sub-categoria de mensagens
 const SUBCATEGORY_ACTIONS = {
     [MESSAGE_SUBCATEGORIES.SYSTEM_CHANNEL.id]: ['set_system_channel', 'clear_system_channel', 'back_to_messages'],
-    [MESSAGE_SUBCATEGORIES.ROLE_CONGRATS.id]: ['set_role_upgrade', 'list_role_upgrades', 'back_to_messages'],
     [MESSAGE_SUBCATEGORIES.JOIN_LEAVE.id]: ['set_join_leave', 'delete_join_leave', 'back_to_messages']
 };
 
@@ -106,10 +104,9 @@ function createMainDashboardEmbed(guild) {
 
     // Status das Mensagens
     const systemChannel = database.getSystemChannel(guild.id);
-    const roleUpgrades = database.listRoleCongratsConfigs(guild.id);
     embed.addFields({
         name: '📢 Messages & Channels',
-        value: `Canal sistema: ${systemChannel ? `<#${systemChannel}>` : '**Não definido**'}\nParabéns por cargo: **${roleUpgrades.length}**`,
+        value: `Canal sistema: ${systemChannel ? `<#${systemChannel}>` : '**Não definido**'}`,
         inline: true
     });
 
@@ -286,15 +283,9 @@ function createCategoryEmbed(categoryId, guild) {
         case CATEGORIES.MESSAGES.id:
             // Para mensagens, mostra visão geral das sub-categorias
             const systemChannel = database.getSystemChannel(guild.id);
-            const roleUpgrades = database.listRoleCongratsConfigs(guild.id);
             embed.addFields({
                 name: '📢 Canal do Sistema',
                 value: systemChannel ? `<#${systemChannel}>` : '**Não definido**',
-                inline: true
-            });
-            embed.addFields({
-                name: '🎉 Parabéns por Cargo',
-                value: `**${roleUpgrades.length}** configurações`,
                 inline: true
             });
             // Entrada/Saída removido - funcionalidade não implementada
@@ -370,13 +361,6 @@ function createSubcategoryEmbed(subcategoryId, guild) {
             });
             break;
 
-        case MESSAGE_SUBCATEGORIES.ROLE_CONGRATS.id:
-            const roleUpgrades = database.listRoleCongratsConfigs(guild.id);
-            embed.addFields({
-                name: '📋 Status Atual',
-                value: `Parabéns por cargo: **${roleUpgrades.length}**`
-            });
-            break;
 
         case MESSAGE_SUBCATEGORIES.JOIN_LEAVE.id:
             embed.addFields({ name: '📋 Mensagens configuradas', value: ' ' }); // Placeholder
@@ -423,18 +407,6 @@ function createSubcategoryButtons(userId, subcategoryId) {
                     .setCustomId(generateComponentId(userId, 'clear_system_channel'))
                     .setLabel('🗑️ Limpar Canal Sistema')
                     .setStyle(ButtonStyle.Danger);
-                break;
-            case 'set_role_upgrade':
-                button = new ButtonBuilder()
-                    .setCustomId(generateComponentId(userId, 'set_role_upgrade'))
-                    .setLabel('🎉 Configurar Parabéns')
-                    .setStyle(ButtonStyle.Success);
-                break;
-            case 'list_role_upgrades':
-                button = new ButtonBuilder()
-                    .setCustomId(generateComponentId(userId, 'list_role_upgrades'))
-                    .setLabel('📋 Listar Parabéns')
-                    .setStyle(ButtonStyle.Primary);
                 break;
             case 'set_join_leave':
                 button = new ButtonBuilder()
@@ -682,65 +654,7 @@ async function handleButtonClick(interaction) {
         });
     }
 
-    // Botão de editar parabéns por cargo
-    if (customId.includes('edit_role_upgrade_')) {
-        return handleEditRoleUpgrade(interaction);
-    }
 
-    // Botão de excluir parabéns por cargo
-    if (customId.includes('delete_role_upgrade_')) {
-        return handleDeleteRoleUpgrade(interaction);
-    }
-
-    // Botão de confirmar exclusão de parabéns
-    if (customId.includes('confirm_delete_role_')) {
-        const roleId = customId.split('_').pop();
-        const changes = database.clearRoleCongratsConfig(interaction.guild.id, roleId);
-        const role = interaction.guild.roles.cache.get(roleId);
-
-        if (changes > 0) {
-            const embed = new EmbedBuilder()
-                .setTitle('✅ Exclusão Concluída')
-                .setDescription(`A configuração de parabéns para o cargo ${role ? role.toString() : `<@&${roleId}>`} foi excluída com sucesso.`)
-                .setColor('#00AA00')
-                .setTimestamp();
-
-            const backButton = new ButtonBuilder()
-                .setCustomId(generateComponentId(userId, 'back_to_messages'))
-                .setLabel('⬅️ Voltar')
-                .setStyle(ButtonStyle.Secondary);
-
-            return interaction.update({
-                embeds: [embed],
-                components: [new ActionRowBuilder().addComponents(backButton)]
-            });
-        } else {
-            return interaction.update({
-                content: '⚠️ Não foi possível excluir a configuração.',
-                embeds: [],
-                components: []
-            });
-        }
-    }
-
-    // Botão de cancelar exclusão
-    if (customId === generateComponentId(userId, 'cancel_delete_role')) {
-        const embed = new EmbedBuilder()
-            .setTitle('❌ Operação Cancelada')
-            .setDescription('A exclusão da configuração foi cancelada.')
-            .setColor('#666666')
-            .setTimestamp();
-
-        const backButton = new ButtonBuilder()
-            .setCustomId(generateComponentId(userId, 'back_to_messages'))
-            .setLabel('⬅️ Voltar')
-            .setStyle(ButtonStyle.Secondary);
-
-        return interaction.update({
-            embeds: [embed],
-            components: [new ActionRowBuilder().addComponents(backButton)]
-        });
-    }
 
     // Botão de voltar aos tipos de memória
     if (customId === generateComponentId(userId, 'back_to_memory_types')) {
@@ -805,15 +719,6 @@ async function handleButtonClick(interaction) {
             break;
         case 'clear_system_channel':
             await handleClearSystemChannel(interaction);
-            break;
-        case 'set_role_upgrade':
-            await handleSetRoleUpgrade(interaction);
-            break;
-        case 'delete_role_upgrade':
-            await handleDeleteRoleUpgrade(interaction);
-            break;
-        case 'list_role_upgrades':
-            await handleListRoleUpgrades(interaction);
             break;
         // case 'set_join_leave': // Removido - funcionalidade não implementada
         //     await handleSetJoinLeave(interaction);
@@ -1347,83 +1252,6 @@ async function handleModalSubmit(interaction) {
             });
         }
 
-    } else if (customId.includes('set_role_upgrade_modal_')) {
-        // Manipular modal de parabéns por cargo
-        const roleId = customId.split('_').pop();
-        const prompt = interaction.fields.getTextInputValue('role_upgrade_prompt');
-
-        if (!prompt || !prompt.trim()) {
-            return interaction.reply({
-                content: '❌ O prompt não pode estar vazio.',
-                flags: [MessageFlags.Ephemeral]
-            });
-        }
-
-        const trimmed = prompt.trim();
-        if (trimmed.length < 5) {
-            return interaction.reply({
-                content: '❌ O prompt é muito curto — escreva pelo menos 5 caracteres.',
-                flags: [MessageFlags.Ephemeral]
-            });
-        }
-
-        // Detect if we're updating an existing entry for this role
-        const existing = database.listRoleCongratsConfigs(interaction.guild.id).find(c => c.roleId === roleId);
-        const wasUpdate = !!existing;
-
-        database.setRoleCongratsConfig(interaction.guild.id, roleId, trimmed);
-        const role = interaction.guild.roles.cache.get(roleId);
-
-        const total = database.listRoleCongratsConfigs(interaction.guild.id).length;
-
-        await interaction.reply({
-            content: `✅ Configuração ${wasUpdate ? 'atualizada' : 'salva'}! Quando alguém receber o cargo ${role}, enviarei uma mensagem de parabéns usando o prompt informado. Use \`{USER}\` no prompt para mencionar o nome do usuário.\n\nℹ️ Agora existem **${total}** configurações de parabéns por cargo neste servidor.`,
-            flags: [MessageFlags.Ephemeral]
-        });
-
-    } else if (customId.includes('edit_role_upgrade_modal_')) {
-        // Manipular modal de edição de parabéns por cargo
-        const roleId = customId.split('_').pop();
-        const prompt = interaction.fields.getTextInputValue('edit_role_upgrade_prompt');
-
-        if (!prompt || !prompt.trim()) {
-            return interaction.reply({
-                content: '❌ O prompt não pode estar vazio.',
-                flags: [MessageFlags.Ephemeral]
-            });
-        }
-
-        const trimmed = prompt.trim();
-        if (trimmed.length < 5) {
-            return interaction.reply({
-                content: '❌ O prompt é muito curto — escreva pelo menos 5 caracteres.',
-                flags: [MessageFlags.Ephemeral]
-            });
-        }
-
-        database.setRoleCongratsConfig(interaction.guild.id, roleId, trimmed);
-        const role = interaction.guild.roles.cache.get(roleId);
-
-        const embed = new EmbedBuilder()
-            .setTitle('✅ Configuração Editada')
-            .setDescription(`A configuração de parabéns para o cargo ${role ? role.toString() : `<@&${roleId}>`} foi atualizada com sucesso!`)
-            .setColor('#00AA00')
-            .addFields({
-                name: '📝 Novo Prompt',
-                value: trimmed.length > 500 ? trimmed.slice(0, 497) + '...' : trimmed
-            })
-            .setTimestamp();
-
-        const backButton = new ButtonBuilder()
-            .setCustomId(generateComponentId(interaction.user.id, 'back_to_messages'))
-            .setLabel('⬅️ Voltar')
-            .setStyle(ButtonStyle.Secondary);
-
-        await interaction.reply({
-            embeds: [embed],
-            components: [new ActionRowBuilder().addComponents(backButton)],
-            flags: [MessageFlags.Ephemeral]
-        });
 
     } else if (customId.includes('set_user_memory_modal_')) {
         console.log('[CONFIG][DEBUG] Starting set_user_memory_modal handling, customId:', customId);
@@ -1560,236 +1388,9 @@ async function handleModalSubmit(interaction) {
     }
 }
 
-/**
- * Manipula configuração de parabéns por cargo
- */
-async function handleSetRoleUpgrade(interaction) {
-    const roles = interaction.guild.roles.cache
-        .filter(r => r.id !== interaction.guild.id) // Exclui @everyone
-        .map(r => ({
-            label: r.name,
-            value: r.id,
-            description: `ID: ${r.id}`
-        }));
 
-    if (roles.length === 0) {
-        return interaction.reply({
-            content: '❌ Nenhum cargo encontrado no servidor.',
-            flags: [MessageFlags.Ephemeral]
-        });
-    }
 
-    const selectMenu = new StringSelectMenuBuilder()
-        .setCustomId(generateComponentId(interaction.user.id, 'set_role_upgrade_select'))
-        .setPlaceholder('Selecione um cargo para parabéns')
-        .addOptions(roles.slice(0, 25));
 
-    const row = new ActionRowBuilder().addComponents(selectMenu);
-
-    const reply = await interaction.reply({
-        content: 'Selecione o cargo que ativará os parabéns automáticos:',
-        components: [row],
-        flags: [MessageFlags.Ephemeral]
-    });
-
-    const collector = reply.createMessageComponentCollector({
-        componentType: ComponentType.StringSelect,
-        time: 60000
-    });
-
-    collector.on('collect', async i => {
-        if (i.user.id !== interaction.user.id) {
-            return i.reply({ content: '⛔ Apenas quem executou o comando pode interagir aqui.', ephemeral: true });
-        }
-
-        const roleId = i.values[0];
-        const role = interaction.guild.roles.cache.get(roleId);
-
-        // Criar modal para input do prompt
-        const modal = new ModalBuilder()
-            .setCustomId(generateComponentId(interaction.user.id, `set_role_upgrade_modal_${roleId}`))
-            .setTitle(`Configurar Parabéns para ${role.name}`);
-
-        const promptInput = new TextInputBuilder()
-            .setCustomId('role_upgrade_prompt')
-            .setLabel('Prompt para a IA (use {USER} para o nome do usuário)')
-            .setPlaceholder('Ex: Parabéns {USER} por alcançar o cargo de {ROLE}!')
-            .setStyle(TextInputStyle.Paragraph)
-            .setRequired(true)
-            .setMinLength(5)
-            .setMaxLength(500);
-
-        const firstActionRow = new ActionRowBuilder().addComponents(promptInput);
-        modal.addComponents(firstActionRow);
-
-        await i.showModal(modal);
-    });
-
-    collector.on('end', collected => {
-        if (collected.size === 0) {
-            interaction.editReply({ content: '⏰ O tempo para selecionar um cargo expirou.', components: [] });
-        }
-    });
-}
-
-/**
- * Manipula remoção de parabéns por cargo
- */
-async function handleDeleteRoleUpgrade(interaction) {
-    const roleId = interaction.customId.split('_').pop();
-
-    const role = interaction.guild.roles.cache.get(roleId);
-    const roleName = role ? role.name : 'Cargo não encontrado';
-
-    // Criar confirmação
-    const confirmButton = new ButtonBuilder()
-        .setCustomId(generateComponentId(interaction.user.id, `confirm_delete_role_${roleId}`))
-        .setLabel('✅ Confirmar Exclusão')
-        .setStyle(ButtonStyle.Danger);
-
-    const cancelButton = new ButtonBuilder()
-        .setCustomId(generateComponentId(interaction.user.id, 'cancel_delete_role'))
-        .setLabel('❌ Cancelar')
-        .setStyle(ButtonStyle.Secondary);
-
-    const row = new ActionRowBuilder().addComponents(confirmButton, cancelButton);
-
-    const embed = new EmbedBuilder()
-        .setTitle('🗑️ Confirmar Exclusão')
-        .setDescription(`Tem certeza de que deseja excluir a configuração de parabéns para o cargo **${roleName}**?\n\nEsta ação não pode ser desfeita.`)
-        .setColor('#FF4444')
-        .setTimestamp();
-
-    await interaction.reply({
-        embeds: [embed],
-        components: [row],
-        flags: [MessageFlags.Ephemeral]
-    });
-}
-
-/**
- * Manipula edição de parabéns por cargo
- */
-async function handleEditRoleUpgrade(interaction) {
-    const roleId = interaction.customId.split('_').pop();
-    const configs = database.listRoleCongratsConfigs(interaction.guild.id);
-    const config = configs.find(c => c.roleId === roleId);
-
-    if (!config) {
-        return interaction.reply({
-            content: '❌ Configuração não encontrada.',
-            flags: [MessageFlags.Ephemeral]
-        });
-    }
-
-    const role = interaction.guild.roles.cache.get(roleId);
-
-    // Criar modal para editar o prompt
-    const modal = new ModalBuilder()
-        .setCustomId(generateComponentId(interaction.user.id, `edit_role_upgrade_modal_${roleId}`))
-        .setTitle(`Editar Parabéns para ${role?.name || 'Cargo'}`);
-
-    const promptInput = new TextInputBuilder()
-        .setCustomId('edit_role_upgrade_prompt')
-        .setLabel('Prompt para a IA (use {USER} para o nome do usuário)')
-        .setPlaceholder('Ex: Parabéns {USER} por alcançar o cargo de {ROLE}!')
-        .setStyle(TextInputStyle.Paragraph)
-        .setRequired(true)
-        .setMinLength(5)
-        .setMaxLength(500)
-        .setValue(config.prompt);
-
-    const firstActionRow = new ActionRowBuilder().addComponents(promptInput);
-    modal.addComponents(firstActionRow);
-
-    await interaction.showModal(modal);
-}
-
-/**
- * Manipula listagem de parabéns por cargo com embeds e botões de ação
- */
-async function handleListRoleUpgrades(interaction) {
-    const configs = database.listRoleCongratsConfigs(interaction.guild.id);
-
-    if (!configs || configs.length === 0) {
-        const embed = new EmbedBuilder()
-            .setTitle('🎉 Parabéns por Cargo')
-            .setDescription('Nenhuma configuração de parabéns por cargo encontrada.\n\nUse o botão abaixo para criar a primeira configuração.')
-            .setColor('#FFA500')
-            .setTimestamp();
-
-        const addButton = new ButtonBuilder()
-            .setCustomId(generateComponentId(interaction.user.id, 'set_role_upgrade'))
-            .setLabel('➕ Criar Primeiro Parabéns')
-            .setStyle(ButtonStyle.Success);
-
-        const backButton = new ButtonBuilder()
-            .setCustomId(generateComponentId(interaction.user.id, 'back_to_messages'))
-            .setLabel('⬅️ Voltar')
-            .setStyle(ButtonStyle.Secondary);
-
-        return interaction.reply({
-            embeds: [embed],
-            components: [new ActionRowBuilder().addComponents(addButton, backButton)],
-            flags: [MessageFlags.Ephemeral]
-        });
-    }
-
-    // Criar embeds para cada configuração (até 10 por página para não exceder limites)
-    const embeds = [];
-    const actionRows = [];
-
-    configs.slice(0, 10).forEach((config, index) => {
-        const role = interaction.guild.roles.cache.get(config.roleId);
-        const roleName = role ? role.name : 'Cargo não encontrado';
-        const roleMention = role ? role.toString() : `<@&${config.roleId}>`;
-
-        const embed = new EmbedBuilder()
-            .setTitle(`🎉 Parabéns para ${roleName}`)
-            .setDescription(config.prompt.length > 1024 ? config.prompt.slice(0, 1021) + '...' : config.prompt)
-            .setColor(role ? role.color || '#0099FF' : '#0099FF')
-            .addFields({
-                name: '📋 Detalhes',
-                value: `**Cargo:** ${roleMention}\n**ID do Cargo:** \`${config.roleId}\`\n**Comprimento:** ${config.prompt.length} caracteres`,
-                inline: false
-            })
-            .setTimestamp();
-
-        embeds.push(embed);
-
-        // Botões de ação para cada configuração
-        const editButton = new ButtonBuilder()
-            .setCustomId(generateComponentId(interaction.user.id, `edit_role_upgrade_${config.roleId}`))
-            .setLabel('✏️ Editar')
-            .setStyle(ButtonStyle.Primary);
-
-        const deleteButton = new ButtonBuilder()
-            .setCustomId(generateComponentId(interaction.user.id, `delete_role_upgrade_${config.roleId}`))
-            .setLabel('🗑️ Excluir')
-            .setStyle(ButtonStyle.Danger);
-
-        actionRows.push(new ActionRowBuilder().addComponents(editButton, deleteButton));
-    });
-
-    // Botão para adicionar novo
-    const addButton = new ButtonBuilder()
-        .setCustomId(generateComponentId(interaction.user.id, 'set_role_upgrade'))
-        .setLabel('➕ Novo Parabéns')
-        .setStyle(ButtonStyle.Success);
-
-    const backButton = new ButtonBuilder()
-        .setCustomId(generateComponentId(interaction.user.id, 'back_to_messages'))
-        .setLabel('⬅️ Voltar')
-        .setStyle(ButtonStyle.Secondary);
-
-    actionRows.push(new ActionRowBuilder().addComponents(addButton, backButton));
-
-    await interaction.reply({
-        embeds: embeds,
-        components: actionRows,
-        flags: [MessageFlags.Ephemeral]
-    });
-}
 
 /**
  * Manipula configuração de mensagens de entrada/saída
