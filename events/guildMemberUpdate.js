@@ -1,8 +1,8 @@
 /*
 ** caminho: events/guildMemberUpdate.js
-** últimaMod: 13/08/2025 00:09
+** últimaMod: 13/09/2025 17:21
 ** autor: Vico
-** colaboração: Roo
+** colaboração: Roo, Roo Sonic (xai/grok-code-fast-1)
 */
 
 /*
@@ -112,15 +112,20 @@ module.exports = {
       // Para evitar mensagens duplicadas quando múltiplos cargos configurados compartilham o mesmo prompt,
       // agrupe os prompts por texto e envie apenas uma mensagem por prompt.
       const userInfo = `${newMember.displayName}, ID ${newMember.id}`;
-      const promptsToSend = new Map(); // promptText -> { roleName, promptText }
+      const promptsToSend = new Map(); // replacedPrompt -> { roleName, replacedPrompt }
 
       for (const cfg of matchedConfigs) {
-        const promptText = String(cfg.prompt || '').replace(/{USER}/g, userInfo);
         const role = newMember.guild.roles.cache.get(cfg.roleId);
         const roleName = role ? role.name : 'cargo desconhecido';
-        // Only keep first roleName for this prompt
-        if (!promptsToSend.has(promptText)) {
-          promptsToSend.set(promptText, { roleName, promptText });
+        const roleMention = role ? `<@&${role.id}>` : '@cargo-desconhecido';
+        const promptText = String(cfg.prompt || '');
+        const replacedPrompt = promptText
+          .replace(/{USER}/g, userInfo)
+          .replace(/{ROLE}/g, roleName)
+          .replace(/{@ROLE}/g, roleMention);
+        // Only keep first replacedPrompt for this prompt
+        if (!promptsToSend.has(replacedPrompt)) {
+          promptsToSend.set(replacedPrompt, { roleName, replacedPrompt });
         }
       }
 
