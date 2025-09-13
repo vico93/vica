@@ -1,6 +1,6 @@
 /*
 ** caminho: commands/config.js
-** últimaMod: 2025-09-13 01:19
+** últimaMod: 2025-09-13 17:39
 ** autor: Vico
 ** colaboração: Roo Sonic (xai/grok-code-fast-1), Copilot (gpt-4o), GLM 4.5 Air, Gemini-2.5-Flash
 */
@@ -31,7 +31,6 @@ const database = require('../core/database');
 const SESSION_TIMEOUT = 15 * 60 * 1000; // 15 minutos
 const CATEGORIES = {
     CHATBOT: { id: 'chatbot', name: '🗣️ Gerenciamento do Chatbot', desc: 'Gerenciar blacklist do chatbot' },
-    XP_SYSTEM: { id: 'xp_system', name: '💰 Configuração do Sistema XP', desc: 'Configurar XP e multiplicadores' },
     MESSAGES: { id: 'messages', name: '📢 Configurações de Mensagens e Canais', desc: 'Mensagens e canais do sistema' },
     MEMORIES: { id: 'memories', name: '🧠 Gerenciamento de Memórias', desc: 'Gerenciar memórias do servidor' },
     USER_CONTROLS: { id: 'user_controls', name: '👥 Controles Manuais de Usuário', desc: 'Controles manuais de usuário' }
@@ -46,7 +45,6 @@ const MESSAGE_SUBCATEGORIES = {
 // Mapa de ações para cada categoria
 const CATEGORY_ACTIONS = {
     [CATEGORIES.CHATBOT.id]: ['add_channel', 'remove_channel', 'list_channels', 'back'],
-    [CATEGORIES.XP_SYSTEM.id]: ['add_channel', 'remove_channel', 'list_channels', 'set_multiplier', 'remove_multiplier', 'list_multipliers', 'back'],
     [CATEGORIES.MESSAGES.id]: ['select_subcategory', 'back'], // Agora usa sub-categorias
     [CATEGORIES.MEMORIES.id]: ['select_memory_type', 'back'],
     [CATEGORIES.USER_CONTROLS.id]: ['set_user_xp', 'reset_all_xp', 'back']
@@ -90,15 +88,6 @@ function createMainDashboardEmbed(guild) {
     embed.addFields({
         name: '🗣️ Chatbot Management',
         value: `Canais na blacklist: **${chatbotChannels.length}**`,
-        inline: true
-    });
-
-    // Status do XP System
-    const xpChannels = database.xpListarCanais(guild.id);
-    const multipliers = database.listarMultiplicadoresRole(guild.id);
-    embed.addFields({
-        name: '💰 XP System',
-        value: `Canais bloqueados: **${xpChannels.length}**\nMultiplicadores: **${multipliers.length}**`,
         inline: true
     });
 
@@ -255,27 +244,6 @@ function createCategoryEmbed(categoryId, guild) {
                 embed.addFields({
                     name: '📝 Canais Bloqueados',
                     value: chatbotChannels.map(c => `- <#${c.canal_id}>`).join('\n') || 'Nenhum canal'
-                });
-            }
-            break;
-
-        case CATEGORIES.XP_SYSTEM.id:
-            const xpChannels = database.xpListarCanais(guild.id);
-            const multipliers = database.listarMultiplicadoresRole(guild.id);
-            embed.addFields({
-                name: '📋 Status Atual',
-                value: `Canais bloqueados: **${xpChannels.length}**\nMultiplicadores: **${multipliers.length}**`
-            });
-            if (xpChannels.length > 0) {
-                embed.addFields({
-                    name: '🚫 Canais sem XP',
-                    value: xpChannels.map(c => `- <#${c.canal_id}>`).join('\n') || 'Nenhum canal'
-                });
-            }
-            if (multipliers.length > 0) {
-                embed.addFields({
-                    name: '✨ Multiplicadores',
-                    value: multipliers.map(m => `- <@&${m.role_id}>: **${m.multiplier}x**`).join('\n') || 'Nenhum multiplicador'
                 });
             }
             break;
@@ -514,24 +482,6 @@ function createCategoryButtons(userId, categoryId) {
                     .setLabel('📋 Listar Canais')
                     .setStyle(ButtonStyle.Primary);
                 break;
-            case 'set_multiplier':
-                button = new ButtonBuilder()
-                    .setCustomId(generateComponentId(userId, 'set_multiplier'))
-                    .setLabel('✨ Definir Multiplicador')
-                    .setStyle(ButtonStyle.Success);
-                break;
-            case 'remove_multiplier':
-                button = new ButtonBuilder()
-                    .setCustomId(generateComponentId(userId, 'remove_multiplier'))
-                    .setLabel('❌ Remover Multiplicador')
-                    .setStyle(ButtonStyle.Danger);
-                break;
-            case 'list_multipliers':
-                button = new ButtonBuilder()
-                    .setCustomId(generateComponentId(userId, 'list_multipliers'))
-                    .setLabel('📋 Listar Multiplicadores')
-                    .setStyle(ButtonStyle.Primary);
-                break;
             case 'set_user_xp':
                 button = new ButtonBuilder()
                     .setCustomId(generateComponentId(userId, 'set_user_xp'))
@@ -704,15 +654,6 @@ async function handleButtonClick(interaction) {
         case 'list_channels':
             await handleListChannels(interaction, categoryId);
             break;
-        case 'set_multiplier':
-            await handleSetMultiplier(interaction);
-            break;
-        case 'remove_multiplier':
-            await handleRemoveMultiplier(interaction);
-            break;
-        case 'list_multipliers':
-            await handleListMultipliers(interaction);
-            break;
         case 'set_system_channel':
             console.log('[CONFIG] Chamando handleSetSystemChannel');
             await handleSetSystemChannel(interaction);
@@ -828,7 +769,7 @@ async function handleAddChannel(interaction, categoryId) {
     const row = new ActionRowBuilder().addComponents(selectMenu);
 
     const reply = await interaction.reply({
-        content: `Selecione o canal para adicionar à blacklist de ${categoryId === CATEGORIES.CHATBOT.id ? 'chatbot' : 'XP'}:`,
+        content: `Selecione o canal para adicionar à blacklist do chatbot:`,
         components: [row],
         flags: [MessageFlags.Ephemeral]
     });
@@ -844,25 +785,18 @@ async function handleAddChannel(interaction, categoryId) {
         }
 
         const channelId = i.values[0];
-        let changes = 0;
-
-        if (categoryId === CATEGORIES.CHATBOT.id) {
-            changes = database.chatbotAdicionarCanal(interaction.guild.id, channelId);
-        } else if (categoryId === CATEGORIES.XP_SYSTEM.id) {
-            changes = database.xpAdicionarCanal(interaction.guild.id, channelId);
-        }
+        const changes = database.chatbotAdicionarCanal(interaction.guild.id, channelId);
 
         const channel = interaction.guild.channels.cache.get(channelId);
-        const type = categoryId === CATEGORIES.CHATBOT.id ? 'chatbot' : 'XP';
 
         if (changes > 0) {
             i.update({
-                content: `✅ O canal ${channel} foi adicionado à blacklist de **${type}**.`,
+                content: `✅ O canal ${channel} foi adicionado à blacklist do **chatbot**.`,
                 components: []
             });
         } else {
             i.update({
-                content: `⚠️ O canal ${channel} já estava na blacklist de **${type}**.`,
+                content: `⚠️ O canal ${channel} já estava na blacklist do **chatbot**.`,
                 components: []
             });
         }
@@ -879,17 +813,11 @@ async function handleAddChannel(interaction, categoryId) {
  * Manipula remoção de canal da blacklist
  */
 async function handleRemoveChannel(interaction, categoryId) {
-    let channels = [];
-
-    if (categoryId === CATEGORIES.CHATBOT.id) {
-        channels = database.chatbotListarCanais(interaction.guild.id);
-    } else if (categoryId === CATEGORIES.XP_SYSTEM.id) {
-        channels = database.xpListarCanais(interaction.guild.id);
-    }
+    const channels = database.chatbotListarCanais(interaction.guild.id);
 
     if (channels.length === 0) {
         return interaction.reply({
-            content: `ℹ️ Nenhum canal encontrado na blacklist de ${categoryId === CATEGORIES.CHATBOT.id ? 'chatbot' : 'XP'}.`,
+            content: `ℹ️ Nenhum canal encontrado na blacklist do chatbot.`,
             flags: [MessageFlags.Ephemeral]
         });
     }
@@ -911,7 +839,7 @@ async function handleRemoveChannel(interaction, categoryId) {
     const row = new ActionRowBuilder().addComponents(selectMenu);
 
     const reply = await interaction.reply({
-        content: `Selecione o canal para remover da blacklist de ${categoryId === CATEGORIES.CHATBOT.id ? 'chatbot' : 'XP'}:`,
+        content: `Selecione o canal para remover da blacklist do chatbot:`,
         components: [row],
         flags: [MessageFlags.Ephemeral]
     });
@@ -927,25 +855,18 @@ async function handleRemoveChannel(interaction, categoryId) {
         }
 
         const channelId = i.values[0];
-        let changes = 0;
-
-        if (categoryId === CATEGORIES.CHATBOT.id) {
-            changes = database.chatbotRemoverCanal(interaction.guild.id, channelId);
-        } else if (categoryId === CATEGORIES.XP_SYSTEM.id) {
-            changes = database.xpRemoverCanal(interaction.guild.id, channelId);
-        }
+        const changes = database.chatbotRemoverCanal(interaction.guild.id, channelId);
 
         const channel = interaction.guild.channels.cache.get(channelId);
-        const type = categoryId === CATEGORIES.CHATBOT.id ? 'chatbot' : 'XP';
 
         if (changes > 0) {
             i.update({
-                content: `👍 O canal ${channel || `ID: ${channelId}`} foi removido da blacklist de **${type}**.`,
+                content: `👍 O canal ${channel || `ID: ${channelId}`} foi removido da blacklist do **chatbot**.`,
                 components: []
             });
         } else {
             i.update({
-                content: `⚠️ O canal ${channel || `ID: ${channelId}`} não estava na blacklist de **${type}**.`,
+                content: `⚠️ O canal ${channel || `ID: ${channelId}`} não estava na blacklist do **chatbot**.`,
                 components: []
             });
         }
@@ -962,28 +883,11 @@ async function handleRemoveChannel(interaction, categoryId) {
  * Manipula listagem de canais na blacklist
  */
 async function handleListChannels(interaction, categoryId) {
-    let channels = [];
-    let title = '';
-
-    switch (categoryId) {
-        case CATEGORIES.CHATBOT.id:
-            channels = database.chatbotListarCanais(interaction.guild.id);
-            title = '🚫 Canais na Blacklist do Chatbot';
-            break;
-        case CATEGORIES.XP_SYSTEM.id:
-            channels = database.xpListarCanais(interaction.guild.id);
-            title = '🚫 Canais sem XP';
-            break;
-        default:
-            return interaction.reply({
-                content: '❌ Categoria não suportada para listagem de canais.',
-                flags: [MessageFlags.Ephemeral]
-            });
-    }
+    const channels = database.chatbotListarCanais(interaction.guild.id);
 
     if (channels.length === 0) {
         return interaction.reply({
-            content: `ℹ️ Nenhum canal encontrado na blacklist para ${categoryId}.`,
+            content: `ℹ️ Nenhum canal encontrado na blacklist do chatbot.`,
             flags: [MessageFlags.Ephemeral]
         });
     }
@@ -991,113 +895,11 @@ async function handleListChannels(interaction, categoryId) {
     const lista = channels.map(c => `- <#${c.canal_id}>`).join('\n');
 
     await interaction.reply({
-        content: `**${title}:**\n${lista}`,
+        content: `**🚫 Canais na Blacklist do Chatbot:**\n${lista}`,
         flags: [MessageFlags.Ephemeral]
     });
 }
 
-/**
- * Manipula definição de multiplicador de XP
- */
-async function handleSetMultiplier(interaction) {
-    const roles = interaction.guild.roles.cache
-        .filter(r => r.id !== interaction.guild.id) // Exclui @everyone
-        .map(r => ({
-            label: r.name,
-            value: r.id,
-            description: `ID: ${r.id}`
-        }));
-
-    if (roles.length === 0) {
-        return interaction.reply({
-            content: '❌ Nenhum cargo encontrado no servidor.',
-            flags: [MessageFlags.Ephemeral]
-        });
-    }
-
-    const selectMenu = new StringSelectMenuBuilder()
-        .setCustomId(generateComponentId(interaction.user.id, 'set_multiplier_role_select'))
-        .setPlaceholder('Selecione um cargo para definir multiplicador')
-        .addOptions(roles.slice(0, 25));
-
-    const row = new ActionRowBuilder().addComponents(selectMenu);
-
-    const reply = await interaction.reply({
-        content: 'Selecione o cargo para definir o multiplicador de XP:',
-        components: [row],
-        flags: [MessageFlags.Ephemeral]
-    });
-
-    const collector = reply.createMessageComponentCollector({
-        componentType: ComponentType.StringSelect,
-        time: 60000
-    });
-
-    collector.on('collect', async i => {
-        if (i.user.id !== interaction.user.id) {
-            return i.reply({ content: '⛔ Apenas quem executou o comando pode interagir aqui.', ephemeral: true });
-        }
-
-        const roleId = i.values[0];
-        const role = interaction.guild.roles.cache.get(roleId);
-
-        // Criar modal para input do multiplicador
-        const modal = new ModalBuilder()
-            .setCustomId(generateComponentId(interaction.user.id, `set_multiplier_modal_${roleId}`))
-            .setTitle(`Definir Multiplicador para ${role.name}`);
-
-        const multiplierInput = new TextInputBuilder()
-            .setCustomId('multiplier_value')
-            .setLabel('Multiplicador de XP (ex: 1.5 para 50% bônus)')
-            .setPlaceholder('Digite um número maior que 0 (ex: 1.5)')
-            .setStyle(TextInputStyle.Short)
-            .setRequired(true)
-            .setMinLength(1)
-            .setMaxLength(10);
-
-        const firstActionRow = new ActionRowBuilder().addComponents(multiplierInput);
-        modal.addComponents(firstActionRow);
-
-        await i.showModal(modal);
-    });
-
-    collector.on('end', collected => {
-        if (collected.size === 0) {
-            interaction.editReply({ content: '⏰ O tempo para selecionar um cargo expirou.', components: [] });
-        }
-    });
-}
-
-/**
- * Manipula remoção de multiplicador de XP
- */
-async function handleRemoveMultiplier(interaction) {
-    await interaction.reply({
-        content: 'Funcionalidade de remover multiplicador - Implementação pendente',
-        flags: [MessageFlags.Ephemeral]
-    });
-}
-
-/**
- * Manipula listagem de multiplicadores de XP
- */
-async function handleListMultipliers(interaction) {
-    const multipliers = database.listarMultiplicadoresRole(interaction.guild.id);
-
-    if (multipliers.length === 0) {
-        return interaction.reply({
-            content: 'ℹ️ Nenhum multiplicador de XP configurado.',
-            flags: [MessageFlags.Ephemeral]
-        });
-    }
-
-    const lista = multipliers.map(m => `- <@&${m.role_id}>: **${m.multiplier}x**`).join('\n');
-
-    await interaction.reply({
-        content: `**✨ Multiplicadores de XP por cargo:**\n${lista}`,
-        flags: [MessageFlags.Ephemeral]
-    });
-}
 
 /**
  * Manipula definição de canal do sistema
@@ -1224,36 +1026,7 @@ async function handleModalSubmit(interaction) {
     console.log('[DEBUG] Received modal submission with customId:', customId);
     const userId = interaction.user.id;
 
-    if (customId.includes('set_multiplier_modal_')) {
-        // Manipular modal de multiplicador
-        const roleId = customId.split('_').pop();
-        const multiplierValue = interaction.fields.getTextInputValue('multiplier_value');
-
-        const multiplier = parseFloat(multiplierValue);
-        if (isNaN(multiplier) || multiplier <= 0) {
-            return interaction.reply({
-                content: '❌ O multiplicador deve ser um número maior que zero.',
-                flags: [MessageFlags.Ephemeral]
-            });
-        }
-
-        const changes = database.definirMultiplicadorRole(interaction.guild.id, roleId, multiplier);
-        const role = interaction.guild.roles.cache.get(roleId);
-
-        if (changes > 0) {
-            await interaction.reply({
-                content: `✅ O cargo ${role} agora tem um multiplicador de XP de **${multiplier}x**.`,
-                flags: [MessageFlags.Ephemeral]
-            });
-        } else {
-            await interaction.reply({
-                content: `⚠️ O multiplicador do cargo ${role} foi atualizado para **${multiplier}x**.`,
-                flags: [MessageFlags.Ephemeral]
-            });
-        }
-
-
-    } else if (customId.includes('set_user_memory_modal_')) {
+    if (customId.includes('set_user_memory_modal_')) {
         console.log('[CONFIG][DEBUG] Starting set_user_memory_modal handling, customId:', customId);
 
         // Manipular modal de memória de usuário
