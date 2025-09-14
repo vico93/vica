@@ -88,7 +88,11 @@ module.exports = {
       // Respeita blacklist
       if (database.chatbotCanalNaBlacklist(guildId, canalId)) return;
 
-      let prompt = message.content;
+      // Se a mensagem for de webhook, inclui a tag [webhook] antes do conteúdo (para a IA não tentar salvar memória)
+      let prompt = message.webhookId
+        ? `[webhook] ${message.content}`
+        : message.content;
+
       let imageUrl = null;
 
       if (message.attachments.size) {
