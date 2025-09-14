@@ -60,7 +60,7 @@ module.exports = {
     }
 
     // Filtros básicos
-    if (user.bot && !reaction.message.webhookId) return;
+    if (user.bot) return;
 
     // Buscar reactionEmojis do banco de dados
     const guildId = reaction.message.guild.id;
@@ -79,7 +79,7 @@ module.exports = {
         ? await reaction.message.fetch()
         : reaction.message;
 
-      if (message.author.bot) return;
+      if (message.author.bot && !message.webhookId) return;
 
       const guildId  = message.guild.id;
       const canalId  = message.channel.id;
