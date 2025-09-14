@@ -1,6 +1,6 @@
 /*
 ** caminho: events/guildMemberUpdate.js
-** últimaMod: 13/09/2025 17:21
+** últimaMod: 2025-09-13 23:52
 ** autor: Vico
 ** colaboração: Roo, Roo Sonic (xai/grok-code-fast-1)
 */
@@ -23,26 +23,12 @@ module.exports = {
     // Ignora bots
     if (newMember.user.bot) return;
 
-    // Log inicial de debug para confirmar disparo do evento
-    try {
-      console.log(`[ROLE-CONGRATS][DEBUG] guildMemberUpdate fired user=${newMember.id} guild=${newMember.guild?.id} oldRoles=${oldMember.roles.cache.size} newRoles=${newMember.roles.cache.size}`);
-    } catch {}
 
     // Ignora se não há mudança nos cargos
-    if (oldMember.roles.cache.size === newMember.roles.cache.size) {
-      // Verifica se realmente não houve mudança nos cargos
-      const oldRoleIds = new Set(oldMember.roles.cache.keys());
-      const newRoleIds = new Set(newMember.roles.cache.keys());
-      let hasRoleChange = false;
-      
-      for (const roleId of newRoleIds) {
-        if (!oldRoleIds.has(roleId)) {
-          hasRoleChange = true;
-          break;
-        }
-      }
-      
-      if (!hasRoleChange) return;
+    const oldRoleIds = new Set(oldMember.roles.cache.keys());
+    const newRoleIds = new Set(newMember.roles.cache.keys());
+    if (oldRoleIds.size === newRoleIds.size && [...oldRoleIds].every(id => newRoleIds.has(id))) {
+      return;
     }
 
     const guildId = newMember.guild.id;
@@ -55,8 +41,6 @@ module.exports = {
     }
 
     // Detecta cargos adicionados
-    const oldRoleIds = new Set(oldMember.roles.cache.keys());
-    const newRoleIds = new Set(newMember.roles.cache.keys());
     const addedRoleIds = [...newRoleIds].filter(roleId => !oldRoleIds.has(roleId));
 
 
