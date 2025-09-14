@@ -1,8 +1,8 @@
 /*
 ** caminho: events/messageCreate.js
-** últimaMod: 2025-09-05 23:28
+** últimaMod: 2025-09-13 23:30
 ** autor: Vico
-** colaboração: Roo Sonic
+** colaboração: Roo Sonic (xai/grok-code-fast-1)
 */
 
 /*
@@ -32,12 +32,45 @@ function removerRepetidos(str) {
   return str.toLowerCase().replace(/(.)\1+/g, '$1');
 }
 
+/* ----------------------------------------------------------
+   Helpers
+---------------------------------------------------------- */
+// Remove caracteres repetidos para evitar spam
+function removerRepetidos(str) {
+  return str.toLowerCase().replace(/(.)\1+/g, '$1');
+}
+
 // Calcula XP baseado no texto limpo
 function calcularXP(textoLimpo) {
   const min = Math.ceil(textoLimpo.length / 7);
   const max = Math.ceil(textoLimpo.length / 4);
   let ganho = Math.floor(Math.random() * (max - min + 1)) + min;
   return Math.min(ganho, 35); // teto
+}
+
+// Divide texto em chunks de até 2000 caracteres, preservando palavras
+function splitText(text, maxLength = 2000) {
+  if (!text || text.length <= maxLength) return [text || ''];
+  const chunks = [];
+  let start = 0;
+  while (start < text.length) {
+    let end = Math.min(start + maxLength, text.length);
+    if (end === text.length) {
+      chunks.push(text.slice(start));
+      break;
+    }
+    // Encontra o último espaço antes do limite
+    const lastSpace = text.lastIndexOf(' ', end);
+    if (lastSpace > start) {
+      chunks.push(text.slice(start, lastSpace));
+      start = lastSpace + 1;
+    } else {
+      // Sem espaço, corta forçadamente
+      chunks.push(text.slice(start, end));
+      start = end;
+    }
+  }
+  return chunks;
 }
 
 /* ----------------------------------------------------------
@@ -196,7 +229,14 @@ module.exports = {
         guildId, canalId, usuarioId, message.client.user.id, prompt, imageUrl, message.channel, message.id
       );
 
-      await message.reply({ content: resposta, failIfNotExists: false });
+      const chunks = splitText(resposta);
+      if (chunks.length > 1) {
+        console.log('[VICA][CHATBOT][INFO] Response length > 2000, splitting into ' + chunks.length + ' chunks');
+      }
+      await message.reply({ content: chunks[0], failIfNotExists: false });
+      for (let i = 1; i < chunks.length; i++) {
+        await message.channel.send(chunks[i]);
+      }
     } catch (err) {
       console.error('[VICA][CHATBOT] Falha ao responder:', err);
       await message.reply({

@@ -1,6 +1,6 @@
 /*
 **  caminho: events/messageReactionAdd.js
-**  últimaMod: 2025-09-11 20:07
+**  últimaMod: 2025-09-13 23:28
 **  autor: Vico
 ** colaboração: Roo Sonic (xai/grok-code-fast-1), Copilot (gpt-4o), GLM 4.5 Air
 */
@@ -16,6 +16,35 @@
 
 const oai      = require('../core/oai_interface');
 const database = require('../core/database');
+
+/* ----------------------------------------------------------
+   Helpers
+---------------------------------------------------------- */
+
+// Divide texto em chunks de até 2000 caracteres, preservando palavras
+function splitText(text, maxLength = 2000) {
+  if (!text || text.length <= maxLength) return [text || ''];
+  const chunks = [];
+  let start = 0;
+  while (start < text.length) {
+    let end = Math.min(start + maxLength, text.length);
+    if (end === text.length) {
+      chunks.push(text.slice(start));
+      break;
+    }
+    // Encontra o último espaço antes do limite
+    const lastSpace = text.lastIndexOf(' ', end);
+    if (lastSpace > start) {
+      chunks.push(text.slice(start, lastSpace));
+      start = lastSpace + 1;
+    } else {
+      // Sem espaço, corta forçadamente
+      chunks.push(text.slice(start, end));
+      start = end;
+    }
+  }
+  return chunks;
+}
 
 module.exports = {
   name: 'messageReactionAdd',
@@ -90,7 +119,14 @@ module.exports = {
         guildId, canalId, usuarioId, message.client.user.id, prompt, imageUrl
       );
 
-      await message.reply({ content: resposta, failIfNotExists: false });
+      const chunks = splitText(resposta);
+      if (chunks.length > 1) {
+        console.log('[VICA][REACTION][INFO] Response length > 2000, splitting into ' + chunks.length + ' chunks');
+      }
+      await message.reply({ content: chunks[0], failIfNotExists: false });
+      for (let i = 1; i < chunks.length; i++) {
+        await message.channel.send(chunks[i]);
+      }
 
       // Remove reação para evitar spam
       try {
