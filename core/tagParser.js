@@ -72,7 +72,7 @@ function parseMemoryTag(content, position = 0, context = {}) {
     // Aplicar substituição de placeholders no conteúdo antes de processar
     console.log(`[TAG_PARSER][DEBUG] Parsing memory tag at position ${position}, original content: "${content}"`);
     console.log(`[TAG_PARSER][DEBUG] Context provided: ${JSON.stringify(context)}`);
-    const processedContent = replacePlaceholders(content, context);
+    let processedContent = replacePlaceholders(content, context);
     console.log(`[TAG_PARSER][DEBUG] Content after placeholder replacement: "${processedContent}"`);
 
     // Dividir o conteúdo por ':' em exatamente 5 partes
@@ -100,10 +100,13 @@ function parseMemoryTag(content, position = 0, context = {}) {
     if (!isValidDiscordId(guildId)) {
         if (context.guildId && isValidDiscordId(context.guildId)) {
             console.log(`[TAG_PARSER][FALLBACK] guildId inválido "${guildId}", usando contexto guildId: ${context.guildId}`);
+            console.log(`[TAG_PARSER][DEBUG] Before replace: processedContent="${processedContent}"`);
             processedContent = processedContent.replace(guildId, context.guildId);
+            console.log(`[TAG_PARSER][DEBUG] After replace: processedContent="${processedContent}"`);
             const parts = processedContent.split(':');
             if (parts.length >= 5) {
                 guildId = parts[0]; // Atualizar guildId com o do contexto
+                console.log(`[TAG_PARSER][DEBUG] Updated guildId: "${guildId}"`);
             }
         } else {
             hasErrors = true;
