@@ -1,8 +1,8 @@
 /*
 ** caminho: events/guildMemberUpdate.js
-** últimaMod: 2025-09-13 23:52
+** últimaMod: 2025-09-18
 ** autor: Vico
-** colaboração: Roo, Roo Sonic (xai/grok-code-fast-1)
+** colaboração: Roo Sonic (xai/grok-code-fast-1) e Claude
 */
 
 /*
@@ -23,11 +23,36 @@ module.exports = {
     // Ignora bots
     if (newMember.user.bot) return;
 
+    // Obtém IDs dos cargos antes e depois
+    const oldRoleIds = oldMember.roles.cache.map(r => r.id);
+    const newRoleIds = newMember.roles.cache.map(r => r.id);
+    
+    // Cria Sets para comparação eficiente
+    const oldRoleSet = new Set(oldRoleIds);
+    const newRoleSet = new Set(newRoleIds);
+    
+    // Detecta cargos adicionados
+    const addedRoleIds = newRoleIds.filter(roleId => !oldRoleSet.has(roleId));
+    
+    // Detecta cargos removidos (para debug, se necessário)
+    const removedRoleIds = oldRoleIds.filter(roleId => !newRoleSet.has(roleId));
+    
+    // Se não houve mudança nos cargos, retorna imediatamente
+    if (addedRoleIds.length === 0 && removedRoleIds.length === 0) {
+      return;
+    }
 
-    // Ignora se não há mudança nos cargos
-    const oldRoleIds = new Set(oldMember.roles.cache.keys());
-    const newRoleIds = new Set(newMember.roles.cache.keys());
-    if (oldRoleIds.size === newRoleIds.size && [...oldRoleIds].every(id => newRoleIds.has(id))) {
+    // Log de debug para confirmar que houve mudança real nos cargos
+    console.log(`[ROLE-CONGRATS][DEBUG] Mudança de cargos detectada para ${newMember.user.tag}:`);
+    if (addedRoleIds.length > 0) {
+      console.log(`  - Cargos adicionados: ${addedRoleIds.join(', ')}`);
+    }
+    if (removedRoleIds.length > 0) {
+      console.log(`  - Cargos removidos: ${removedRoleIds.join(', ')}`);
+    }
+
+    // Se não há cargos adicionados, não precisa processar parabéns
+    if (addedRoleIds.length === 0) {
       return;
     }
 
@@ -40,18 +65,15 @@ module.exports = {
       return;
     }
 
-    // Detecta cargos adicionados
-    const addedRoleIds = [...newRoleIds].filter(roleId => !oldRoleIds.has(roleId));
-
-
-    // Debug: lista de cargos adicionados
-    try {
-      console.log(`[ROLE-CONGRATS][DEBUG] Added roles: ${addedRoleIds.join(', ') || '(none)'} | configured_count=${configs.length}`);
-    } catch {}
+    // Debug: lista de cargos adicionados e configurações
+    console.log(`[ROLE-CONGRATS][DEBUG] Added roles: ${addedRoleIds.join(', ')} | configured_count=${configs.length}`);
 
     // Filtra configurações cujo roleId aparece entre os cargos adicionados
     const matchedConfigs = configs.filter(c => addedRoleIds.includes(c.roleId));
-    if (matchedConfigs.length === 0) return; // nada a fazer
+    if (matchedConfigs.length === 0) {
+      console.log(`[ROLE-CONGRATS][DEBUG] Nenhum cargo adicionado corresponde às configurações de parabéns.`);
+      return;
+    }
 
     try {
       // Determina o canal de destino
@@ -109,18 +131,18 @@ module.exports = {
           .replace(/{@ROLE}/g, roleMention);
         // Only keep first replacedPrompt for this prompt
         if (!promptsToSend.has(replacedPrompt)) {
-          promptsToSend.set(replacedPrompt, { roleName, replacedPrompt });
+          promptsToSend.set(replacedPrompt, { roleName, replacedPrompt: promptText });
         }
       }
 
-      for (const { roleName, promptText } of promptsToSend.values()) {
+      for (const { roleName, replacedPrompt } of promptsToSend.values()) {
         console.log(`[ROLE-CONGRATS] Gerando parabéns para ${newMember.user.tag} no servidor ${newMember.guild.name} (cargo: ${roleName})`);
         let congratsMessage;
         try {
           congratsMessage = await oai.gerarParabensCargoViaAPI(
             guildId,
             newMember.id,
-            promptText,
+            replacedPrompt,
             roleName
           );
         } catch (oaiError) {
