@@ -1,8 +1,8 @@
 /*
 ** caminho: events/guildMemberUpdate.js
-** últimaMod: 2025-09-18
+** últimaMod: 2025-09-19
 ** autor: Vico
-** colaboração: Roo Sonic (xai/grok-code-fast-1) e Claude
+** colaboração: Roo Sonic (xai/grok-code-fast-1), Claude, ChatGPT
 */
 
 /*
@@ -31,14 +31,16 @@ module.exports = {
     const oldRoleSet = new Set(oldRoleIds);
     const newRoleSet = new Set(newRoleIds);
     
-    // Detecta cargos adicionados
+    // Detecta cargos adicionados/removidos
     const addedRoleIds = newRoleIds.filter(roleId => !oldRoleSet.has(roleId));
-    
-    // Detecta cargos removidos (para debug, se necessário)
     const removedRoleIds = oldRoleIds.filter(roleId => !newRoleSet.has(roleId));
     
-    // Se não houve mudança nos cargos, retorna imediatamente
-    if (addedRoleIds.length === 0 && removedRoleIds.length === 0) {
+    // Se não houve mudança real nos cargos, retorna (evita nickname/avatar disparar evento)
+    if (
+      addedRoleIds.length === 0 &&
+      removedRoleIds.length === 0 &&
+      oldRoleIds.length === newRoleIds.length
+    ) {
       return;
     }
 
@@ -58,7 +60,7 @@ module.exports = {
 
     const guildId = newMember.guild.id;
     
-    // Busca configurações de parabéns por cargo (agora pode haver várias)
+    // Busca configurações de parabéns por cargo
     const configs = database.listRoleCongratsConfigs(guildId);
     if (!configs || configs.length === 0) {
       console.log(`[ROLE-CONGRATS][DEBUG] No role_congrats config for guild ${guildId}; skipping.`);
@@ -79,7 +81,7 @@ module.exports = {
       // Determina o canal de destino
       let targetChannel = null;
       
-      // 1. Tenta usar o canal de sistema configurado
+      // 1. Canal de sistema configurado
       const systemChannelId = database.getSystemChannel(guildId);
       if (systemChannelId) {
         const foundChannel = newMember.guild.channels.cache.get(systemChannelId);
@@ -91,7 +93,7 @@ module.exports = {
         }
       }
 
-      // 2. Fallback para o canal de sistema padrão do Discord
+      // 2. Canal de sistema padrão do Discord
       if (!targetChannel && newMember.guild.systemChannel) {
         const botMember = newMember.guild.members.me;
         if (botMember && newMember.guild.systemChannel.permissionsFor(botMember).has(['ViewChannel', 'SendMessages'])) {
@@ -99,7 +101,7 @@ module.exports = {
         }
       }
 
-      // 3. Fallback para o primeiro canal de texto acessível
+      // 3. Primeiro canal de texto acessível
       if (!targetChannel) {
         const botMember = newMember.guild.members.me;
         if (botMember) {
@@ -115,8 +117,7 @@ module.exports = {
         return;
       }
 
-      // Para evitar mensagens duplicadas quando múltiplos cargos configurados compartilham o mesmo prompt,
-      // agrupe os prompts por texto e envie apenas uma mensagem por prompt.
+      // Agrupa prompts por texto para evitar duplicados
       const userInfo = `${newMember.displayName}, ID ${newMember.id}`;
       const promptsToSend = new Map(); // replacedPrompt -> { roleName, replacedPrompt }
 
@@ -129,9 +130,9 @@ module.exports = {
           .replace(/{USER}/g, userInfo)
           .replace(/{ROLE}/g, roleName)
           .replace(/{@ROLE}/g, roleMention);
-        // Only keep first replacedPrompt for this prompt
+        // Armazena o prompt já substituído
         if (!promptsToSend.has(replacedPrompt)) {
-          promptsToSend.set(replacedPrompt, { roleName, replacedPrompt: promptText });
+          promptsToSend.set(replacedPrompt, { roleName, replacedPrompt });
         }
       }
 
