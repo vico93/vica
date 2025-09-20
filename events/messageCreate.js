@@ -1,6 +1,6 @@
 /*
 ** caminho: events/messageCreate.js
-** últimaMod: 2025-09-13 23:30
+** últimaMod: 2025-09-20 20:38
 ** autor: Vico
 ** colaboração: Roo Sonic (xai/grok-code-fast-1)
 */
@@ -80,7 +80,7 @@ module.exports = {
   name: 'messageCreate',
   async execute(message, client) {
     // Ignora bots e mensagens em DM
-    if (message.author.bot || !message.guild) return;
+    if ((message.author.bot && message.author.id !== client.user.id) || !message.guild) return;
 
     const guildId  = message.guild.id;
     const canalId  = message.channel.id;
@@ -148,6 +148,9 @@ module.exports = {
 
     /* ---------------- Chatbot ---------------- */
     if (database.chatbotCanalNaBlacklist(guildId, canalId)) return;
+
+    // Impede o bot de responder às suas próprias mensagens
+    if (message.author.id === client.user.id) return;
 
     const botId = client.user.id;
     const mencionadoDireto = message.mentions.has(botId);
