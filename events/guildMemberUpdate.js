@@ -1,6 +1,6 @@
 /*
 ** caminho: events/guildMemberUpdate.js
-** últimaMod: 2025-09-19
+** últimaMod: 2025-09-21 00:53
 ** autor: Vico
 ** colaboração: Roo Sonic (xai/grok-code-fast-1), Claude, ChatGPT
 */
@@ -118,18 +118,22 @@ module.exports = {
       }
 
       // Agrupa prompts por texto para evitar duplicados
-      const userInfo = `${newMember.displayName}, ID ${newMember.id}`;
-      const promptsToSend = new Map(); // replacedPrompt -> { roleName, replacedPrompt }
+       const promptsToSend = new Map(); // replacedPrompt -> { roleName, replacedPrompt }
 
       for (const cfg of matchedConfigs) {
         const role = newMember.guild.roles.cache.get(cfg.roleId);
         const roleName = role ? role.name : 'cargo desconhecido';
         const roleMention = role ? `<@&${role.id}>` : '@cargo-desconhecido';
+        const userMention = `<@${newMember.id}>`;
+        const userDisplayName = newMember.displayName;
         const promptText = String(cfg.prompt || '');
+        console.log(`[ROLE-CONGRATS][DEBUG] Original prompt: "${promptText}"`);
         const replacedPrompt = promptText
-          .replace(/{USER}/g, userInfo)
+          .replace(/{@USER}/g, userMention)
+          .replace(/{USER}/g, userDisplayName)
           .replace(/{ROLE}/g, roleName)
           .replace(/{@ROLE}/g, roleMention);
+        console.log(`[ROLE-CONGRATS][DEBUG] Replaced prompt: "${replacedPrompt}"`);
         // Armazena o prompt já substituído
         if (!promptsToSend.has(replacedPrompt)) {
           promptsToSend.set(replacedPrompt, { roleName, replacedPrompt });
@@ -158,6 +162,16 @@ module.exports = {
             console.error('[ROLE-CONGRATS][MEM] Erro ao salvar memória de fallback:', memError);
           }
         }
+        // Ensure placeholders are replaced in the final message
+        const userMention = `<@${newMember.id}>`;
+        const userDisplayName = newMember.displayName;
+        const roleMention = role ? `<@&${role.id}>` : '@cargo-desconhecido';
+        congratsMessage = congratsMessage
+          .replace(/{@USER}/g, userMention)
+          .replace(/{USER}/g, userDisplayName)
+          .replace(/{ROLE}/g, roleName)
+          .replace(/{@ROLE}/g, roleMention);
+        console.log(`[ROLE-CONGRATS][DEBUG] Final congrats message: "${congratsMessage}"`);
         await targetChannel.send(congratsMessage);
       }
 
