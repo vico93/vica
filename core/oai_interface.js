@@ -1,6 +1,6 @@
 /*
 ** caminho: core/oai_interface.js
-** últimaMod: 2025-09-13 01:20
+** últimaMod: 2025-09-21 11:28
 ** autor: Vico
 ** colaboração: Gemini, ChatGPT, Roo Sonic (xai/grok-code-fast-1), Roo Sonic (xai/grok-code-fast-1)
 */
@@ -923,3 +923,31 @@ async function gerarParabensCargoViaAPI(guildId, userId, promptUsuario, roleName
    // Configuração de peso para memórias (função auxiliar)
    calculateWeightedSimilarity,
  };
+/* --- Transcrição de Áudio --- */
+
+// Função para transcrever áudio via API
+async function transcribeAudio(filePath) {
+  try {
+    const response = await openai.audio.transcriptions.create({
+      file: fs.createReadStream(filePath),
+      model: config.openai.model_audio,
+    });
+    return response.text;
+  } catch (error) {
+    console.error('[OAI_TRANSCRIBE][ERROR] Falha ao transcrever áudio:', error.message);
+    return null;
+  }
+}
+
+module.exports = {
+  gerarPerguntaViaAPI,
+  gerarParabensCargoViaAPI,
+  gerarMensagemBemVindoViaAPI,
+  gerarRespostaContextual,
+  gerarComentarioViaAPI,
+  buscarMemoriasUsuarioSemanitcas,
+  buscarMemoriasGuildSemanticas,
+  gerarEmbedding,
+  cosineSimilarity,
+  transcribeAudio,
+};

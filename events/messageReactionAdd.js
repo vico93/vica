@@ -1,6 +1,6 @@
 /*
 **  caminho: events/messageReactionAdd.js
-**  últimaMod: 2025-09-13 23:28
+**  últimaMod: 2025-09-21 11:42
 **  autor: Vico
 ** colaboração: Roo Sonic (xai/grok-code-fast-1), Copilot (gpt-4o), GLM 4.5 Air
 */
@@ -16,6 +16,12 @@
 
 const oai      = require('../core/oai_interface');
 const database = require('../core/database');
+const transcriber = require('../core/transcriber');
+const fs = require('fs');
+const https = require('https');
+const os = require('os');
+const path = require('path');
+const crypto = require('crypto');
 
 /* ----------------------------------------------------------
    Helpers
@@ -78,6 +84,52 @@ module.exports = {
       const message = reaction.message.partial
         ? await reaction.message.fetch()
         : reaction.message;
+
+      /* --- Processamento de Voz --- */
+      // Verifica se há anexos de áudio e os processa para transcrição
+      let audioAttachment = null;
+      for (const att of message.attachments.values()) {
+        if (att.contentType?.startsWith('audio/') ||
+            att.name?.toLowerCase().endsWith('.ogg') ||
+            att.name?.toLowerCase().endsWith('.mp3')) {
+          audioAttachment = att;
+          break;
+        }
+      }
+
+      if (audioAttachment) {
+        const tempFile = path.join(os.tmpdir(), crypto.randomBytes(16).toString('hex') + path.extname(audioAttachment.name || '.tmp'));
+        try {
+          await new Promise((resolve, reject) => {
+            const fileStream = fs.createWriteStream(tempFile);
+            https.get(audioAttachment.url, (res) => {
+              res.pipe(fileStream);
+              fileStream.on('finish', resolve);
+              fileStream.on('error', reject);
+            }).on('error', reject);
+          });
+
+          const transcribed = await transcriber.transcribe(tempFile);
+          if (transcribed) {
+            const voiceText = `[voice] ${transcribed}`;
+            if (message.content) {
+              message.content = voiceText + ' ' + message.content;
+            } else {
+              message.content = voiceText;
+            }
+          } else {
+            console.error('[MESSAGEREACTIONADD][ERROR] Falha na transcrição do áudio:', audioAttachment.url);
+          }
+        } catch (err) {
+          console.error('[MESSAGEREACTIONADD][ERROR] Erro ao baixar/processar áudio:', err);
+        } finally {
+          try {
+            fs.unlinkSync(tempFile);
+          } catch (e) {
+            // Ignora erros ao deletar arquivo temporário
+          }
+        }
+      }
 
       if (message.author.bot && !message.webhookId) return;
 
