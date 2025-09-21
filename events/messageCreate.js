@@ -1,6 +1,6 @@
 /*
 ** caminho: events/messageCreate.js
-** últimaMod: 2025-09-21 11:32
+** últimaMod: 2025-09-21 12:24
 ** autor: Vico
 ** colaboração: Roo Sonic (xai/grok-code-fast-1)
 */
@@ -92,51 +92,6 @@ module.exports = {
     const canalId  = message.channel.id;
     const usuarioId = message.author.id;
 
-    /* --- Processamento de Voz --- */
-    // Verifica se há anexos de áudio e os processa para transcrição
-    let audioAttachment = null;
-    for (const att of message.attachments.values()) {
-      if (att.contentType?.startsWith('audio/') ||
-          att.name?.toLowerCase().endsWith('.ogg') ||
-          att.name?.toLowerCase().endsWith('.mp3')) {
-        audioAttachment = att;
-        break;
-      }
-    }
-
-    if (audioAttachment) {
-      const tempFile = path.join(os.tmpdir(), crypto.randomBytes(16).toString('hex') + path.extname(audioAttachment.name || '.tmp'));
-      try {
-        await new Promise((resolve, reject) => {
-          const fileStream = fs.createWriteStream(tempFile);
-          https.get(audioAttachment.url, (res) => {
-            res.pipe(fileStream);
-            fileStream.on('finish', resolve);
-            fileStream.on('error', reject);
-          }).on('error', reject);
-        });
-
-        const transcribed = await transcriber.transcribe(tempFile);
-        if (transcribed) {
-          const voiceText = `[voice] ${transcribed}`;
-          if (message.content) {
-            message.content = voiceText + ' ' + message.content;
-          } else {
-            message.content = voiceText;
-          }
-        } else {
-          console.error('[MESSAGECREATE][ERROR] Falha na transcrição do áudio:', audioAttachment.url);
-        }
-      } catch (err) {
-        console.error('[MESSAGECREATE][ERROR] Erro ao baixar/processar áudio:', err);
-      } finally {
-        try {
-          fs.unlinkSync(tempFile);
-        } catch (e) {
-          // Ignora erros ao deletar arquivo temporário
-        }
-      }
-    }
 
     /* ---------------- XP ---------------- */
     if (!database.xpCanalNaBlacklist(guildId, canalId)) {
@@ -219,6 +174,51 @@ module.exports = {
 
     if (!mencionadoDireto && !respondeuBot) return;
 
+    /* --- Processamento de Voz --- */
+    // Verifica se há anexos de áudio e os processa para transcrição
+    let audioAttachment = null;
+    for (const att of message.attachments.values()) {
+      if (att.contentType?.startsWith('audio/') ||
+          att.name?.toLowerCase().endsWith('.ogg') ||
+          att.name?.toLowerCase().endsWith('.mp3')) {
+        audioAttachment = att;
+        break;
+      }
+    }
+
+    if (audioAttachment) {
+      const tempFile = path.join(os.tmpdir(), crypto.randomBytes(16).toString('hex') + path.extname(audioAttachment.name || '.tmp'));
+      try {
+        await new Promise((resolve, reject) => {
+          const fileStream = fs.createWriteStream(tempFile);
+          https.get(audioAttachment.url, (res) => {
+            res.pipe(fileStream);
+            fileStream.on('finish', resolve);
+            fileStream.on('error', reject);
+          }).on('error', reject);
+        });
+
+        const transcribed = await transcriber.transcribe(tempFile);
+        if (transcribed) {
+          const voiceText = `[voice] ${transcribed}`;
+          if (message.content) {
+            message.content = voiceText + ' ' + message.content;
+          } else {
+            message.content = voiceText;
+          }
+        } else {
+          console.error('[MESSAGECREATE][ERROR] Falha na transcrição do áudio:', audioAttachment.url);
+        }
+      } catch (err) {
+        console.error('[MESSAGECREATE][ERROR] Erro ao baixar/processar áudio:', err);
+      } finally {
+        try {
+          fs.unlinkSync(tempFile);
+        } catch (e) {
+          // Ignora erros ao deletar arquivo temporário
+        }
+      }
+    }
     try {
       await message.channel.sendTyping();
 
