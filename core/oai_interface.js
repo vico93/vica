@@ -1,6 +1,6 @@
 /*
 ** caminho: core/oai_interface.js
-** últimaMod: 2025-09-21 11:28
+** últimaMod: 2025-09-21 14:50
 ** autor: Vico
 ** colaboração: Gemini, ChatGPT, Roo Sonic (xai/grok-code-fast-1), Roo Sonic (xai/grok-code-fast-1)
 */
@@ -927,15 +927,28 @@ async function gerarParabensCargoViaAPI(guildId, userId, promptUsuario, roleName
 
 // Função para transcrever áudio via API
 async function transcribeAudio(filePath) {
+  console.log(`[OAI_TRANSCRIBE][INFO] Starting transcription. filePath="${filePath}", model="${config.openai.model_audio}", baseURL="${config.openai.base_url}"`);
+
+  // Check if file exists and log file size
+  if (!fs.existsSync(filePath)) {
+    console.error(`[OAI_TRANSCRIBE][ERROR] File does not exist: ${filePath}`);
+    throw new Error(`File does not exist: ${filePath}`);
+  }
+  const fileSize = fs.statSync(filePath).size;
+  console.log(`[OAI_TRANSCRIBE][INFO] File exists, size=${fileSize} bytes`);
+
   try {
+    console.log(`[OAI_TRANSCRIBE][INFO] About to call OpenAI audio transcription API`);
     const response = await openai.audio.transcriptions.create({
       file: fs.createReadStream(filePath),
       model: config.openai.model_audio,
     });
+
+    console.log(`[OAI_TRANSCRIBE][SUCCESS] Transcription completed successfully, length=${response.text.length}`);
     return response.text;
   } catch (error) {
-    console.error('[OAI_TRANSCRIBE][ERROR] Falha ao transcrever áudio:', error.message);
-    return null;
+    console.error(`[OAI_TRANSCRIBE][ERROR] Transcription failed. status=${error.response?.status}, data=${JSON.stringify(error.response?.data)}, message="${error.message}", stack=${error.stack}`);
+    throw error;
   }
 }
 
