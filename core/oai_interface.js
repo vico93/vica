@@ -1,12 +1,14 @@
 /*
 ** caminho: core/oai_interface.js
-** últimaMod: 2025-09-21 14:50
+** últimaMod: 2025-09-21 15:01
 ** autor: Vico
 ** colaboração: Gemini, ChatGPT, Roo Sonic (xai/grok-code-fast-1), Roo Sonic (xai/grok-code-fast-1)
 */
 
 const fs = require('fs');
 const path = require('path');
+const { execSync } = require('child_process');
+const os = require('os');
 const OpenAI = require('openai');
 const config = require('../config.json');
 const database = require('../core/database');
@@ -925,6 +927,8 @@ async function gerarParabensCargoViaAPI(guildId, userId, promptUsuario, roleName
  };
 /* --- Transcrição de Áudio --- */
 
+/* --- Transcrição de Áudio --- */
+
 // Função para transcrever áudio via API
 async function transcribeAudio(filePath) {
   console.log(`[OAI_TRANSCRIBE][INFO] Starting transcription. filePath="${filePath}", model="${config.openai.model_audio}", baseURL="${config.openai.base_url}"`);
@@ -935,19 +939,62 @@ async function transcribeAudio(filePath) {
     throw new Error(`File does not exist: ${filePath}`);
   }
   const fileSize = fs.statSync(filePath).size;
-  console.log(`[OAI_TRANSCRIBE][INFO] File exists, size=${fileSize} bytes`);
+  const fileExtension = path.extname(filePath).toLowerCase();
+  console.log(`[OAI_TRANSCRIBE][INFO] File exists, size=${fileSize} bytes, extension="${fileExtension}"`);
+
+  // Log additional file details for debugging
+  console.log(`[OAI_TRANSCRIBE][DEBUG] File details: path="${filePath}", size=${fileSize}, extension="${fileExtension}"`);
+
+  let fileToTranscribe = filePath;
+  let tempWavPath = null;
+
+  // Convert .ogg files to WAV for compatibility with Whisper API
+  if (fileExtension === '.ogg') {
+    tempWavPath = path.join(os.tmpdir(), `vica_transcribe_${Date.now()}.wav`);
+    try {
+      console.log(`[OAI_TRANSCRIBE][INFO] Converting .ogg to .wav for compatibility: ${filePath} -> ${tempWavPath}`);
+      execSync(`ffmpeg -i "${filePath}" -acodec pcm_s16le -ar 16000 -ac 1 "${tempWavPath}"`, { stdio: 'inherit' });
+      console.log(`[OAI_TRANSCRIBE][INFO] Conversion successful`);
+      fileToTranscribe = tempWavPath;
+    } catch (convError) {
+      console.error(`[OAI_TRANSCRIBE][ERROR] Failed to convert .ogg to .wav:`, convError.message);
+      throw new Error(`Audio conversion failed: ${convError.message}`);
+    }
+  }
 
   try {
-    console.log(`[OAI_TRANSCRIBE][INFO] About to call OpenAI audio transcription API`);
+    console.log(`[OAI_TRANSCRIBE][INFO] About to call OpenAI audio transcription API with model="${config.openai.model_audio}", file stream from "${fileToTranscribe}"`);
     const response = await openai.audio.transcriptions.create({
-      file: fs.createReadStream(filePath),
+      file: fs.createReadStream(fileToTranscribe),
       model: config.openai.model_audio,
     });
 
     console.log(`[OAI_TRANSCRIBE][SUCCESS] Transcription completed successfully, length=${response.text.length}`);
+
+    // Clean up temporary file if created
+    if (tempWavPath) {
+      try {
+        fs.unlinkSync(tempWavPath);
+        console.log(`[OAI_TRANSCRIBE][INFO] Cleaned up temporary file: ${tempWavPath}`);
+      } catch (cleanupError) {
+        console.warn(`[OAI_TRANSCRIBE][WARN] Failed to clean up temporary file: ${cleanupError.message}`);
+      }
+    }
+
     return response.text;
   } catch (error) {
-    console.error(`[OAI_TRANSCRIBE][ERROR] Transcription failed. status=${error.response?.status}, data=${JSON.stringify(error.response?.data)}, message="${error.message}", stack=${error.stack}`);
+    console.error(`[OAI_TRANSCRIBE][ERROR] Transcription failed. status=${error.response?.status || 'N/A'}, data=${JSON.stringify(error.response?.data || {})}, headers=${JSON.stringify(error.response?.headers || {})}, message="${error.message}", stack=${error.stack}`);
+
+    // Clean up temporary file on error
+    if (tempWavPath && fs.existsSync(tempWavPath)) {
+      try {
+        fs.unlinkSync(tempWavPath);
+        console.log(`[OAI_TRANSCRIBE][INFO] Cleaned up temporary file on error: ${tempWavPath}`);
+      } catch (cleanupError) {
+        console.warn(`[OAI_TRANSCRIBE][WARN] Failed to clean up temporary file on error: ${cleanupError.message}`);
+      }
+    }
+
     throw error;
   }
 }
