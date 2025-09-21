@@ -1,8 +1,8 @@
 /*
 ** caminho: core/oai_interface.js
-** últimaMod: 2025-09-21 15:01
+** últimaMod: 2025-09-21 15:15
 ** autor: Vico
-** colaboração: Gemini, ChatGPT, Roo Sonic (xai/grok-code-fast-1), Roo Sonic (xai/grok-code-fast-1)
+** colaboração: Gemini, ChatGPT, Roo Sonic (xai/grok-code-fast-1), Roo Sonic (xai/grok-code-fast-1), Roo Sonic (xai/grok-code-fast-1)
 */
 
 const fs = require('fs');
@@ -962,10 +962,42 @@ async function transcribeAudio(filePath) {
     }
   }
 
+  // Validate the file to transcribe
+  const finalFileSize = fs.statSync(fileToTranscribe).size;
+  console.log(`[OAI_TRANSCRIBE][INFO] Final file size=${finalFileSize} bytes`);
+  if (finalFileSize === 0) {
+    console.error(`[OAI_TRANSCRIBE][ERROR] File is empty`);
+    throw new Error('Audio file is empty');
+  }
+
+  // Validate WAV header if it's a WAV file
+  if (path.extname(fileToTranscribe).toLowerCase() === '.wav') {
+    try {
+      const fd = fs.openSync(fileToTranscribe, 'r');
+      const buffer = Buffer.alloc(12);
+      fs.readSync(fd, buffer, 0, 12, 0);
+      fs.closeSync(fd);
+      const riff = buffer.slice(0, 4).toString();
+      const wave = buffer.slice(8, 12).toString();
+      console.log(`[OAI_TRANSCRIBE][DEBUG] WAV header: RIFF="${riff}", WAVE="${wave}"`);
+      if (riff !== 'RIFF' || wave !== 'WAVE') {
+        console.error(`[OAI_TRANSCRIBE][ERROR] Invalid WAV file header`);
+        throw new Error('Invalid WAV file header');
+      }
+    } catch (headerError) {
+      console.error(`[OAI_TRANSCRIBE][ERROR] Failed to validate WAV header: ${headerError.message}`);
+      throw headerError;
+    }
+  }
+
   try {
     console.log(`[OAI_TRANSCRIBE][INFO] About to call OpenAI audio transcription API with model="${config.openai.model_audio}", file stream from "${fileToTranscribe}"`);
+    console.log(`[OAI_TRANSCRIBE][DEBUG] API endpoint URL: ${config.openai.base_url}/audio/transcriptions`);
+    console.log(`[OAI_TRANSCRIBE][DEBUG] Using API key starting with: ${config.openai.api_key.substring(0, 10)}...`);
+
+    // Test using file path instead of stream
     const response = await openai.audio.transcriptions.create({
-      file: fs.createReadStream(fileToTranscribe),
+      file: fileToTranscribe,
       model: config.openai.model_audio,
     });
 
