@@ -6,12 +6,17 @@
   "openai": {
     "base_url": "https://sua.api.openai.compativel/responses",
     "api_key": "SUA_CHAVE_API",
-    "requesty_mode": false,
     "model": "modelo-exemplo",
     "model_embeddings": "modelo-embedding-exemplo",
     "model_audio": "whisper-1",
     "retries": 3,
     "initial_delay_ms": 1000
+  },
+  "requesty": {
+    "requesty_mode": false,
+    "base_url": "XXX",
+    "api_key": "XXX",
+    "model": "modelo-requesty"
   },
   "settings": {
     "historyLimit": 6,

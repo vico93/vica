@@ -1,6 +1,6 @@
 /*
 ** caminho: core/oai_interface.js
-** últimaMod: 2025-09-21 13:18
+** últimaMod: 2025-09-21 13:51
 ** autor: Vico
 ** colaboração: Gemini, ChatGPT, Roo Sonic (xai/grok-code-fast-1), Roo Sonic (xai/grok-code-fast-1), Roo Sonic (xai/grok-code-fast-1)
 */
@@ -284,47 +284,21 @@ function getCurrentDatetimeString() {
  return `São ${formattedTime} do dia ${formattedDate}.`;
 }
 
-// Custom fetch function to mimic curl headers and avoid API blocking
-const customFetch = async (url, options = {}) => {
-  const fetch = require('node-fetch');
-
-  // Build headers conditionally to avoid empty Authorization header
-  const minimalHeaders = {
-    'Content-Type': 'application/json',
-    'User-Agent': 'curl/7.81.0', // Mimic curl's user agent
-  };
-
-  // Only add Authorization header if it exists and is not empty
-  if (options.headers?.Authorization && options.headers.Authorization.trim() !== '') {
-    minimalHeaders['Authorization'] = options.headers.Authorization;
-  } else {
-    // If no Authorization header, construct it from config
-    const config = require('../config.json');
-    if (config.openai?.api_key) {
-      minimalHeaders['Authorization'] = `Bearer ${config.openai.api_key}`;
-    }
-  }
-
-  // Remove problematic headers that might cause blocking
-  const cleanOptions = {
-    ...options,
-    headers: minimalHeaders,
-  };
-
-
-  return fetch(url, cleanOptions);
-};
 
 const openai = new OpenAI({
   apiKey: config.openai.api_key,
   baseURL: config.openai.base_url,
-  fetch: customFetch, // Use our custom fetch function
 });
 
- 
+const requesty = new OpenAI({
+  apiKey: config.requesty.api_key,
+  baseURL: config.requesty.base_url,
+});
+
+// Função do comando /perguntar
 // Função do comando /perguntar
 async function gerarPerguntaViaAPI(promptUsuario = null) {
-  const isRequestyMode = config.openai?.requesty_mode || false;
+  const isRequestyMode = config.requesty?.requesty_mode || false;
   const messages = [];
   let userContent = promptUsuario || '[pergunta]';
 
@@ -337,12 +311,12 @@ async function gerarPerguntaViaAPI(promptUsuario = null) {
   }
 
   messages.push({
-    role: 'user',
-    content: userContent,
+   role: 'user',
+   content: userContent,
   });
   try {
-    const response = await openai.chat.completions.create({
-      model: config.openai.model,
+    const response = await (isRequestyMode ? requesty : openai).chat.completions.create({
+      model: isRequestyMode ? config.requesty.model : config.openai.model,
       messages,
       temperature: 0.9,
       max_tokens: config.settings.maxTokens,
@@ -360,7 +334,7 @@ async function gerarPerguntaViaAPI(promptUsuario = null) {
 /* --- Função Role Congratulation API --- */
 // Função para gerar parabéns por cargo via API
 async function gerarParabensCargoViaAPI(guildId, userId, promptUsuario, roleName) {
-  const isRequestyMode = config.openai?.requesty_mode || false;
+  const isRequestyMode = config.requesty?.requesty_mode || false;
   const messages = [];
   let userContent = promptUsuario;
 
@@ -373,13 +347,13 @@ async function gerarParabensCargoViaAPI(guildId, userId, promptUsuario, roleName
   }
 
   messages.push({
-    role: 'user',
-    content: userContent,
+   role: 'user',
+   content: userContent,
   });
 
   try {
-    const response = await openai.chat.completions.create({
-      model: config.openai.model,
+    const response = await (isRequestyMode ? requesty : openai).chat.completions.create({
+      model: isRequestyMode ? config.requesty.model : config.openai.model,
       messages,
       temperature: 0.8,
       max_tokens: 100, // Slightly higher for more complete responses
@@ -440,7 +414,7 @@ async function gerarParabensCargoViaAPI(guildId, userId, promptUsuario, roleName
      // Obter tag baseada no tipo de mensagem (case-insensitive, default para 'welcome')
      const tag = (messageType && messageTypeMapping[messageType.toLowerCase()]) || 'welcome';
 
-     const isRequestyMode = config.openai?.requesty_mode || false;
+     const isRequestyMode = config.requesty?.requesty_mode || false;
      const messages = [];
      let userContent = `[${tag}]` + prompt.replace(/\{@USER\}/g, `<@${userId}>`).replace(/\{USER\}/g, userName).replace(/\{ROLE\}/g, roleName || '').replace(/\{@ROLE\}/g, roleMention || '');
 
@@ -456,10 +430,10 @@ async function gerarParabensCargoViaAPI(guildId, userId, promptUsuario, roleName
        role: 'user',
        content: userContent,
      });
- 
+
      try {
-       const response = await openai.chat.completions.create({
-         model: config.openai.model,
+       const response = await (isRequestyMode ? requesty : openai).chat.completions.create({
+         model: isRequestyMode ? config.requesty.model : config.openai.model,
          messages,
          temperature: 0.8,
          max_tokens: config.settings.maxTokens,
@@ -507,7 +481,7 @@ async function gerarParabensCargoViaAPI(guildId, userId, promptUsuario, roleName
       // Update cooldown timestamp
       rateLimitMap.set(rateLimitKey, Date.now());
     }
-   const isRequestyMode = config.openai?.requesty_mode || false;
+    const isRequestyMode = config.requesty?.requesty_mode || false;
    let systemPrompt;
    if (!isRequestyMode) {
      systemPrompt = await carregarSystemPrompt();
@@ -646,8 +620,8 @@ async function gerarParabensCargoViaAPI(guildId, userId, promptUsuario, roleName
 
    try {
      // Use the full message array with system prompt and conversation history
-     const response = await openai.chat.completions.create({
-       model: config.openai.model,
+     const response = await (isRequestyMode ? requesty : openai).chat.completions.create({
+       model: isRequestyMode ? config.requesty.model : config.openai.model,
        messages,
        temperature: 0.8,
        max_tokens: config.settings.maxTokens,
@@ -718,7 +692,7 @@ async function gerarParabensCargoViaAPI(guildId, userId, promptUsuario, roleName
 
  // Função para gerar comentário baseado em conversa via API
  async function gerarComentarioViaAPI(conversationText) {
-   const isRequestyMode = config.openai?.requesty_mode || false;
+   const isRequestyMode = config.requesty?.requesty_mode || false;
    const messages = [];
    let userContent = `Analise a seguinte conversa do Discord e faça um comentário interessante ou engraçado sobre ela:\n\n${conversationText}`;
 
@@ -736,8 +710,8 @@ async function gerarParabensCargoViaAPI(guildId, userId, promptUsuario, roleName
    });
 
    try {
-     const response = await openai.chat.completions.create({
-       model: config.openai.model,
+     const response = await (isRequestyMode ? requesty : openai).chat.completions.create({
+       model: isRequestyMode ? config.requesty.model : config.openai.model,
        messages,
        temperature: 0.8,
        max_tokens: config.settings.maxTokens,
