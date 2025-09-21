@@ -1,6 +1,6 @@
 /*
 ** caminho: core/oai_interface.js
-** últimaMod: 2025-09-21 15:15
+** últimaMod: 2025-09-21 13:18
 ** autor: Vico
 ** colaboração: Gemini, ChatGPT, Roo Sonic (xai/grok-code-fast-1), Roo Sonic (xai/grok-code-fast-1), Roo Sonic (xai/grok-code-fast-1)
 */
@@ -253,31 +253,35 @@ function sanitizeFato(fato) {
    // Carrega o system prompt do arquivo system_prompt.txt
 // Se não conseguir ler o arquivo, retorna um prompt padrão
 async function carregarSystemPrompt() {
-  const filePath = path.join(__dirname, '..', 'data', 'system_prompt.txt');
+ const filePath = path.join(__dirname, '..', 'data', 'system_prompt.txt');
 
-  try {
-    let prompt = await fs.promises.readFile(filePath, 'utf-8');
-    prompt = prompt.trim();
+ try {
+   let prompt = await fs.promises.readFile(filePath, 'utf-8');
+   prompt = prompt.trim();
 
-    // Adiciona data e hora atual ao system prompt
-    const now = new Date();
-    const formattedTime = now.toLocaleTimeString('pt-BR', {
-      timeZone: 'America/Sao_Paulo',
-      hour: '2-digit',
-      minute: '2-digit'
-    });
-    const formattedDate = now.toLocaleDateString('pt-BR', {
-      timeZone: 'America/Sao_Paulo'
-    });
-    const datetimeString = `São ${formattedTime} do dia ${formattedDate}.`;
+   // Adiciona data e hora atual ao system prompt
+   const datetimeString = getCurrentDatetimeString();
+   prompt += `\n\n${datetimeString}`;
 
-    prompt += `\n\n${datetimeString}`;
+   return prompt;
+ } catch (err) {
+   console.error('[ERRO] Não foi possível ler system_prompt.txt:', err);
+   return 'Você é uma IA que responde a mensagens de forma criativa e útil.';
+ }
+}
 
-    return prompt;
-  } catch (err) {
-    console.error('[ERRO] Não foi possível ler system_prompt.txt:', err);
-    return 'Você é uma IA que responde a mensagens de forma criativa e útil.';
-  }
+// Função helper para obter a string de data e hora atual
+function getCurrentDatetimeString() {
+ const now = new Date();
+ const formattedTime = now.toLocaleTimeString('pt-BR', {
+   timeZone: 'America/Sao_Paulo',
+   hour: '2-digit',
+   minute: '2-digit'
+ });
+ const formattedDate = now.toLocaleDateString('pt-BR', {
+   timeZone: 'America/Sao_Paulo'
+ });
+ return `São ${formattedTime} do dia ${formattedDate}.`;
 }
 
 // Custom fetch function to mimic curl headers and avoid API blocking
@@ -320,14 +324,22 @@ const openai = new OpenAI({
  
 // Função do comando /perguntar
 async function gerarPerguntaViaAPI(promptUsuario = null) {
-  const systemPrompt = await carregarSystemPrompt();
-  const messages = [
-    { role: 'system', content: systemPrompt },
-    {
-      role: 'user',
-      content: promptUsuario || '[pergunta]',
-    },
-  ];
+  const isRequestyMode = config.openai?.requesty_mode || false;
+  const messages = [];
+  let userContent = promptUsuario || '[pergunta]';
+
+  if (isRequestyMode) {
+    const datetimeString = getCurrentDatetimeString();
+    userContent = `${datetimeString}\n${userContent}`;
+  } else {
+    const systemPrompt = await carregarSystemPrompt();
+    messages.push({ role: 'system', content: systemPrompt });
+  }
+
+  messages.push({
+    role: 'user',
+    content: userContent,
+  });
   try {
     const response = await openai.chat.completions.create({
       model: config.openai.model,
@@ -348,14 +360,22 @@ async function gerarPerguntaViaAPI(promptUsuario = null) {
 /* --- Função Role Congratulation API --- */
 // Função para gerar parabéns por cargo via API
 async function gerarParabensCargoViaAPI(guildId, userId, promptUsuario, roleName) {
-  const systemPrompt = await carregarSystemPrompt();
-  const messages = [
-    { role: 'system', content: systemPrompt },
-    {
-      role: 'user',
-      content: promptUsuario,
-    },
-  ];
+  const isRequestyMode = config.openai?.requesty_mode || false;
+  const messages = [];
+  let userContent = promptUsuario;
+
+  if (isRequestyMode) {
+    const datetimeString = getCurrentDatetimeString();
+    userContent = `${datetimeString}\n${userContent}`;
+  } else {
+    const systemPrompt = await carregarSystemPrompt();
+    messages.push({ role: 'system', content: systemPrompt });
+  }
+
+  messages.push({
+    role: 'user',
+    content: userContent,
+  });
 
   try {
     const response = await openai.chat.completions.create({
@@ -416,18 +436,26 @@ async function gerarParabensCargoViaAPI(guildId, userId, promptUsuario, roleName
        'ban': 'ban',
        'up_role': 'up_role'
      };
- 
+
      // Obter tag baseada no tipo de mensagem (case-insensitive, default para 'welcome')
      const tag = (messageType && messageTypeMapping[messageType.toLowerCase()]) || 'welcome';
- 
-     const systemPrompt = await carregarSystemPrompt();
-     const messages = [
-       { role: 'system', content: systemPrompt },
-       {
-         role: 'user',
-         content: `[${tag}]` + prompt.replace(/\{@USER\}/g, `<@${userId}>`).replace(/\{USER\}/g, userName).replace(/\{ROLE\}/g, roleName || '').replace(/\{@ROLE\}/g, roleMention || ''),
-       },
-     ];
+
+     const isRequestyMode = config.openai?.requesty_mode || false;
+     const messages = [];
+     let userContent = `[${tag}]` + prompt.replace(/\{@USER\}/g, `<@${userId}>`).replace(/\{USER\}/g, userName).replace(/\{ROLE\}/g, roleName || '').replace(/\{@ROLE\}/g, roleMention || '');
+
+     if (isRequestyMode) {
+       const datetimeString = getCurrentDatetimeString();
+       userContent = `${datetimeString}\n${userContent}`;
+     } else {
+       const systemPrompt = await carregarSystemPrompt();
+       messages.push({ role: 'system', content: systemPrompt });
+     }
+
+     messages.push({
+       role: 'user',
+       content: userContent,
+     });
  
      try {
        const response = await openai.chat.completions.create({
@@ -479,7 +507,11 @@ async function gerarParabensCargoViaAPI(guildId, userId, promptUsuario, roleName
       // Update cooldown timestamp
       rateLimitMap.set(rateLimitKey, Date.now());
     }
-   let systemPrompt = await carregarSystemPrompt();
+   const isRequestyMode = config.openai?.requesty_mode || false;
+   let systemPrompt;
+   if (!isRequestyMode) {
+     systemPrompt = await carregarSystemPrompt();
+   }
 
    /* --- Busca Semântica de Memórias por Similaridade de Embedding --- */
    try {
@@ -555,9 +587,10 @@ async function gerarParabensCargoViaAPI(guildId, userId, promptUsuario, roleName
    // Agora o histórico retorna IDs de mensagens do Discord
    const historicoIds = await database.buscarHistoricoConversa(guildId, canalId, usuarioId);
 
-   const messages = [
-     { role: 'system', content: systemPrompt }
-   ];
+   const messages = [];
+   if (!isRequestyMode) {
+     messages.push({ role: 'system', content: systemPrompt });
+   }
 
    // Se tivermos o channel, buscamos o conteúdo atual das mensagens por ID
    let historicoTextos = [];
@@ -598,6 +631,17 @@ async function gerarParabensCargoViaAPI(guildId, userId, promptUsuario, roleName
    } else {
      userContent = mensagemUsuario;
    }
+
+   if (isRequestyMode) {
+     const datetimeString = getCurrentDatetimeString();
+     if (typeof userContent === 'string') {
+       userContent = `${datetimeString}\n${userContent}`;
+     } else {
+       // array
+       userContent[0].text = `${datetimeString}\n${userContent[0].text}`;
+     }
+   }
+
    messages.push({ role: 'user', content: userContent });
 
    try {
@@ -674,14 +718,22 @@ async function gerarParabensCargoViaAPI(guildId, userId, promptUsuario, roleName
 
  // Função para gerar comentário baseado em conversa via API
  async function gerarComentarioViaAPI(conversationText) {
-   const systemPrompt = await carregarSystemPrompt();
-   const messages = [
-     { role: 'system', content: systemPrompt },
-     {
-       role: 'user',
-       content: `Analise a seguinte conversa do Discord e faça um comentário interessante ou engraçado sobre ela:\n\n${conversationText}`,
-     },
-   ];
+   const isRequestyMode = config.openai?.requesty_mode || false;
+   const messages = [];
+   let userContent = `Analise a seguinte conversa do Discord e faça um comentário interessante ou engraçado sobre ela:\n\n${conversationText}`;
+
+   if (isRequestyMode) {
+     const datetimeString = getCurrentDatetimeString();
+     userContent = `${datetimeString}\n${userContent}`;
+   } else {
+     const systemPrompt = await carregarSystemPrompt();
+     messages.push({ role: 'system', content: systemPrompt });
+   }
+
+   messages.push({
+     role: 'user',
+     content: userContent,
+   });
 
    try {
      const response = await openai.chat.completions.create({
