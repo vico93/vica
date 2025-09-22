@@ -1,6 +1,6 @@
 /*
 ** caminho: events/guildMemberUpdate.js
-** últimaMod: 2025-09-21 00:53
+** últimaMod: 2025-09-22 20:26
 ** autor: Vico
 ** colaboração: Roo Sonic (xai/grok-code-fast-1), Claude, ChatGPT
 */
@@ -136,11 +136,11 @@ module.exports = {
         console.log(`[ROLE-CONGRATS][DEBUG] Replaced prompt: "${replacedPrompt}"`);
         // Armazena o prompt já substituído
         if (!promptsToSend.has(replacedPrompt)) {
-          promptsToSend.set(replacedPrompt, { roleName, replacedPrompt });
+          promptsToSend.set(replacedPrompt, { role, roleName, replacedPrompt });
         }
       }
 
-      for (const { roleName, replacedPrompt } of promptsToSend.values()) {
+      for (const { role, roleName, replacedPrompt } of promptsToSend.values()) {
         console.log(`[ROLE-CONGRATS] Gerando parabéns para ${newMember.user.tag} no servidor ${newMember.guild.name} (cargo: ${roleName})`);
         let congratsMessage;
         try {
