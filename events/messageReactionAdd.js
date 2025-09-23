@@ -1,6 +1,6 @@
 /*
 **  caminho: events/messageReactionAdd.js
-**  últimaMod: 2025-09-23 14:13
+**  últimaMod: 2025-09-23 11:22
 **  autor: Vico
 ** colaboração: Copilot (gpt-4o), GLM 4.5 Air, Grok Code (Fast)
 */
@@ -18,8 +18,11 @@ const oai      = require('../core/oai_interface');
 const database = require('../core/database');
 
 /* ----------------------------------------------------------
-   Helpers
+    Helpers
 ---------------------------------------------------------- */
+
+/* --- Debug logs for thread feature --- */
+console.log('[DEBUG][THREAD] messageReactionAdd loaded');
 
 // Divide texto em chunks de até 2000 caracteres, preservando palavras
 function splitText(text, maxLength = 2000) {
@@ -49,6 +52,8 @@ function splitText(text, maxLength = 2000) {
 module.exports = {
   name: 'messageReactionAdd',
   async execute(reaction, user) {
+    console.log('[DEBUG][REACTION] Event fired for emoji:', reaction.emoji.name, 'id:', reaction.emoji.id, 'user:', user.tag);
+
     // Garante objeto completo
     if (reaction.partial) {
       try {
@@ -65,13 +70,8 @@ module.exports = {
     // Buscar reactionEmojis do banco de dados
     const guildId = reaction.message.guild.id;
     const reactionEmojis = database.listReactionEmojis(guildId);
-    
-    if (!reactionEmojis.length || !reactionEmojis.some(emoji => emoji.reaction_emoji_id === reaction.emoji.id)) {
-      if (!reactionEmojis.length) {
-        console.warn(`[VICA][REACTION] Nenhum reactionEmoji configurado para guild ${guildId}`);
-      }
-      return;
-    }
+    console.log('[DEBUG][REACTION] ReactionEmojis configured:', reactionEmojis.map(e => e.reaction_emoji_id), 'current emoji.id:', reaction.emoji.id);
+
 
     try {
       const message = reaction.message.partial
@@ -115,32 +115,36 @@ module.exports = {
 
       if (!prompt) return;
 
-      console.log(`[VICA][REACTION] Gatilho por ${user.tag} na msg de ${message.author.tag}`);
+      if (reactionEmojis.some(emoji => emoji.reaction_emoji_id === reaction.emoji.id)) {
+        console.log(`[VICA][REACTION] Gatilho por ${user.tag} na msg de ${message.author.tag}`);
 
-      await message.channel.sendTyping();
+        await message.channel.sendTyping();
 
-      const resposta = await oai.gerarRespostaContextual(
-        guildId, canalId, usuarioId, message.client.user.id, prompt, imageUrl
-      );
+        const resposta = await oai.gerarRespostaContextual(
+          guildId, canalId, usuarioId, message.client.user.id, prompt, imageUrl
+        );
 
-      const chunks = splitText(resposta);
-      if (chunks.length > 1) {
-        console.log('[VICA][REACTION][INFO] Response length > 2000, splitting into ' + chunks.length + ' chunks');
-      }
-      await message.reply({ content: chunks[0], failIfNotExists: false });
-      for (let i = 1; i < chunks.length; i++) {
-        await message.channel.send(chunks[i]);
-      }
+        const chunks = splitText(resposta);
+        if (chunks.length > 1) {
+          console.log('[VICA][REACTION][INFO] Response length > 2000, splitting into ' + chunks.length + ' chunks');
+        }
+        await message.reply({ content: chunks[0], failIfNotExists: false });
+        for (let i = 1; i < chunks.length; i++) {
+          await message.channel.send(chunks[i]);
+        }
 
-      // Remove reação para evitar spam
-      try {
-        await reaction.users.remove(user.id);
-      } catch {
-        /* ignora se faltar permissão */
+        // Remove reação para evitar spam
+        try {
+          await reaction.users.remove(user.id);
+        } catch {
+          /* ignora se faltar permissão */
+        }
       }
 
       // Verificar criação de thread na reação 🧵
+      console.log('[DEBUG][THREAD] Checking thread: emoji.name=', reaction.emoji.name, 'enabled=', database.isThreadReactionEnabled(guildId), 'hasThread=', message.hasThread);
       if (reaction.emoji.name === '🧵' && database.isThreadReactionEnabled(guildId) && !message.hasThread) {
+        console.log('[DEBUG][THREAD] Condition met, creating thread');
         try {
           const thread = await message.startThread({ name: 'Thread from reaction', autoArchiveDuration: 60 });
           console.log(`[VICA][THREAD] Thread criado: ${thread.name} por reação de ${user.tag}`);
@@ -148,6 +152,8 @@ module.exports = {
         } catch (err) {
           console.error('[VICA][THREAD] Erro ao criar thread:', err);
         }
+      } else {
+        console.log('[DEBUG][THREAD] Condition not met');
       }
     } catch (err) {
       console.error('[VICA][REACTION] Falha ao processar reação:', err);
