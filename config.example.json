@@ -9,7 +9,8 @@
     "model": "modelo-requesty",
     "model_embeddings": "openai/text-embedding-3-small",
     "retries": 3,
-    "initial_delay_ms": 1000
+    "initial_delay_ms": 1000,
+    "sendSystemPrompt": true
   },
   "settings": {
     "historyLimit": 6,

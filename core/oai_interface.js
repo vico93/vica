@@ -1,12 +1,13 @@
 /*
 ** caminho: core/oai_interface.js
-** últimaMod: 2025-09-23 10:47
+** últimaMod: 2025-09-23 10:53
 ** autor: Vico
 ** colaboração: Gemini, ChatGPT, Grok Code (Fast)
 */
 
 const OpenAI = require('openai');
 const path = require('path');
+const fs = require('fs');
 const config = require('../config.json');
 const database = require('../core/database');
 const tagParser = require('../core/tagParser');
@@ -291,8 +292,10 @@ const openai = new OpenAI({
 // Função do comando /perguntar
 async function gerarPerguntaViaAPI(promptUsuario = null) {
   const messages = [];
-  const systemPrompt = await carregarSystemPrompt();
-  messages.push({ role: 'system', content: systemPrompt });
+  if (config.openai.sendSystemPrompt !== false) {
+    const systemPrompt = await carregarSystemPrompt();
+    messages.push({ role: 'system', content: systemPrompt });
+  }
 
   messages.push({
    role: 'user',
@@ -319,8 +322,10 @@ async function gerarPerguntaViaAPI(promptUsuario = null) {
 // Função para gerar parabéns por cargo via API
 async function gerarParabensCargoViaAPI(guildId, userId, promptUsuario, roleName) {
   const messages = [];
-  const systemPrompt = await carregarSystemPrompt();
-  messages.push({ role: 'system', content: systemPrompt });
+  if (config.openai.sendSystemPrompt !== false) {
+    const systemPrompt = await carregarSystemPrompt();
+    messages.push({ role: 'system', content: systemPrompt });
+  }
 
   messages.push({
    role: 'user',
@@ -406,8 +411,10 @@ async function gerarParabensCargoViaAPI(guildId, userId, promptUsuario, roleName
      const tag = (messageType && messageTypeMapping[messageType.toLowerCase()]) || 'welcome';
   
      const messages = [];
-     const systemPrompt = await carregarSystemPrompt();
-     messages.push({ role: 'system', content: systemPrompt });
+     if (config.openai.sendSystemPrompt !== false) {
+       const systemPrompt = await carregarSystemPrompt();
+       messages.push({ role: 'system', content: systemPrompt });
+     }
   
      messages.push({
        role: 'user',
@@ -464,84 +471,85 @@ async function gerarParabensCargoViaAPI(guildId, userId, promptUsuario, roleName
       // Update cooldown timestamp
       rateLimitMap.set(rateLimitKey, Date.now());
     }
-    let systemPrompt = await carregarSystemPrompt();
+    const messages = [];
+    if (config.openai.sendSystemPrompt !== false) {
+      let systemPrompt = await carregarSystemPrompt();
 
-   /* --- Busca Semântica de Memórias por Similaridade de Embedding --- */
-   try {
-     // Gera embedding para a mensagem do usuário
-     const userEmbedding = await gerarEmbedding(mensagemUsuario);
-     console.log('[OAI_SEMANTIC][INFO] Embedding da mensagem do usuário gerado com sucesso');
+      /* --- Busca Semântica de Memórias por Similaridade de Embedding --- */
+      try {
+        // Gera embedding para a mensagem do usuário
+        const userEmbedding = await gerarEmbedding(mensagemUsuario);
+        console.log('[OAI_SEMANTIC][INFO] Embedding da mensagem do usuário gerado com sucesso');
 
-     // Busca memórias de usuário mais similares
-     const topUserMemories = await buscarMemoriasUsuarioSemanitcas(guildId, usuarioId, userEmbedding, 3); // top 3
+        // Busca memórias de usuário mais similares
+        const topUserMemories = await buscarMemoriasUsuarioSemanitcas(guildId, usuarioId, userEmbedding, 3); // top 3
 
-     // Busca memórias da guild mais similares
-     const topGuildMemories = await buscarMemoriasGuildSemanticas(guildId, userEmbedding, 2); // top 2
+        // Busca memórias da guild mais similares
+        const topGuildMemories = await buscarMemoriasGuildSemanticas(guildId, userEmbedding, 2); // top 2
 
-     // Combina e injeta memórias relevantes no system prompt
-     const allRelevantMemories = [...topUserMemories, ...topGuildMemories];
+        // Combina e injeta memórias relevantes no system prompt
+        const allRelevantMemories = [...topUserMemories, ...topGuildMemories];
 
-     if (allRelevantMemories.length > 0) {
-       // Separa memórias do usuário e da guild
-       const userMemoryFacts = topUserMemories.map(m => `- ${m.fact}`);
-       const guildMemoryFacts = topGuildMemories.map(m => `- ${m.fact}`);
+        if (allRelevantMemories.length > 0) {
+          // Separa memórias do usuário e da guild
+          const userMemoryFacts = topUserMemories.map(m => `- ${m.fact}`);
+          const guildMemoryFacts = topGuildMemories.map(m => `- ${m.fact}`);
 
-       if (userMemoryFacts.length > 0) {
-         systemPrompt += `\n\n[user_memories]\n${userMemoryFacts.join('\n')}\n[/user_memories]`;
-       }
+          if (userMemoryFacts.length > 0) {
+            systemPrompt += `\n\n[user_memories]\n${userMemoryFacts.join('\n')}\n[/user_memories]`;
+          }
 
-       if (guildMemoryFacts.length > 0) {
-         systemPrompt += `\n\n**Memórias relevantes sobre este servidor:**\n${guildMemoryFacts.join('\n')}`;
-       }
+          if (guildMemoryFacts.length > 0) {
+            systemPrompt += `\n\n**Memórias relevantes sobre este servidor:**\n${guildMemoryFacts.join('\n')}`;
+          }
 
-       console.log(`[OAI_SEMANTIC][INFO] Injetadas ${topUserMemories.length} memórias de usuário e ${topGuildMemories.length} memórias da guild`);
-     } else {
-       console.log('[OAI_SEMANTIC][INFO] Nenhuma memória relevante encontrada via busca semântica');
-     }
-   } catch (embedError) {
-     console.error('[OAI_SEMANTIC][ERRO] Falha na busca semântica de memórias:', embedError.message);
-     // Fallback: carrega memórias recentes caso a busca semântica falhe
-     try {
-       console.log('[OAI_SEMANTIC][INFO] Tentando fallback para carregamento de memórias recentes...');
+          console.log(`[OAI_SEMANTIC][INFO] Injetadas ${topUserMemories.length} memórias de usuário e ${topGuildMemories.length} memórias da guild`);
+        } else {
+          console.log('[OAI_SEMANTIC][INFO] Nenhuma memória relevante encontrada via busca semântica');
+        }
+      } catch (embedError) {
+        console.error('[OAI_SEMANTIC][ERRO] Falha na busca semântica de memórias:', embedError.message);
+        // Fallback: carrega memórias recentes caso a busca semântica falhe
+        try {
+          console.log('[OAI_SEMANTIC][INFO] Tentando fallback para carregamento de memórias recentes...');
 
-       // Carrega últimas memórias como fallback (não semântico)
-       const guildMems = database.listarMemoriasGuild(guildId, 5); // últimos 5
-       if (guildMems && guildMems.length > 0) {
-         const memoriasTexto = guildMems.map(m => `- ${m.fact}`).join('\n');
-         systemPrompt += `\n\n**Memórias recentes sobre este servidor:**\n${memoriasTexto}`;
-       }
+          // Carrega últimas memórias como fallback (não semântico)
+          const guildMems = database.listarMemoriasGuild(guildId, 5); // últimos 5
+          if (guildMems && guildMems.length > 0) {
+            const memoriasTexto = guildMems.map(m => `- ${m.fact}`).join('\n');
+            systemPrompt += `\n\n**Memórias recentes sobre este servidor:**\n${memoriasTexto}`;
+          }
 
-       const userMems = database.listarMemoriasUsuario(guildId, usuarioId, 5); // últimos 5
-       if (userMems && userMems.length > 0) {
-         const memoriasUsuarioTexto = userMems.map(m => `- ${m.fact}`).join('\n');
-         systemPrompt += `\n\n[user_memories]${memoriasUsuarioTexto}[/user_memories]`;
-       }
+          const userMems = database.listarMemoriasUsuario(guildId, usuarioId, 5); // últimos 5
+          if (userMems && userMems.length > 0) {
+            const memoriasUsuarioTexto = userMems.map(m => `- ${m.fact}`).join('\n');
+            systemPrompt += `\n\n[user_memories]${memoriasUsuarioTexto}[/user_memories]`;
+          }
 
-       console.log('[OAI_SEMANTIC][INFO] Fallback realizado com sucesso');
-     } catch (fallbackError) {
-       console.error('[OAI_SEMANTIC][ERRO] Fallback também falhou:', fallbackError.message);
-     }
-   }
+          console.log('[OAI_SEMANTIC][INFO] Fallback realizado com sucesso');
+        } catch (fallbackError) {
+          console.error('[OAI_SEMANTIC][ERRO] Fallback também falhou:', fallbackError.message);
+        }
+      }
 
-   // Carrega ranking de participação e injeta no system prompt
-   try {
-     const ranking = database.buscarRank(guildId, 5);
-     if (ranking && ranking.length > 0) {
-       const rankingLines = ranking.map((user, index) =>
-         `${index + 1}. <@${user.usuario_id}> (${user.xp} XP)`
-       );
-       systemPrompt += `\n\n**Ranking de participação:**\n${rankingLines.join(', ')}`;
-     }
-   } catch (e) {
-     console.error('[OAI] Erro ao buscar ranking de participação:', e);
-   }
+      // Carrega ranking de participação e injeta no system prompt
+      try {
+        const ranking = database.buscarRank(guildId, 5);
+        if (ranking && ranking.length > 0) {
+          const rankingLines = ranking.map((user, index) =>
+            `${index + 1}. <@${user.usuario_id}> (${user.xp} XP)`
+          );
+          systemPrompt += `\n\n**Ranking de participação:**\n${rankingLines.join(', ')}`;
+        }
+      } catch (e) {
+        console.error('[OAI] Erro ao buscar ranking de participação:', e);
+      }
 
+      messages.push({ role: 'system', content: systemPrompt });
+    }
 
-   // Agora o histórico retorna IDs de mensagens do Discord
-   const historicoIds = await database.buscarHistoricoConversa(guildId, canalId, usuarioId);
-
-   const messages = [];
-   messages.push({ role: 'system', content: systemPrompt });
+    // Agora o histórico retorna IDs de mensagens do Discord
+    const historicoIds = await database.buscarHistoricoConversa(guildId, canalId, usuarioId);
 
    // Se tivermos o channel, buscamos o conteúdo atual das mensagens por ID
    let historicoTextos = [];
@@ -660,8 +668,10 @@ async function gerarParabensCargoViaAPI(guildId, userId, promptUsuario, roleName
  // Função para gerar comentário baseado em conversa via API
   async function gerarComentarioViaAPI(conversationText) {
     const messages = [];
-    const systemPrompt = await carregarSystemPrompt();
-    messages.push({ role: 'system', content: systemPrompt });
+    if (config.openai.sendSystemPrompt !== false) {
+      const systemPrompt = await carregarSystemPrompt();
+      messages.push({ role: 'system', content: systemPrompt });
+    }
 
     messages.push({
       role: 'user',
