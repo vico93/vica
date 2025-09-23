@@ -1,8 +1,8 @@
 /*
 ** path: events/guildBanAdd.js
-** lastMod: 2025-09-12 20:35
+** lastMod: 2025-09-23 09:21
 ** author: Vico
-** colaboração: Roo Sonic e Kimi AI, Roo Sonic (xai/grok-code-fast-1)
+** colaboração: Kimi AI, Roo Sonic (xai/grok-code-fast-1)
 */
 
 const { AuditLogEvent } = require('discord.js');
@@ -13,6 +13,8 @@ const auditCache = require('../core/auditCache');
 module.exports = {
   name: 'GuildAuditLogEntryCreate',
   async execute(auditLog) {
+    console.log('[GUILDBANADD][DEBUG] Event triggered for audit log entry:', auditLog.action, 'target:', auditLog.target.tag || auditLog.target.username, 'guild:', auditLog.guild.name);
+
     // Only process ban events
     if (auditLog.action !== AuditLogEvent.MemberBanAdd) return;
 
@@ -30,29 +32,45 @@ module.exports = {
     try {
       // Get ban message configuration
       const messageConfig = database.getMessageByType(auditLog.guild.id, 'ban');
-      if (!messageConfig || !messageConfig.message) return;
+      console.log('[GUILDBANADD][DEBUG] Message config retrieved:', messageConfig ? 'yes' : 'no');
+      if (!messageConfig || !messageConfig.message) {
+        console.log('[GUILDBANADD][DEBUG] No message config or message, skipping');
+        return;
+      }
 
       // Get system channel
       const systemChannelId = database.getSystemChannel(auditLog.guild.id);
+      console.log('[GUILDBANADD][DEBUG] Retrieved system channel ID:', systemChannelId, 'for guild:', auditLog.guild.id);
       if (!systemChannelId) {
         console.warn(`[GUILDBANADD][WARN] No system channel configured for guild ${auditLog.guild.name}`);
         return;
       }
 
       const channel = auditLog.guild.channels.cache.get(systemChannelId);
+      console.log('[GUILDBANADD][DEBUG] Retrieved channel object:', channel ? channel.name : 'null');
       if (!channel) {
         console.warn(`[GUILDBANADD][WARN] System channel ${systemChannelId} not found in guild ${auditLog.guild.name}`);
         return;
       }
 
+      // Check send permissions
+      const hasSendPerm = channel.permissionsFor(auditLog.guild.members.me).has('SendMessages');
+      console.log('[GUILDBANADD][DEBUG] Bot has SendMessages permission in channel:', hasSendPerm);
+      if (!hasSendPerm) {
+        console.warn(`[GUILDBANADD][WARN] Bot lacks SendMessages permission in system channel ${channel.name}`);
+        return;
+      }
+
       // Get the banned user from the audit log target
       const bannedUser = auditLog.target;
+      console.log('[GUILDBANADD][DEBUG] Banned user:', bannedUser ? bannedUser.tag || bannedUser.username : 'null');
       if (!bannedUser) {
         console.warn(`[GUILDBANADD][WARN] No user found in ban audit log entry for guild ${auditLog.guild.name}`);
         return;
       }
 
       let finalMessage = messageConfig.message;
+      console.log('[GUILDBANADD][DEBUG] Original message:', finalMessage.substring(0, 100) + '...');
 
       // Replace placeholders - use username for ban messages (not mention)
       const userName = bannedUser.username || bannedUser.displayName || 'Unknown User';
@@ -61,9 +79,11 @@ module.exports = {
       // Get ban reason from audit log and replace {reason} placeholder
       const banReason = auditLog.reason || 'Nenhuma razão informada';
       finalMessage = finalMessage.replace(/\{reason\}/g, banReason);
+      console.log('[GUILDBANADD][DEBUG] After placeholder replacement:', finalMessage.substring(0, 100) + '...');
 
       // If it's a prompt, generate message via AI
       if (messageConfig.isPrompt) {
+        console.log('[GUILDBANADD][DEBUG] Generating AI message...');
         try {
           finalMessage = await oai_interface.gerarMensagemBemVindoViaAPI(
             auditLog.guild.id,
@@ -72,12 +92,17 @@ module.exports = {
             'ban',
             messageConfig.message
           );
+          console.log('[GUILDBANADD][DEBUG] AI message generated successfully');
         } catch (error) {
           console.error(`[GUILDBANADD][ERROR] Failed to generate ban message via AI:`, error);
           // Fall back to the original message without AI generation
+          console.log('[GUILDBANADD][DEBUG] Falling back to original message');
         }
+      } else {
+        console.log('[GUILDBANADD][DEBUG] Not a prompt, using original message');
       }
 
+      console.log('[GUILDBANADD][DEBUG] Final message to send:', finalMessage.substring(0, 100) + '...');
       await channel.send(finalMessage);
       console.log(`[GUILDBANADD][BAN] Sent ban message for ${bannedUser.tag || bannedUser.username} in ${auditLog.guild.name} with reason: "${banReason}"`);
     } catch (err) {

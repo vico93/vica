@@ -1,8 +1,8 @@
 /*
 **  caminho: bot.js
-**  últimaMod: 16/07/2025 22:27
+**  últimaMod: 2025-09-23 09:21
 **  autor: Vico
-**  colaboração: ChatGPT, Gemini, Kimi AI
+**  colaboração: ChatGPT, Gemini, Kimi AI, Roo Sonic (xai/grok-code-fast-1)
 */
 
 /*
@@ -27,7 +27,8 @@ const client = new Client({
     GatewayIntentBits.GuildMessages,
     GatewayIntentBits.MessageContent,
     GatewayIntentBits.GuildMessageReactions,
-    GatewayIntentBits.GuildMembers
+    GatewayIntentBits.GuildMembers,
+    GatewayIntentBits.GuildModeration
   ],
   partials: [Partials.Message, Partials.Channel, Partials.Reaction, Partials.GuildMember]
 });

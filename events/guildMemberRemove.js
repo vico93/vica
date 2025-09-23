@@ -1,6 +1,6 @@
 /*
 ** caminho: events/guildMemberRemove.js
-** últimaMod: 2025-09-12 20:35
+** últimaMod: 2025-09-23 09:15
 ** autor: Vico
 ** colaboração: Gemini, ChatGPT, Kimi AI e Roo Sonic (xai/grok-code-fast-1)
 */
@@ -13,6 +13,8 @@ const { PermissionsBitField } = require('discord.js');
 module.exports = {
   name: 'guildMemberRemove',
   async execute(member, client) {
+    console.log('[GUILDMEMBERREMOVE][DEBUG] Event triggered for user:', member.user.tag, 'ID:', member.id, 'in guild:', member.guild.name);
+
     // Ignora eventos de servidores onde o bot pode não estar totalmente pronto
     if (!member.guild) return;
 
@@ -40,19 +42,30 @@ module.exports = {
     try {
       // Use system channel
       const systemChannelId = database.getSystemChannel(member.guild.id);
+      console.log('[GUILDMEMBERREMOVE][DEBUG] Retrieved system channel ID:', systemChannelId, 'for guild:', member.guild.id);
       if (!systemChannelId) {
         console.warn(`[GUILDMEMBERREMOVE][WARN] No system channel configured for guild ${member.guild.name}`);
         return;
       }
 
       const channel = member.guild.channels.cache.get(systemChannelId);
+      console.log('[GUILDMEMBERREMOVE][DEBUG] Retrieved channel object:', channel ? channel.name : 'null');
       if (!channel) {
         console.warn(`[GUILDMEMBERREMOVE][WARN] System channel ${systemChannelId} not found in guild ${member.guild.name}`);
         return;
       }
 
+      // Check send permissions
+      const hasSendPerm = channel.permissionsFor(client.user).has('SendMessages');
+      console.log('[GUILDMEMBERREMOVE][DEBUG] Bot has SendMessages permission in channel:', hasSendPerm);
+      if (!hasSendPerm) {
+        console.warn(`[GUILDMEMBERREMOVE][WARN] Bot lacks SendMessages permission in system channel ${channel.name}`);
+        return;
+      }
+
       // Verifica se o bot possui permissão para ver logs de auditoria
       const hasAuditPermission = member.guild.members.me.permissions.has(PermissionsBitField.Flags.ViewAuditLog);
+      console.log('[GUILDMEMBERREMOVE][DEBUG] Bot has ViewAuditLog permission:', hasAuditPermission);
       if (!hasAuditPermission) {
         console.warn('[GUILDMEMBERREMOVE][WARN] Bot não possui permissão VIEW_AUDIT_LOG, pulando detecção de kick/ban');
       }
@@ -61,12 +74,15 @@ module.exports = {
       let kickLog = null;
       if (hasAuditPermission) {
         try {
+          console.log('[GUILDMEMBERREMOVE][DEBUG] Fetching kick audit logs...');
           const fetchedLogs = await member.guild.fetchAuditLogs({
             limit: 1,
             type: 20, // MEMBER_KICK
           });
           kickLog = fetchedLogs.entries.first();
+          console.log('[GUILDMEMBERREMOVE][DEBUG] Kick log found:', kickLog ? 'yes' : 'no', kickLog ? `target: ${kickLog.target.id}` : '');
         } catch (err) {
+          console.log('[GUILDMEMBERREMOVE][DEBUG] Error fetching kick logs:', err.message);
           if (err.code === 10004) {
             console.error('[GUILDMEMBERREMOVE][ERROR] Erro ao buscar logs de kick - Guild desconhecida:', err);
           } else {
@@ -75,17 +91,21 @@ module.exports = {
         }
       }
       const wasKicked = kickLog && kickLog.target.id === member.id;
+      console.log('[GUILDMEMBERREMOVE][DEBUG] Was kicked:', wasKicked);
 
       // Check for ban
       let banLog = null;
       if (hasAuditPermission) {
         try {
+          console.log('[GUILDMEMBERREMOVE][DEBUG] Fetching ban audit logs...');
           const banLogs = await member.guild.fetchAuditLogs({
             limit: 1,
             type: 22, // MEMBER_BAN_ADD
           });
           banLog = banLogs.entries.first();
+          console.log('[GUILDMEMBERREMOVE][DEBUG] Ban log found:', banLog ? 'yes' : 'no', banLog ? `target: ${banLog.target.id}` : '');
         } catch (err) {
+          console.log('[GUILDMEMBERREMOVE][DEBUG] Error fetching ban logs:', err.message);
           if (err.code === 10004) {
             console.error('[GUILDMEMBERREMOVE][ERROR] Erro ao buscar logs de ban - Guild desconhecida:', err);
           } else {
@@ -94,6 +114,7 @@ module.exports = {
         }
       }
       const wasBanned = banLog && banLog.target.id === member.id;
+      console.log('[GUILDMEMBERREMOVE][DEBUG] Was banned:', wasBanned);
 
       let messageConfig = null;
       let messageType = 'leave';
@@ -124,8 +145,10 @@ module.exports = {
         }
       }
 
+      console.log('[GUILDMEMBERREMOVE][DEBUG] Message config retrieved:', messageConfig ? 'yes' : 'no', messageType);
       if (messageConfig) {
         let finalMessage = messageConfig.message;
+        console.log('[GUILDMEMBERREMOVE][DEBUG] Original message:', finalMessage.substring(0, 100) + '...');
 
         // Replace placeholders - use username for leave/kick/ban (not mention)
         finalMessage = finalMessage.replace(/\{@USER\}/g, member.user.username).replace(/\{USER\}/g, member.user.username);
@@ -136,9 +159,11 @@ module.exports = {
         } else if (messageType === 'ban') {
           finalMessage = finalMessage.replace(/\{reason\}/g, banReason);
         }
+        console.log('[GUILDMEMBERREMOVE][DEBUG] After placeholder replacement:', finalMessage.substring(0, 100) + '...');
 
         // If it's a prompt, generate message via AI
         if (messageConfig.isPrompt) {
+          console.log('[GUILDMEMBERREMOVE][DEBUG] Generating AI message...');
           try {
             finalMessage = await oai_interface.gerarMensagemBemVindoViaAPI(
               member.guild.id,
@@ -147,14 +172,21 @@ module.exports = {
               messageType,
               messageConfig.message
             );
+            console.log('[GUILDMEMBERREMOVE][DEBUG] AI message generated successfully');
           } catch (error) {
             console.error(`[GUILDMEMBERREMOVE][ERROR] Failed to generate ${messageType} message via AI:`, error);
             // Fall back to the original message without AI generation
+            console.log('[GUILDMEMBERREMOVE][DEBUG] Falling back to original message');
           }
+        } else {
+          console.log('[GUILDMEMBERREMOVE][DEBUG] Not a prompt, using original message');
         }
 
+        console.log('[GUILDMEMBERREMOVE][DEBUG] Final message to send:', finalMessage.substring(0, 100) + '...');
         await channel.send(finalMessage);
         console.log(`[GUILDMEMBERREMOVE][${messageType.toUpperCase()}] Sent ${messageType} message for ${member.user.tag} in ${member.guild.name}`);
+      } else {
+        console.log('[GUILDMEMBERREMOVE][DEBUG] No message config found, skipping send');
       }
     } catch (err) {
       console.error(`[ERROR-MEMBER-LEAVE] Failed to handle member leave for ${member.user.tag}:`, err);
