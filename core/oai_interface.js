@@ -1,11 +1,12 @@
 /*
 ** caminho: core/oai_interface.js
-** últimaMod: 2025-09-23 10:36
+** últimaMod: 2025-09-23 10:47
 ** autor: Vico
-** colaboração: Gemini, ChatGPT, Roo Sonic (xai/grok-code-fast-1)
+** colaboração: Gemini, ChatGPT, Grok Code (Fast)
 */
 
 const OpenAI = require('openai');
+const path = require('path');
 const config = require('../config.json');
 const database = require('../core/database');
 const tagParser = require('../core/tagParser');
