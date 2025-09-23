@@ -1,8 +1,8 @@
 /*
 ** caminho: core/database.js
-** últimaMod: 2025-09-13 01:12
+** últimaMod: 2025-09-23 11:07
 ** autor: Vico
-** colaboração: Roo Sonic (xai/grok-code-fast-1), Copilot (gpt-4o), GLM 4.5 Air
+** colaboração: Roo Sonic (xai/grok-code-fast-1), Copilot (gpt-4o), GLM 4.5 Air, Grok Code (Fast)
 */
 
 /*
@@ -201,6 +201,21 @@ db.pragma('synchronous = NORMAL');    // commits mais rápidos
     // tabela ainda não existe, será criada abaixo
   }
 
+  // Migração para adicionar coluna thread_reaction_enabled na tabela guild_settings
+  try {
+    const settingsCols = db.prepare('PRAGMA table_info(guild_settings)').all();
+    const hasThreadReactionEnabled = settingsCols.some(c => c.name === 'thread_reaction_enabled');
+
+    if (settingsCols.length > 0 && !hasThreadReactionEnabled) {
+      console.warn('[DB] Migrando tabela guild_settings -> adicionando coluna thread_reaction_enabled.');
+      db.exec('ALTER TABLE guild_settings ADD COLUMN thread_reaction_enabled INTEGER DEFAULT 0');
+      console.log('[DB] Adicionada coluna thread_reaction_enabled à tabela guild_settings');
+    }
+  } catch (e) {
+    console.error('[DB] Erro durante migração da coluna thread_reaction_enabled:', e.message);
+    // tabela ainda não existe, será criada abaixo
+  }
+
   db.exec(`
 CREATE TABLE IF NOT EXISTS mensagens (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -255,7 +270,8 @@ CREATE TABLE IF NOT EXISTS guild_settings (
   ban_message TEXT,
   ban_is_prompt INTEGER DEFAULT 0,
   role_congrats_role_id TEXT,
-  role_congrats_prompt TEXT
+  role_congrats_prompt TEXT,
+  thread_reaction_enabled INTEGER DEFAULT 0
 );
 
 -- TABELA DE MEMÓRIAS DE USUÁRIO (por guild) --
@@ -509,7 +525,13 @@ const stmts = {
  /* --- EMOJIS DE REAÇÃO --- */
  reactionEmojiAdd: db.prepare('INSERT OR IGNORE INTO reaction_emojis (guild_id, reaction_emoji_id) VALUES (?, ?)'),
  reactionEmojiList: db.prepare('SELECT id, reaction_emoji_id FROM reaction_emojis WHERE guild_id = ?'),
- reactionEmojiDelete: db.prepare('DELETE FROM reaction_emojis WHERE guild_id = ? AND id = ?')
+ reactionEmojiDelete: db.prepare('DELETE FROM reaction_emojis WHERE guild_id = ? AND id = ?'),
+
+ /* --- THREAD REACTION --- */
+ threadReactionGet: db.prepare('SELECT thread_reaction_enabled FROM guild_settings WHERE guild_id = ?'),
+ threadReactionSet: db.prepare(`INSERT INTO guild_settings (guild_id, thread_reaction_enabled)
+                                  VALUES (?, ?)
+                                  ON CONFLICT(guild_id) DO UPDATE SET thread_reaction_enabled = excluded.thread_reaction_enabled`)
 };
 
 /* ----------------------------------------------------------
@@ -800,6 +822,15 @@ module.exports = {
  addReactionEmoji: (guildId, emojiId) => stmts.reactionEmojiAdd.run(guildId, emojiId).changes,
  listReactionEmojis: (guildId) => stmts.reactionEmojiList.all(guildId),
  deleteReactionEmoji: (guildId, id) => stmts.reactionEmojiDelete.run(guildId, id).changes,
+
+ /* --- THREAD REACTION --- */
+ isThreadReactionEnabled: (guildId) => {
+   const row = stmts.threadReactionGet.get(guildId);
+   return row ? row.thread_reaction_enabled === 1 : false;
+ },
+ setThreadReactionEnabled: (guildId, enabled) => {
+   return stmts.threadReactionSet.run(guildId, enabled ? 1 : 0).changes;
+ },
 
 // helper para graceful shutdown
 close: () => db.close()

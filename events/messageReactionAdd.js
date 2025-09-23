@@ -1,6 +1,6 @@
 /*
 **  caminho: events/messageReactionAdd.js
-**  últimaMod: 2025-09-23 11:00
+**  últimaMod: 2025-09-23 14:13
 **  autor: Vico
 ** colaboração: Copilot (gpt-4o), GLM 4.5 Air, Grok Code (Fast)
 */
@@ -137,6 +137,17 @@ module.exports = {
         await reaction.users.remove(user.id);
       } catch {
         /* ignora se faltar permissão */
+      }
+
+      // Verificar criação de thread na reação 🧵
+      if (reaction.emoji.name === '🧵' && database.isThreadReactionEnabled(guildId) && !message.hasThread) {
+        try {
+          const thread = await message.startThread({ name: 'Thread from reaction', autoArchiveDuration: 60 });
+          console.log(`[VICA][THREAD] Thread criado: ${thread.name} por reação de ${user.tag}`);
+          await reaction.users.remove(user.id);
+        } catch (err) {
+          console.error('[VICA][THREAD] Erro ao criar thread:', err);
+        }
       }
     } catch (err) {
       console.error('[VICA][REACTION] Falha ao processar reação:', err);
