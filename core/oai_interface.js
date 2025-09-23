@@ -286,7 +286,11 @@ function getCurrentDatetimeString() {
 const openai = new OpenAI({
   apiKey: config.openai.api_key,
   baseURL: config.openai.base_url,
+  defaultHeaders: {
+    "X-Title": "Vica",
+  },
 });
+
 
 // Função do comando /perguntar
 // Função do comando /perguntar
