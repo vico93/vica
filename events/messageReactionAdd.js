@@ -1,6 +1,6 @@
 /*
 **  caminho: events/messageReactionAdd.js
-**  últimaMod: 2025-09-23 11:22
+**  últimaMod: 2025-09-23 11:26
 **  autor: Vico
 ** colaboração: Copilot (gpt-4o), GLM 4.5 Air, Grok Code (Fast)
 */
@@ -21,8 +21,6 @@ const database = require('../core/database');
     Helpers
 ---------------------------------------------------------- */
 
-/* --- Debug logs for thread feature --- */
-console.log('[DEBUG][THREAD] messageReactionAdd loaded');
 
 // Divide texto em chunks de até 2000 caracteres, preservando palavras
 function splitText(text, maxLength = 2000) {
@@ -52,8 +50,6 @@ function splitText(text, maxLength = 2000) {
 module.exports = {
   name: 'messageReactionAdd',
   async execute(reaction, user) {
-    console.log('[DEBUG][REACTION] Event fired for emoji:', reaction.emoji.name, 'id:', reaction.emoji.id, 'user:', user.tag);
-
     // Garante objeto completo
     if (reaction.partial) {
       try {
@@ -70,7 +66,6 @@ module.exports = {
     // Buscar reactionEmojis do banco de dados
     const guildId = reaction.message.guild.id;
     const reactionEmojis = database.listReactionEmojis(guildId);
-    console.log('[DEBUG][REACTION] ReactionEmojis configured:', reactionEmojis.map(e => e.reaction_emoji_id), 'current emoji.id:', reaction.emoji.id);
 
 
     try {
@@ -142,9 +137,7 @@ module.exports = {
       }
 
       // Verificar criação de thread na reação 🧵
-      console.log('[DEBUG][THREAD] Checking thread: emoji.name=', reaction.emoji.name, 'enabled=', database.isThreadReactionEnabled(guildId), 'hasThread=', message.hasThread);
       if (reaction.emoji.name === '🧵' && database.isThreadReactionEnabled(guildId) && !message.hasThread) {
-        console.log('[DEBUG][THREAD] Condition met, creating thread');
         try {
           const thread = await message.startThread({ name: 'Thread from reaction', autoArchiveDuration: 60 });
           console.log(`[VICA][THREAD] Thread criado: ${thread.name} por reação de ${user.tag}`);
@@ -152,8 +145,6 @@ module.exports = {
         } catch (err) {
           console.error('[VICA][THREAD] Erro ao criar thread:', err);
         }
-      } else {
-        console.log('[DEBUG][THREAD] Condition not met');
       }
     } catch (err) {
       console.error('[VICA][REACTION] Falha ao processar reação:', err);
