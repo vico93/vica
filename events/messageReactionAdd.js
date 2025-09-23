@@ -139,11 +139,11 @@ module.exports = {
       // Verificar criação de thread na reação 🧵
       if (reaction.emoji.name === '🧵' && database.isThreadReactionEnabled(guildId) && !message.hasThread) {
         try {
-          const thread = await message.startThread({ name: 'Thread from reaction', autoArchiveDuration: 60 });
-          console.log(`[VICA][THREAD] Thread criado: ${thread.name} por reação de ${user.tag}`);
+          const thread = await message.startThread({ name: 'Tópico automaticamente aberto (renomear depois)', autoArchiveDuration: 60 });
+          console.log(`[VICA][THREAD] Tópico criado: ${thread.name} à pedido de ${user.tag}`);
           await reaction.users.remove(user.id);
         } catch (err) {
-          console.error('[VICA][THREAD] Erro ao criar thread:', err);
+          console.error('[VICA][THREAD] Erro ao criar tópico:', err);
         }
       }
     } catch (err) {
