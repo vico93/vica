@@ -1,14 +1,10 @@
 /*
 ** caminho: core/oai_interface.js
-** últimaMod: 2025-09-21 13:51
+** últimaMod: 2025-09-23 10:36
 ** autor: Vico
-** colaboração: Gemini, ChatGPT, Roo Sonic (xai/grok-code-fast-1), Roo Sonic (xai/grok-code-fast-1), Roo Sonic (xai/grok-code-fast-1)
+** colaboração: Gemini, ChatGPT, Roo Sonic (xai/grok-code-fast-1)
 */
 
-const fs = require('fs');
-const path = require('path');
-const { execSync } = require('child_process');
-const os = require('os');
 const OpenAI = require('openai');
 const config = require('../config.json');
 const database = require('../core/database');
@@ -290,33 +286,20 @@ const openai = new OpenAI({
   baseURL: config.openai.base_url,
 });
 
-const requesty = new OpenAI({
-  apiKey: config.requesty.api_key,
-  baseURL: config.requesty.base_url,
-});
-
 // Função do comando /perguntar
 // Função do comando /perguntar
 async function gerarPerguntaViaAPI(promptUsuario = null) {
-  const isRequestyMode = config.requesty?.requesty_mode || false;
   const messages = [];
-  let userContent = promptUsuario || '[pergunta]';
-
-  if (isRequestyMode) {
-    const datetimeString = getCurrentDatetimeString();
-    userContent = `${datetimeString}\n${userContent}`;
-  } else {
-    const systemPrompt = await carregarSystemPrompt();
-    messages.push({ role: 'system', content: systemPrompt });
-  }
+  const systemPrompt = await carregarSystemPrompt();
+  messages.push({ role: 'system', content: systemPrompt });
 
   messages.push({
    role: 'user',
-   content: userContent,
+   content: promptUsuario || '[pergunta]',
   });
   try {
-    const response = await (isRequestyMode ? requesty : openai).chat.completions.create({
-      model: isRequestyMode ? config.requesty.model : config.openai.model,
+    const response = await openai.chat.completions.create({
+      model: config.openai.model,
       messages,
       temperature: 0.9,
       max_tokens: config.settings.maxTokens,
@@ -334,26 +317,18 @@ async function gerarPerguntaViaAPI(promptUsuario = null) {
 /* --- Função Role Congratulation API --- */
 // Função para gerar parabéns por cargo via API
 async function gerarParabensCargoViaAPI(guildId, userId, promptUsuario, roleName) {
-  const isRequestyMode = config.requesty?.requesty_mode || false;
   const messages = [];
-  let userContent = promptUsuario;
-
-  if (isRequestyMode) {
-    const datetimeString = getCurrentDatetimeString();
-    userContent = `${datetimeString}\n${userContent}`;
-  } else {
-    const systemPrompt = await carregarSystemPrompt();
-    messages.push({ role: 'system', content: systemPrompt });
-  }
+  const systemPrompt = await carregarSystemPrompt();
+  messages.push({ role: 'system', content: systemPrompt });
 
   messages.push({
    role: 'user',
-   content: userContent,
+   content: promptUsuario,
   });
 
   try {
-    const response = await (isRequestyMode ? requesty : openai).chat.completions.create({
-      model: isRequestyMode ? config.requesty.model : config.openai.model,
+    const response = await openai.chat.completions.create({
+      model: config.openai.model,
       messages,
       temperature: 0.8,
       max_tokens: 100, // Slightly higher for more complete responses
@@ -410,30 +385,37 @@ async function gerarParabensCargoViaAPI(guildId, userId, promptUsuario, roleName
        'ban': 'ban',
        'up_role': 'up_role'
      };
+   
+   module.exports = {
+     gerarPerguntaViaAPI,
+     gerarRespostaContextual,
+     gerarParabensCargoViaAPI,
+     gerarMensagemBemVindoViaAPI,
+     gerarComentarioViaAPI,
+     gerarEmbedding,
+     cosineSimilarity,
+     // Funções de busca semântica
+     buscarMemoriasUsuarioSemanitcas,
+     buscarMemoriasGuildSemanticas,
+     // Configuração de peso para memórias (função auxiliar)
+     calculateWeightedSimilarity,
+   };
 
      // Obter tag baseada no tipo de mensagem (case-insensitive, default para 'welcome')
      const tag = (messageType && messageTypeMapping[messageType.toLowerCase()]) || 'welcome';
-
-     const isRequestyMode = config.requesty?.requesty_mode || false;
+  
      const messages = [];
-     let userContent = `[${tag}]` + prompt.replace(/\{@USER\}/g, `<@${userId}>`).replace(/\{USER\}/g, userName).replace(/\{ROLE\}/g, roleName || '').replace(/\{@ROLE\}/g, roleMention || '');
-
-     if (isRequestyMode) {
-       const datetimeString = getCurrentDatetimeString();
-       userContent = `${datetimeString}\n${userContent}`;
-     } else {
-       const systemPrompt = await carregarSystemPrompt();
-       messages.push({ role: 'system', content: systemPrompt });
-     }
-
+     const systemPrompt = await carregarSystemPrompt();
+     messages.push({ role: 'system', content: systemPrompt });
+  
      messages.push({
        role: 'user',
-       content: userContent,
+       content: `[${tag}]` + prompt.replace(/\{@USER\}/g, `<@${userId}>`).replace(/\{USER\}/g, userName).replace(/\{ROLE\}/g, roleName || '').replace(/\{@ROLE\}/g, roleMention || ''),
      });
-
+  
      try {
-       const response = await (isRequestyMode ? requesty : openai).chat.completions.create({
-         model: isRequestyMode ? config.requesty.model : config.openai.model,
+       const response = await openai.chat.completions.create({
+         model: config.openai.model,
          messages,
          temperature: 0.8,
          max_tokens: config.settings.maxTokens,
@@ -481,11 +463,7 @@ async function gerarParabensCargoViaAPI(guildId, userId, promptUsuario, roleName
       // Update cooldown timestamp
       rateLimitMap.set(rateLimitKey, Date.now());
     }
-    const isRequestyMode = config.requesty?.requesty_mode || false;
-   let systemPrompt;
-   if (!isRequestyMode) {
-     systemPrompt = await carregarSystemPrompt();
-   }
+    let systemPrompt = await carregarSystemPrompt();
 
    /* --- Busca Semântica de Memórias por Similaridade de Embedding --- */
    try {
@@ -562,9 +540,7 @@ async function gerarParabensCargoViaAPI(guildId, userId, promptUsuario, roleName
    const historicoIds = await database.buscarHistoricoConversa(guildId, canalId, usuarioId);
 
    const messages = [];
-   if (!isRequestyMode) {
-     messages.push({ role: 'system', content: systemPrompt });
-   }
+   messages.push({ role: 'system', content: systemPrompt });
 
    // Se tivermos o channel, buscamos o conteúdo atual das mensagens por ID
    let historicoTextos = [];
@@ -606,22 +582,12 @@ async function gerarParabensCargoViaAPI(guildId, userId, promptUsuario, roleName
      userContent = mensagemUsuario;
    }
 
-   if (isRequestyMode) {
-     const datetimeString = getCurrentDatetimeString();
-     if (typeof userContent === 'string') {
-       userContent = `${datetimeString}\n${userContent}`;
-     } else {
-       // array
-       userContent[0].text = `${datetimeString}\n${userContent[0].text}`;
-     }
-   }
-
    messages.push({ role: 'user', content: userContent });
 
    try {
      // Use the full message array with system prompt and conversation history
-     const response = await (isRequestyMode ? requesty : openai).chat.completions.create({
-       model: isRequestyMode ? config.requesty.model : config.openai.model,
+     const response = await openai.chat.completions.create({
+       model: config.openai.model,
        messages,
        temperature: 0.8,
        max_tokens: config.settings.maxTokens,
@@ -691,31 +657,23 @@ async function gerarParabensCargoViaAPI(guildId, userId, promptUsuario, roleName
  }
 
  // Função para gerar comentário baseado em conversa via API
- async function gerarComentarioViaAPI(conversationText) {
-   const isRequestyMode = config.requesty?.requesty_mode || false;
-   const messages = [];
-   let userContent = `Analise a seguinte conversa do Discord e faça um comentário interessante ou engraçado sobre ela:\n\n${conversationText}`;
+  async function gerarComentarioViaAPI(conversationText) {
+    const messages = [];
+    const systemPrompt = await carregarSystemPrompt();
+    messages.push({ role: 'system', content: systemPrompt });
 
-   if (isRequestyMode) {
-     const datetimeString = getCurrentDatetimeString();
-     userContent = `${datetimeString}\n${userContent}`;
-   } else {
-     const systemPrompt = await carregarSystemPrompt();
-     messages.push({ role: 'system', content: systemPrompt });
-   }
+    messages.push({
+      role: 'user',
+      content: `Analise a seguinte conversa do Discord e faça um comentário interessante ou engraçado sobre ela:\n\n${conversationText}`,
+    });
 
-   messages.push({
-     role: 'user',
-     content: userContent,
-   });
-
-   try {
-     const response = await (isRequestyMode ? requesty : openai).chat.completions.create({
-       model: isRequestyMode ? config.requesty.model : config.openai.model,
-       messages,
-       temperature: 0.8,
-       max_tokens: config.settings.maxTokens,
-     });
+    try {
+      const response = await openai.chat.completions.create({
+        model: config.openai.model,
+        messages,
+        temperature: 0.8,
+        max_tokens: config.settings.maxTokens,
+      });
 
      // /* --- Logging da Resposta Raw da API --- */
      console.log('[OAI][DEBUG] Resposta raw da API recebida (gerarComentarioViaAPI):');
@@ -951,121 +909,3 @@ async function gerarParabensCargoViaAPI(guildId, userId, promptUsuario, roleName
    // Configuração de peso para memórias (função auxiliar)
    calculateWeightedSimilarity,
  };
-/* --- Transcrição de Áudio --- */
-
-/* --- Transcrição de Áudio --- */
-
-// Função para transcrever áudio via API
-async function transcribeAudio(filePath) {
-  console.log(`[OAI_TRANSCRIBE][INFO] Starting transcription. filePath="${filePath}", model="${config.openai.model_audio}", baseURL="${config.openai.base_url}"`);
-
-  // Check if file exists and log file size
-  if (!fs.existsSync(filePath)) {
-    console.error(`[OAI_TRANSCRIBE][ERROR] File does not exist: ${filePath}`);
-    throw new Error(`File does not exist: ${filePath}`);
-  }
-  const fileSize = fs.statSync(filePath).size;
-  const fileExtension = path.extname(filePath).toLowerCase();
-  console.log(`[OAI_TRANSCRIBE][INFO] File exists, size=${fileSize} bytes, extension="${fileExtension}"`);
-
-  // Log additional file details for debugging
-  console.log(`[OAI_TRANSCRIBE][DEBUG] File details: path="${filePath}", size=${fileSize}, extension="${fileExtension}"`);
-
-  let fileToTranscribe = filePath;
-  let tempWavPath = null;
-
-  // Convert .ogg files to WAV for compatibility with Whisper API
-  if (fileExtension === '.ogg') {
-    tempWavPath = path.join(os.tmpdir(), `vica_transcribe_${Date.now()}.wav`);
-    try {
-      console.log(`[OAI_TRANSCRIBE][INFO] Converting .ogg to .wav for compatibility: ${filePath} -> ${tempWavPath}`);
-      execSync(`ffmpeg -i "${filePath}" -acodec pcm_s16le -ar 16000 -ac 1 "${tempWavPath}"`, { stdio: 'inherit' });
-      console.log(`[OAI_TRANSCRIBE][INFO] Conversion successful`);
-      fileToTranscribe = tempWavPath;
-    } catch (convError) {
-      console.error(`[OAI_TRANSCRIBE][ERROR] Failed to convert .ogg to .wav:`, convError.message);
-      throw new Error(`Audio conversion failed: ${convError.message}`);
-    }
-  }
-
-  // Validate the file to transcribe
-  const finalFileSize = fs.statSync(fileToTranscribe).size;
-  console.log(`[OAI_TRANSCRIBE][INFO] Final file size=${finalFileSize} bytes`);
-  if (finalFileSize === 0) {
-    console.error(`[OAI_TRANSCRIBE][ERROR] File is empty`);
-    throw new Error('Audio file is empty');
-  }
-
-  // Validate WAV header if it's a WAV file
-  if (path.extname(fileToTranscribe).toLowerCase() === '.wav') {
-    try {
-      const fd = fs.openSync(fileToTranscribe, 'r');
-      const buffer = Buffer.alloc(12);
-      fs.readSync(fd, buffer, 0, 12, 0);
-      fs.closeSync(fd);
-      const riff = buffer.slice(0, 4).toString();
-      const wave = buffer.slice(8, 12).toString();
-      console.log(`[OAI_TRANSCRIBE][DEBUG] WAV header: RIFF="${riff}", WAVE="${wave}"`);
-      if (riff !== 'RIFF' || wave !== 'WAVE') {
-        console.error(`[OAI_TRANSCRIBE][ERROR] Invalid WAV file header`);
-        throw new Error('Invalid WAV file header');
-      }
-    } catch (headerError) {
-      console.error(`[OAI_TRANSCRIBE][ERROR] Failed to validate WAV header: ${headerError.message}`);
-      throw headerError;
-    }
-  }
-
-  try {
-    console.log(`[OAI_TRANSCRIBE][INFO] About to call OpenAI audio transcription API with model="${config.openai.model_audio}", file stream from "${fileToTranscribe}"`);
-    console.log(`[OAI_TRANSCRIBE][DEBUG] API endpoint URL: ${config.openai.base_url}/audio/transcriptions`);
-    console.log(`[OAI_TRANSCRIBE][DEBUG] Using API key starting with: ${config.openai.api_key.substring(0, 10)}...`);
-
-    // Test using file path instead of stream
-    const response = await openai.audio.transcriptions.create({
-      file: fileToTranscribe,
-      model: config.openai.model_audio,
-    });
-
-    console.log(`[OAI_TRANSCRIBE][SUCCESS] Transcription completed successfully, length=${response.text.length}`);
-
-    // Clean up temporary file if created
-    if (tempWavPath) {
-      try {
-        fs.unlinkSync(tempWavPath);
-        console.log(`[OAI_TRANSCRIBE][INFO] Cleaned up temporary file: ${tempWavPath}`);
-      } catch (cleanupError) {
-        console.warn(`[OAI_TRANSCRIBE][WARN] Failed to clean up temporary file: ${cleanupError.message}`);
-      }
-    }
-
-    return response.text;
-  } catch (error) {
-    console.error(`[OAI_TRANSCRIBE][ERROR] Transcription failed. status=${error.response?.status || 'N/A'}, data=${JSON.stringify(error.response?.data || {})}, headers=${JSON.stringify(error.response?.headers || {})}, message="${error.message}", stack=${error.stack}`);
-
-    // Clean up temporary file on error
-    if (tempWavPath && fs.existsSync(tempWavPath)) {
-      try {
-        fs.unlinkSync(tempWavPath);
-        console.log(`[OAI_TRANSCRIBE][INFO] Cleaned up temporary file on error: ${tempWavPath}`);
-      } catch (cleanupError) {
-        console.warn(`[OAI_TRANSCRIBE][WARN] Failed to clean up temporary file on error: ${cleanupError.message}`);
-      }
-    }
-
-    throw error;
-  }
-}
-
-module.exports = {
-  gerarPerguntaViaAPI,
-  gerarParabensCargoViaAPI,
-  gerarMensagemBemVindoViaAPI,
-  gerarRespostaContextual,
-  gerarComentarioViaAPI,
-  buscarMemoriasUsuarioSemanitcas,
-  buscarMemoriasGuildSemanticas,
-  gerarEmbedding,
-  cosineSimilarity,
-  transcribeAudio,
-};

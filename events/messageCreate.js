@@ -1,8 +1,8 @@
 /*
 ** caminho: events/messageCreate.js
-** últimaMod: 2025-09-21 12:24
+** últimaMod: 2025-09-23 10:41
 ** autor: Vico
-** colaboração: Roo Sonic (xai/grok-code-fast-1)
+** colaboração: Grok Code (Fast)
 */
 
 /*
@@ -17,12 +17,6 @@
 const oai      = require('../core/oai_interface');
 const database = require('../core/database');
 const tagParser = require('../core/tagParser');
-const transcriber = require('../core/transcriber');
-const fs = require('fs');
-const https = require('https');
-const os = require('os');
-const path = require('path');
-const crypto = require('crypto');
 
 /* ----------------------------------------------------------
    Cooldown local em memória (guildId:userId -> timestamp)
@@ -39,14 +33,8 @@ function removerRepetidos(str) {
 }
 
 /* ----------------------------------------------------------
-   Helpers
----------------------------------------------------------- */
-// Remove caracteres repetidos para evitar spam
-function removerRepetidos(str) {
-  return str.toLowerCase().replace(/(.)\1+/g, '$1');
-}
-
-// Calcula XP baseado no texto limpo
+    Calcula XP baseado no texto limpo
+ ---------------------------------------------------------- */
 function calcularXP(textoLimpo) {
   const min = Math.ceil(textoLimpo.length / 7);
   const max = Math.ceil(textoLimpo.length / 4);
@@ -174,51 +162,6 @@ module.exports = {
 
     if (!mencionadoDireto && !respondeuBot) return;
 
-    /* --- Processamento de Voz --- */
-    // Verifica se há anexos de áudio e os processa para transcrição
-    let audioAttachment = null;
-    for (const att of message.attachments.values()) {
-      if (att.contentType?.startsWith('audio/') ||
-          att.name?.toLowerCase().endsWith('.ogg') ||
-          att.name?.toLowerCase().endsWith('.mp3')) {
-        audioAttachment = att;
-        break;
-      }
-    }
-
-    if (audioAttachment) {
-      const tempFile = path.join(os.tmpdir(), crypto.randomBytes(16).toString('hex') + path.extname(audioAttachment.name || '.tmp'));
-      try {
-        await new Promise((resolve, reject) => {
-          const fileStream = fs.createWriteStream(tempFile);
-          https.get(audioAttachment.url, (res) => {
-            res.pipe(fileStream);
-            fileStream.on('finish', resolve);
-            fileStream.on('error', reject);
-          }).on('error', reject);
-        });
-
-        const transcribed = await transcriber.transcribe(tempFile);
-        if (transcribed) {
-          const voiceText = `[voice] ${transcribed}`;
-          if (message.content) {
-            message.content = voiceText + ' ' + message.content;
-          } else {
-            message.content = voiceText;
-          }
-        } else {
-          console.error('[MESSAGECREATE][ERROR] Falha na transcrição do áudio:', audioAttachment.url);
-        }
-      } catch (err) {
-        console.error('[MESSAGECREATE][ERROR] Erro ao baixar/processar áudio:', err);
-      } finally {
-        try {
-          fs.unlinkSync(tempFile);
-        } catch (e) {
-          // Ignora erros ao deletar arquivo temporário
-        }
-      }
-    }
     try {
       await message.channel.sendTyping();
 

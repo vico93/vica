@@ -4,19 +4,12 @@
     "clientId": "SEU_CLIENT_ID"
   },
   "openai": {
-    "base_url": "https://sua.api.openai.compativel/responses",
-    "api_key": "SUA_CHAVE_API",
-    "model": "modelo-exemplo",
-    "model_embeddings": "modelo-embedding-exemplo",
-    "model_audio": "whisper-1",
-    "retries": 3,
-    "initial_delay_ms": 1000
-  },
-  "requesty": {
-    "requesty_mode": false,
     "base_url": "XXX",
     "api_key": "XXX",
-    "model": "modelo-requesty"
+    "model": "modelo-requesty",
+    "model_embeddings": "openai/text-embedding-3-small",
+    "retries": 3,
+    "initial_delay_ms": 1000
   },
   "settings": {
     "historyLimit": 6,
