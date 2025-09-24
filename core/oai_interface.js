@@ -1,8 +1,8 @@
 /*
 ** caminho: core/oai_interface.js
-** últimaMod: 2025-09-23 10:53
+** últimaMod: 2025-09-24 00:37
 ** autor: Vico
-** colaboração: Gemini, ChatGPT, Grok Code (Fast)
+** colaboração: Gemini, ChatGPT, Grok Code (Fast), GPT-5
 */
 
 const OpenAI = require('openai');
@@ -31,97 +31,8 @@ function sanitizeFato(fato) {
     .substring(0, 200);  // Truncate to 200 chars
    }
    
-   /* --- Funções Para Processar Comandos de Tags SGML --- */
-   
-   // Função para extrair comandos das tags [vica]...[/vica]
-   function parseTagCommands(content) {
-     const commands = [];
-     const tagRegex = /\[vica\](.*?)\[\/vica\]/gs;
-     let match;
-
-     // Log original content before processing
-     // console.log(`[PARSE_TAG][DEBUG] Iniciando processamento de tags. Conteúdo original: "${content}"`);
-
-     while ((match = tagRegex.exec(content)) !== null) {
-       const tagContent = match[1];
-       console.log(`[PARSE_TAG][DEBUG] Tag encontrada: "<vica>${tagContent}</vica>"`);
-
-       try {
-         const parts = tagContent.split(':');
-         if (parts.length >= 2) {
-           const commandName = parts[0];
-           const params = {};
-           for (let i = 1; i < parts.length; i += 2) {
-             if (i + 1 < parts.length) {
-               params[parts[i]] = parts[i + 1];
-             }
-           }
-           commands.push({ command: commandName, params });
-         } else {
-           console.warn(`[PARSE_TAG][WARN] Tag malformada detectada: "${tagContent}". Poucas partes encontradas (${parts.length}). Continuando processamento.`);
-         }
-       } catch (error) {
-         console.error(`[PARSE_TAG][ERRO] Erro ao processar tag "${tagContent}": ${error.message}. Continuando processamento.`, error);
-       }
-     }
-
-     console.log(`[PARSE_TAG][INFO] ${commands.length} comandos extraídos com sucesso`);
-     return commands;
-   }
-   
-   // Função similar a processToolCallsFromResponse para processar comandos de tags
-   function processTagCommands(commands, guildId, context = {}) {
-     if (!commands || commands.length === 0) {
-       console.log('[PROCESS_TAG][INFO] Nenhuma tag para processar');
-       return { success: true, processed: 0 };
-     }
-
-     console.log(`[PROCESS_TAG][INFO] Processando ${commands.length} comandos de tags`);
-
-     let processed = 0;
-     const results = [];
-
-     for (const cmd of commands) {
-       try {
-         if (cmd.command === 'salvar_memoria') {
-           const args = cmd.params;
-           const sanitizedFato = sanitizeFato(args.fato || '');
-
-           let importance = parseFloat(args.importance) || 5;
-           if (importance < 1 || importance > 10) importance = 5;
-           importance = Math.round(importance);
-
-           let confidence = parseFloat(args.confidence) || 0.5;
-           if (confidence < 0 || confidence > 1) confidence = 0.5;
-
-           const result = database.adicionarMemoriaUsuario(
-             args.guild_id || guildId,
-             args.user_id,
-             sanitizedFato,
-             {
-               importance: importance,
-               confidence: confidence,
-               sourceMessageId: args.source_message_id || context.sourceMessageId,
-               createdAt: parseInt(args.timestamp) || Date.now()
-             }
-           );
-
-           console.log(`[${context.moduleTag || 'TAG'}][TAG] salvar_memoria guild=${args.guild_id || guildId} user=${args.user_id} fact="${sanitizedFato}" importance=${importance} confidence=${confidence} inserted=${result.inserted} duplicate=${result.duplicate}`);
-           results.push({ command: 'salvar_memoria', result, success: true });
-           processed++;
-         } else {
-           console.warn(`[PROCESS_TAG][WARN] Comando não reconhecido: ${cmd.command}`);
-           results.push({ command: cmd.command, error: 'Comando não reconhecido', success: false });
-         }
-       } catch (e) {
-         console.error(`[PROCESS_TAG][ERRO] Falha ao processar comando ${cmd.command}:`, e?.message || e);
-         results.push({ command: cmd.command, error: e.message, success: false });
-       }
-     }
-
-     console.log(`[PROCESS_TAG][INFO] Finalizado processamento de comandos. Comandos encontrados: ${commands.length}, Processados com sucesso: ${processed}`);
-     return { success: true, processed, results };
-   }
+   /* --- Funções Para Processar Tags SGML --- */
+   // Padronizado via tagParser.parseTags(message, context). Suporte a [vica] removido.
    
    // Carrega o system prompt do arquivo system_prompt.txt
 // Se não conseguir ler o arquivo, retorna um prompt padrão
@@ -222,7 +133,8 @@ async function gerarPerguntaViaAPI(promptUsuario = null) {
 
     const content = response?.choices?.[0]?.message?.content;
     if (!content) throw new Error('A API não retornou conteúdo na resposta.');
-    return content.trim();
+    const parsedTags = tagParser.parseTags(content, { guildId: null });
+    return parsedTags.cleanedMessage;
   } catch (error) {
     console.error('[ERRO] Não consegui gerar uma pergunta pela API da OpenAI:', error.message);
     throw error;
@@ -258,24 +170,44 @@ async function gerarParabensCargoViaAPI(guildId, userId, promptUsuario, roleName
     const message = choice?.message;
     let content = message?.content || '';
 
-    // Processa comandos de tags usando helpers de tags
-    const commands = parseTagCommands(content);
-    const tagResults = processTagCommands(commands, guildId, {
-      moduleTag: '[ROLE-CONGRATS]',
-      sourceMessageId: null
-    });
-
-    if (tagResults.processed > 0) {
-      console.log(`[ROLE-CONGRATS][TAG] Processadas ${tagResults.processed} comandos de tags`);
-    }
-
     if (!content) throw new Error('A API não retornou conteúdo na resposta.');
+
+    // Processa tags [salvar_memoria] usando tagParser com contexto (guildId)
+    const parsedTags = tagParser.parseTags(content, { guildId });
+    let memoriesProcessed = 0;
+
+    if (parsedTags.memories && parsedTags.memories.length > 0) {
+      for (const memory of parsedTags.memories) {
+        if (!memory.hasErrors) {
+          try {
+            console.log(`[ROLE-CONGRATS][INFO] Processando memória: ${memory.guildId}:${memory.userId}:${memory.fact}...`);
+            const result = await database.adicionarMemoriaUsuario(
+              memory.guildId,
+              memory.userId,
+              memory.fact,
+              {
+                importance: memory.importance,
+                confidence: memory.confidence,
+                sourceMessageId: null,
+                createdAt: Date.now()
+              }
+            );
+            console.log(`[ROLE-CONGRATS][SUCCESS] Memória salva: inserted=${result.inserted} duplicate=${result.duplicate} importance=${memory.importance} confidence=${memory.confidence}`);
+            memoriesProcessed++;
+          } catch (memError) {
+            console.error(`[ROLE-CONGRATS][ERROR] Falha ao salvar memória: ${memError.message}`);
+          }
+        } else {
+          console.warn(`[ROLE-CONGRATS][WARN] Memória com erros ignorada: ${memory.errorMessage}`);
+        }
+      }
+    }
 
     // Adiciona automaticamente uma memória sobre o usuário estar no cargo
     if (roleName && userId) {
       try {
         const memoria = sanitizeFato(`Está no cargo ${roleName}`);
-        database.adicionarMemoriaUsuario(guildId, userId, memoria, {
+        await database.adicionarMemoriaUsuario(guildId, userId, memoria, {
           createdAt: Date.now()
         });
         console.log(`[ROLE-CONGRATS][MEM] Memória adicionada para usuário ${userId}: ${memoria}`);
@@ -284,10 +216,8 @@ async function gerarParabensCargoViaAPI(guildId, userId, promptUsuario, roleName
       }
     }
 
-    // Strip tags from content before returning
-    const originalTaggedContent = content;
-    content = content.replace(/\[vica\].*?\[\/vica\]/gs, '').trim();
-    console.log(`[ROLE-CONGRATS][CLEAN] Conteúdo limpo após remoção de tags. Original (com tags): "${originalTaggedContent}". Limpo: "${content}"`);
+    // Usa o conteúdo limpo do tagParser (tags já removidas)
+    content = parsedTags.cleanedMessage;
     return content;
   } catch (error) {
     console.error('[ERRO] Não consegui gerar parabéns pela API da OpenAI:', error.message);
@@ -335,24 +265,42 @@ async function gerarParabensCargoViaAPI(guildId, userId, promptUsuario, roleName
        const choice = response?.choices?.[0];
        const message = choice?.message;
        let content = message?.content || '';
- 
-       // Processa comandos de tags usando helpers de tags
-       const commands = parseTagCommands(content);
-       const tagResults = processTagCommands(commands, guildId, {
-         moduleTag: `[${tag.toUpperCase()}]`,
-         sourceMessageId: null
-       });
- 
-       if (tagResults.processed > 0) {
-         console.log(`[${tag.toUpperCase()}][TAG] Processadas ${tagResults.processed} comandos de tags`);
-       }
- 
+
        if (!content) throw new Error('A API não retornou conteúdo na resposta.');
- 
-       // Strip tags from content before returning
-       const originalTaggedContent = content;
-       content = content.replace(/\[vica\].*?\[\/vica\]/gs, '').trim();
-       console.log(`[${tag.toUpperCase()}][CLEAN] Conteúdo limpo após remoção de tags. Original (com tags): "${originalTaggedContent}". Limpo: "${content}"`);
+
+       // Processa tags [salvar_memoria] usando tagParser com contexto (guildId)
+       const parsedTags = tagParser.parseTags(content, { guildId });
+       let memoriesProcessed = 0;
+
+       if (parsedTags.memories && parsedTags.memories.length > 0) {
+         for (const memory of parsedTags.memories) {
+           if (!memory.hasErrors) {
+             try {
+               console.log(`[${tag.toUpperCase()}][INFO] Processando memória: ${memory.guildId}:${memory.userId}:${memory.fact}...`);
+               const result = await database.adicionarMemoriaUsuario(
+                 memory.guildId,
+                 memory.userId,
+                 memory.fact,
+                 {
+                   importance: memory.importance,
+                   confidence: memory.confidence,
+                   sourceMessageId: null,
+                   createdAt: Date.now()
+                 }
+               );
+               console.log(`[${tag.toUpperCase()}][SUCCESS] Memória salva: inserted=${result.inserted} duplicate=${result.duplicate} importance=${memory.importance} confidence=${memory.confidence}`);
+               memoriesProcessed++;
+             } catch (memError) {
+               console.error(`[${tag.toUpperCase()}][ERROR] Falha ao salvar memória: ${memError.message}`);
+             }
+           } else {
+             console.warn(`[${tag.toUpperCase()}][WARN] Memória com erros ignorada: ${memory.errorMessage}`);
+           }
+         }
+       }
+
+       // Usa o conteúdo limpo do tagParser (tags já removidas)
+       content = parsedTags.cleanedMessage;
        return content;
      } catch (error) {
        console.error(`[ERRO] Não consegui gerar mensagem de ${messageType} pela API da OpenAI:`, error.message);
@@ -631,7 +579,8 @@ async function gerarParabensCargoViaAPI(guildId, userId, promptUsuario, roleName
 
      const content = response?.choices?.[0]?.message?.content;
      if (!content) throw new Error('A API não retornou conteúdo na resposta.');
-     return content.trim();
+     const parsedTags = tagParser.parseTags(content, { guildId: null });
+     return parsedTags.cleanedMessage;
    } catch (error) {
      console.error('[ERRO] Não consegui gerar comentário pela API da OpenAI:', error.message);
      throw error;
@@ -819,6 +768,8 @@ async function gerarParabensCargoViaAPI(guildId, userId, promptUsuario, roleName
    }
  }
  
+ const buscarMemoriasUsuarioSemanticas = buscarMemoriasUsuarioSemanitcas;
+
  module.exports = {
    gerarPerguntaViaAPI,
    gerarRespostaContextual,
@@ -829,6 +780,7 @@ async function gerarParabensCargoViaAPI(guildId, userId, promptUsuario, roleName
    cosineSimilarity,
    // Funções de busca semântica
    buscarMemoriasUsuarioSemanitcas,
+   buscarMemoriasUsuarioSemanticas,
    buscarMemoriasGuildSemanticas,
    // Configuração de peso para memórias (função auxiliar)
    calculateWeightedSimilarity,
