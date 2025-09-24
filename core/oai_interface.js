@@ -15,134 +15,9 @@ const tagParser = require('../core/tagParser');
 const rateLimitMap = new Map();
 
 /* --- Funções Helper Para Processar Chamadas de Ferramentas --- */
+// (Removido suporte a tool-calls; manteremos somente tags SGML via tagParser)
 
-// Função helper para extrair tool calls de uma choice de forma robusta
-function extractToolCallsFromChoice(choice) {
-  try {
-    // Verificar diferentes formatos possíveis
-    const message = choice?.message;
-    if (!message) {
-      console.warn('[EXTRACT_TOOL][WARN] Choice.message ausente');
-      return [];
-    }
 
-    const toolCalls = message.tool_calls;
-    if (toolCalls) {
-      console.log(`[EXTRACT_TOOL][INFO] Encontradas ${toolCalls.length} tool calls na mensagem`);
-      return toolCalls;
-    }
-
-    // Fallback: verificar se está na propriedade 'function_call' (formato antigo)
-    if (message.function_call) {
-      console.warn('[EXTRACT_TOOL][WARN] Detectado formato antigo function_call, convertendo para tool_calls');
-      return [{
-        id: 'legacy_function_call',
-        type: 'function',
-        function: message.function_call
-      }];
-    }
-
-    console.log('[EXTRACT_TOOL][INFO] Nenhuma tool call encontrada na mensagem');
-    return [];
-  } catch (error) {
-    console.error('[EXTRACT_TOOL][ERRO] Falha ao extrair tool calls:', error.message);
-    return [];
-  }
-}
-
-// Função helper para processar tool calls e executar as funções
-function processToolCallsFromResponse(toolCalls, guildId, context = {}) {
-  if (!toolCalls || toolCalls.length === 0) {
-    console.log('[PROCESS_TOOL][INFO] Nenhuma tool call para processar');
-    return { success: true, processed: 0 };
-  }
-
-  console.log(`[PROCESS_TOOL][INFO] Processando ${toolCalls.length} tool calls`);
-
-  let processed = 0;
-  const results = [];
-
-  for (const toolCall of toolCalls) {
-    try {
-      if (toolCall.function?.name === 'salvar_memoria') {
-        const args = parseJsonSafely(toolCall.function.arguments, context.moduleTag || '[TOOL]');
-        if (args) {
-          // Sanitizar o fato
-          const sanitizedFato = sanitizeFato(args.fato);
-
-          // Validate importance (1-10, fallback 5)
-          let importance = args.importance;
-          if (typeof importance !== 'number' || importance < 1 || importance > 10) {
-            importance = 5; // default fallback
-          }
-          importance = Math.round(importance); // ensure integer
-
-          // Validate confidence (0-1, fallback 1.0)
-          let confidence = args.confidence;
-          if (typeof confidence !== 'number' || confidence < 0 || confidence > 1) {
-            confidence = 1.0; // default fallback
-          }
-
-          const result = database.adicionarMemoriaUsuario(
-            args.guild_id || guildId,
-            args.user_id,
-            sanitizedFato,
-            {
-              importance: importance,
-              confidence: confidence,
-              sourceMessageId: args.source_message_id || context.sourceMessageId,
-              createdAt: args.timestamp || Date.now()
-            }
-          );
-
-          console.log(`[${context.moduleTag || 'TOOL'}][TOOL] salvar_memoria guild=${args.guild_id || guildId} user=${args.user_id} fact="${sanitizedFato}" importance=${importance} confidence=${confidence} inserted=${result.inserted} duplicate=${result.duplicate}`);
-          results.push({ function: 'salvar_memoria', result, success: true });
-          processed++;
-        }
-      } else {
-        console.warn(`[PROCESS_TOOL][WARN] Tool call não reconhecida: ${toolCall.function?.name}`);
-        results.push({ function: toolCall.function?.name, error: 'Função não reconhecida', success: false });
-      }
-    } catch (e) {
-      console.error(`[PROCESS_TOOL][ERRO] Falha ao processar tool call ${toolCall.function?.name}:`, e?.message || e);
-      results.push({ function: toolCall.function?.name, error: e.message, success: false });
-    }
-  }
-
-  return { success: true, processed, results };
-}
-
-// Função para parse de JSON com fallback via regex
-function parseJsonSafely(jsonString, moduleTag = '[PARSE]') {
-  try {
-    // Tentar parse normal primeiro
-    return JSON.parse(jsonString);
-  } catch (parseError) {
-    console.warn(`${moduleTag}[JSON_PARSE][WARN] Parse JSON normal falhou, tentando regex fallback:`, parseError.message);
-
-    // Fallback: tentar extrair argumentos via regex
-    const regexPattern = /"(\w+)":\s*(?:"([^"]*)"|(\d+(?:\.\d+)?))/g;
-    const args = {};
-    let match;
-
-    try {
-      while ((match = regexPattern.exec(jsonString)) !== null) {
-        const [, key, strValue, numValue] = match;
-        args[key] = strValue !== undefined ? strValue : (numValue ? parseFloat(numValue) : match[0]);
-      }
-
-      if (Object.keys(args).length === 0) {
-        throw new Error('Nenhum argumento extraído via regex');
-      }
-
-      console.log(`${moduleTag}[JSON_PARSE][INFO] Extraído via regex:`, args);
-      return args;
-    } catch (regexError) {
-      console.error(`${moduleTag}[JSON_PARSE][ERRO] Fallback regex também falhou:`, regexError.message);
-      return null;
-    }
-  }
-}
 
 // Função para sanitizar fato (truncar e remover quebras de linha)
 function sanitizeFato(fato) {
@@ -290,6 +165,35 @@ const openai = new OpenAI({
     "X-Title": "Vica",
   },
 });
+/* --- Helper de Retry com Backoff Exponencial e Jitter --- */
+async function withRetries(fn, label = 'OAI_CALL') {
+  const maxRetries = Number.isInteger(config.openai?.retries) ? config.openai.retries : 3;
+  const baseDelay = Number.isInteger(config.openai?.initial_delay_ms) ? config.openai.initial_delay_ms : 1000;
+
+  let attempt = 0;
+  while (true) {
+    try {
+      return await fn();
+    } catch (err) {
+      attempt++;
+      const status = err?.status || err?.response?.status;
+      const code = err?.code;
+      const isRate = status === 429;
+      const is5xx = status >= 500 && status <= 599;
+      const isNetwork = ['ECONNRESET','ETIMEDOUT','ENOTFOUND','EAI_AGAIN'].includes(code);
+
+      if (!(isRate || is5xx || isNetwork) || attempt > maxRetries) {
+        console.error(`[RETRY][FALHA] ${label} erro definitivo (tentativa ${attempt}/${maxRetries}):`, err?.message || String(err));
+        throw err;
+      }
+
+      const jitter = Math.floor(Math.random() * 250);
+      const delay = baseDelay * Math.pow(2, attempt - 1) + jitter;
+      console.warn(`[RETRY][AVISO] ${label} tentativa ${attempt}/${maxRetries} falhou (status=${status || 'N/A'}, code=${code || 'N/A'}). Retentando em ${delay}ms...`);
+      await new Promise(res => setTimeout(res, delay));
+    }
+  }
+}
 
 
 // Função do comando /perguntar
@@ -306,12 +210,15 @@ async function gerarPerguntaViaAPI(promptUsuario = null) {
    content: promptUsuario || '[pergunta]',
   });
   try {
-    const response = await openai.chat.completions.create({
-      model: config.openai.model,
-      messages,
-      temperature: 0.9,
-      max_tokens: config.settings.maxTokens,
-    });
+    const response = await withRetries(
+      () => openai.chat.completions.create({
+        model: config.openai.model,
+        messages,
+        temperature: 0.8,
+        max_tokens: config.settings.maxTokens,
+      }),
+      '[CHAT][perguntar]'
+    );
 
     const content = response?.choices?.[0]?.message?.content;
     if (!content) throw new Error('A API não retornou conteúdo na resposta.');
@@ -337,12 +244,15 @@ async function gerarParabensCargoViaAPI(guildId, userId, promptUsuario, roleName
   });
 
   try {
-    const response = await openai.chat.completions.create({
-      model: config.openai.model,
-      messages,
-      temperature: 0.8,
-      max_tokens: 100, // Slightly higher for more complete responses
-    });
+    const response = await withRetries(
+      () => openai.chat.completions.create({
+        model: config.openai.model,
+        messages,
+        temperature: 0.8,
+        max_tokens: 100, // Resposta curta e objetiva para parabéns
+      }),
+      '[CHAT][role_congrats]'
+    );
 
     const choice = response?.choices?.[0];
     const message = choice?.message;
@@ -396,20 +306,6 @@ async function gerarParabensCargoViaAPI(guildId, userId, promptUsuario, roleName
        'up_role': 'up_role'
      };
    
-   module.exports = {
-     gerarPerguntaViaAPI,
-     gerarRespostaContextual,
-     gerarParabensCargoViaAPI,
-     gerarMensagemBemVindoViaAPI,
-     gerarComentarioViaAPI,
-     gerarEmbedding,
-     cosineSimilarity,
-     // Funções de busca semântica
-     buscarMemoriasUsuarioSemanitcas,
-     buscarMemoriasGuildSemanticas,
-     // Configuração de peso para memórias (função auxiliar)
-     calculateWeightedSimilarity,
-   };
 
      // Obter tag baseada no tipo de mensagem (case-insensitive, default para 'welcome')
      const tag = (messageType && messageTypeMapping[messageType.toLowerCase()]) || 'welcome';
@@ -426,12 +322,15 @@ async function gerarParabensCargoViaAPI(guildId, userId, promptUsuario, roleName
      });
   
      try {
-       const response = await openai.chat.completions.create({
-         model: config.openai.model,
-         messages,
-         temperature: 0.8,
-         max_tokens: config.settings.maxTokens,
-       });
+       const response = await withRetries(
+         () => openai.chat.completions.create({
+           model: config.openai.model,
+           messages,
+           temperature: 0.8,
+           max_tokens: config.settings.maxTokens,
+         }),
+         '[CHAT][welcome_flow]'
+       );
  
        const choice = response?.choices?.[0];
        const message = choice?.message;
@@ -553,7 +452,8 @@ async function gerarParabensCargoViaAPI(guildId, userId, promptUsuario, roleName
     }
 
     // Agora o histórico retorna IDs de mensagens do Discord
-    const historicoIds = await database.buscarHistoricoConversa(guildId, canalId, usuarioId);
+    const historyLimit = (config.settings && Number.isInteger(config.settings.historyLimit)) ? config.settings.historyLimit : 6;
+    const historicoIds = await database.buscarHistoricoConversa(guildId, canalId, usuarioId, historyLimit);
 
    // Se tivermos o channel, buscamos o conteúdo atual das mensagens por ID
    let historicoTextos = [];
@@ -599,12 +499,15 @@ async function gerarParabensCargoViaAPI(guildId, userId, promptUsuario, roleName
 
    try {
      // Use the full message array with system prompt and conversation history
-     const response = await openai.chat.completions.create({
-       model: config.openai.model,
-       messages,
-       temperature: 0.8,
-       max_tokens: config.settings.maxTokens,
-     });
+     const response = await withRetries(
+       () => openai.chat.completions.create({
+         model: config.openai.model,
+         messages,
+         temperature: 0.8,
+         max_tokens: config.settings.maxTokens,
+       }),
+       '[CHAT][resposta_contextual]'
+     );
 
      const choice = response?.choices?.[0];
      const message = choice?.message;
@@ -683,12 +586,15 @@ async function gerarParabensCargoViaAPI(guildId, userId, promptUsuario, roleName
     });
 
     try {
-      const response = await openai.chat.completions.create({
-        model: config.openai.model,
-        messages,
-        temperature: 0.8,
-        max_tokens: config.settings.maxTokens,
-      });
+      const response = await withRetries(
+        () => openai.chat.completions.create({
+          model: config.openai.model,
+          messages,
+          temperature: 0.8,
+          max_tokens: config.settings.maxTokens,
+        }),
+        '[CHAT][comentario]'
+      );
 
      // /* --- Logging da Resposta Raw da API --- */
      console.log('[OAI][DEBUG] Resposta raw da API recebida (gerarComentarioViaAPI):');
@@ -839,10 +745,13 @@ async function gerarParabensCargoViaAPI(guildId, userId, promptUsuario, roleName
    try {
      console.log(`[EMBEDDING][INFO] Gerando embedding para texto de ${text.length} caracteres usando modelo ${config.openai.model_embeddings}`);
 
-     const response = await openai.embeddings.create({
-       model: config.openai.model_embeddings,
-       input: text,
-     });
+     const response = await withRetries(
+       () => openai.embeddings.create({
+         model: config.openai.model_embeddings,
+         input: text,
+       }),
+       '[EMBEDDING]'
+     );
 
      const embedding = response?.data?.[0]?.embedding;
      if (!embedding) {

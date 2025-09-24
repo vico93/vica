@@ -41,11 +41,16 @@ npm install
   "openai": {
     "base_url": "https://sua.api.openai.compativel/responses",
     "api_key": "SUA_CHAVE_API",
-    "model": "modelo-exemplo"
+    "model": "gpt-4o",
+    "model_embeddings": "text-embedding-3-small",
+    "retries": 3,
+    "initial_delay_ms": 1000,
+    "sendSystemPrompt": true
   },
   "settings": {
     "historyLimit": 6,
-    "maxTokens": 500
+    "maxTokens": 500,
+    "rate_limit_ms": 5000
   }
 }
 ```
@@ -73,9 +78,19 @@ node bot.js
 
 ---
 
-## Sistema de Memórias:
-Vica usa um sistema de tags SGML (`<vica>`) para armazenar memórias de longo prazo. Os comandos são processados automaticamente e removidos da resposta final antes do envio para Discord, garantindo compatibilidade universal.
+## Sistema de Memórias
+Vica usa tags especiais para armazenar e sinalizar contexto:
+- `[salvar_memoria]...[/salvar_memoria]`: salva um fato no banco com `importance` (1–10) e `confidence` (0.0–1.0).
+- `[meta]...[/meta]`: bloco de metadados inline.
+- `[imagem]`: sinaliza que a mensagem possui imagem anexada.
 
+Exemplos:
+- `[salvar_memoria]{GUILD_ID}:123456789012345678:curte animes:8:0.9[/salvar_memoria]`
+- `[meta]user:João|id:123[/meta]`
+- `[imagem] Texto com imagem.`
+
+As tags são parseadas por [core/tagParser.js](core/tagParser.js) e consumidas nas respostas da IA por [core/oai_interface.js](core/oai_interface.js). Placeholders como `{GUILD_ID}` são substituídos automaticamente conforme o contexto.
+ 
 ## Próximos Passos
 
 * Implementar armazenamento e gerenciamento do histórico de mensagens com SQLite
