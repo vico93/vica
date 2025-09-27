@@ -124,7 +124,7 @@ module.exports = {
       // Check for ban message first (highest priority)
       if (wasBanned) {
         banReason = banLog.reason || 'No reason provided';
-        messageConfig = database.getMessageByType(member.guild.id, 'ban');
+        messageConfig = database.getMessageByType(member.guild.id, 'leave_ban');
         if (messageConfig) {
           messageType = 'ban';
         }
@@ -132,7 +132,7 @@ module.exports = {
       // Check for kick message if not banned but was kicked
       else if (wasKicked) {
         kickReason = kickLog.reason || 'No reason provided';
-        messageConfig = database.getMessageByType(member.guild.id, 'kick');
+        messageConfig = database.getMessageByType(member.guild.id, 'leave_kick');
         if (messageConfig) {
           messageType = 'kick';
         }
