@@ -1,8 +1,8 @@
 /*
 ** path: events/guildBanAdd.js
-** lastMod: 2025-09-23 09:21
+** lastMod: 2025-09-30 18:48
 ** author: Vico
-** colaboração: Kimi AI, Roo Sonic (xai/grok-code-fast-1)
+** colaboração: Kimi AI e Grok Code Fast
 */
 
 const { AuditLogEvent } = require('discord.js');
@@ -31,7 +31,8 @@ module.exports = {
 
     try {
       // Get ban message configuration
-      const messageConfig = database.getMessageByType(auditLog.guild.id, 'ban');
+      console.log('[GUILDBANADD][DEBUG] Looking up message config for type: leave_ban');
+      const messageConfig = database.getMessageByType(auditLog.guild.id, 'leave_ban');
       console.log('[GUILDBANADD][DEBUG] Message config retrieved:', messageConfig ? 'yes' : 'no');
       if (!messageConfig || !messageConfig.message) {
         console.log('[GUILDBANADD][DEBUG] No message config or message, skipping');
