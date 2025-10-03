@@ -1,8 +1,8 @@
 /*
 ** caminho: events/interactionCreate.js
-** últimaMod: 2025-09-03 19:45
+** últimaMod: 2025-10-03 22:07
 ** autor: Vico
-** colaboração: Roo Sonic (chatbot modal routing implementation)
+** colaboração: Grok Code (Fast)
 */
 
 /*
@@ -16,6 +16,7 @@
 */
 
 const { MessageFlags } = require('discord.js');
+const database = require('../core/database');
 
 module.exports = {
   name: 'interactionCreate',
@@ -98,6 +99,65 @@ module.exports = {
           }
         } catch (replyError) {
           console.error('[VICA][MODAL] Falha crítica ao enviar mensagem de erro:', replyError);
+        }
+      }
+      return;
+    }
+
+    // /* --- PROCESSAMENTO DE INTERAÇÕES DE BOTÃO --- */
+    if (interaction.isButton()) {
+      try {
+        if (interaction.customId.startsWith('delete_emoji_')) {
+          // Parse do customId: delete_emoji_${emojiId}_${originalUserId}
+          const parts = interaction.customId.split('_');
+          if (parts.length !== 4 || parts[0] !== 'delete' || parts[1] !== 'emoji') {
+            await interaction.reply({
+              content: '❌ ID do botão inválido.',
+              flags: [MessageFlags.Ephemeral]
+            });
+            return;
+          }
+          const emojiId = parts[2];
+          const originalUserId = parts[3];
+          // Verificar se o usuário é o mesmo que criou a interação
+          if (interaction.user.id !== originalUserId) {
+            await interaction.reply({
+              content: '❌ Você não tem permissão para deletar este emoji.',
+              flags: [MessageFlags.Ephemeral]
+            });
+            return;
+          }
+          // Deletar o emoji do banco de dados
+          const changes = database.deleteReactionEmoji(interaction.guild.id, emojiId);
+          if (changes > 0) {
+            await interaction.reply({
+              content: '✅ Emoji deletado com sucesso!',
+              flags: [MessageFlags.Ephemeral]
+            });
+          } else {
+            await interaction.reply({
+              content: '❌ Emoji não encontrado ou já deletado.',
+              flags: [MessageFlags.Ephemeral]
+            });
+          }
+        } else {
+          // Botão não reconhecido
+          await interaction.reply({
+            content: '❌ Interação não reconhecida. Isso pode indicar uma versão desatualizada.',
+            flags: [MessageFlags.Ephemeral]
+          });
+        }
+      } catch (error) {
+        console.error(`[VICA][BUTTON] Erro ao processar botão "${interaction.customId}":`, error);
+        const payload = { content: 'Ocorreu um erro ao processar a interação! 😢', flags: [MessageFlags.Ephemeral] };
+        try {
+          if (interaction.replied || interaction.deferred) {
+            await interaction.followUp(payload);
+          } else {
+            await interaction.reply(payload);
+          }
+        } catch (replyError) {
+          console.error('[VICA][BUTTON] Falha crítica ao enviar mensagem de erro:', replyError);
         }
       }
       return;

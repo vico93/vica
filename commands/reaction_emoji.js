@@ -1,8 +1,8 @@
 /*
 ** caminho: commands/reaction_emoji.js
-** últimaMod: 2025-09-11 19:16
+** últimaMod: 2025-10-03 19:08
 ** autor: Vico
-** colaboração: Roo Sonic (xai/grok-code-fast-1)
+** colaboração: Grok Code (Fast)
 */
 
 /*
@@ -90,9 +90,8 @@ function createShowEmbed(reactionEmojis, guild) {
  */
 function createDeleteButtons(reactionEmojis, userId) {
     const buttons = reactionEmojis.slice(0, 20).map(re => { // Limitar a 20 para não exceder limite do Discord
-        const emoji = reactionEmojis.find(e => e.id === re.id);
         return new ButtonBuilder()
-            .setCustomId(`delete_emoji_${re.id}_${userId}`)
+            .setCustomId(`delete_emoji_${re.reaction_emoji_id}_${userId}`)
             .setLabel(`Remover ${re.reaction_emoji_id}`)
             .setStyle(ButtonStyle.Danger);
     });

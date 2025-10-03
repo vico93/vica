@@ -2,7 +2,7 @@
 ** caminho: core/database.js
 ** últimaMod: 2025-09-23 11:07
 ** autor: Vico
-** colaboração: Roo Sonic (xai/grok-code-fast-1), Copilot (gpt-4o), GLM 4.5 Air, Grok Code (Fast)
+** colaboração: GPT-4o, GLM 4.5 Air, Grok Code (Fast)
 */
 
 /*
@@ -525,7 +525,7 @@ const stmts = {
  /* --- EMOJIS DE REAÇÃO --- */
  reactionEmojiAdd: db.prepare('INSERT OR IGNORE INTO reaction_emojis (guild_id, reaction_emoji_id) VALUES (?, ?)'),
  reactionEmojiList: db.prepare('SELECT id, reaction_emoji_id FROM reaction_emojis WHERE guild_id = ?'),
- reactionEmojiDelete: db.prepare('DELETE FROM reaction_emojis WHERE guild_id = ? AND id = ?'),
+ reactionEmojiDelete: db.prepare('DELETE FROM reaction_emojis WHERE guild_id = ? AND reaction_emoji_id = ?'),
 
  /* --- THREAD REACTION --- */
  threadReactionGet: db.prepare('SELECT thread_reaction_enabled FROM guild_settings WHERE guild_id = ?'),
