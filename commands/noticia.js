@@ -196,20 +196,27 @@ module.exports = {
                     console.log('[NOTICIA][INFO] Mensagem postada via webhook:', webhookMessage.id);
                 }
 
-                // Buscar a thread/canal onde a mensagem foi postada
-                let targetChannel = newsChannel;
-                if (newsChannel.type === ChannelType.GuildForum && webhookMessage.thread_id) {
-                    // Para fóruns, buscar a thread criada
-                    targetChannel = await newsChannel.threads.fetch(webhookMessage.thread_id);
-                }
-
                 // Postar menção ao autor (como o bot)
-                await targetChannel.send({
-                    content: `📰 Notícia compartilhada por ${member}`,
-                    ...(newsChannel.type === ChannelType.GuildText && {
+                if (newsChannel.type === ChannelType.GuildForum) {
+                    // Para fóruns, buscar a thread criada pelo webhook
+                    const threadId = webhookMessage.id; // O ID retornado é o ID da thread
+                    try {
+                        const thread = await interaction.guild.channels.fetch(threadId);
+                        if (thread) {
+                            await thread.send({
+                                content: `📰 Notícia compartilhada por ${member}`
+                            });
+                        }
+                    } catch (threadError) {
+                        console.error('[NOTICIA][WARN] Não foi possível postar menção na thread:', threadError.message);
+                    }
+                } else {
+                    // Para canais de texto, responder à mensagem
+                    await newsChannel.send({
+                        content: `📰 Notícia compartilhada por ${member}`,
                         reply: { messageReference: webhookMessage.id }
-                    })
-                });
+                    });
+                }
 
                 // Responder ao usuário
                 await interaction.editReply({
