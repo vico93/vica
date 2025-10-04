@@ -204,7 +204,7 @@ module.exports = {
                         const thread = await interaction.guild.channels.fetch(threadId);
                         if (thread) {
                             await thread.send({
-                                content: `📰 Notícia compartilhada por ${member}`
+                                content: `Aí ${member}`
                             });
                         }
                     } catch (threadError) {
@@ -213,7 +213,7 @@ module.exports = {
                 } else {
                     // Para canais de texto, responder à mensagem
                     await newsChannel.send({
-                        content: `📰 Notícia compartilhada por ${member}`,
+                        content: `Aí ${member}`,
                         reply: { messageReference: webhookMessage.id }
                     });
                 }
