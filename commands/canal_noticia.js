@@ -1,6 +1,6 @@
 /*
 ** caminho: commands/canal_noticia.js
-** últimaMod: 2025-10-04 00:20
+** últimaMod: 2025-10-04 00:35
 ** autor: Vico
 ** colaboração: Grok Code (Fast)
 */
@@ -67,6 +67,19 @@ module.exports = {
       const changes = database.setNewsChannel(interaction.guild.id, channel.id);
 
       if (changes > 0) {
+        // Criar webhook para o canal de notícias
+        try {
+          const webhook = await channel.createWebhook({
+            name: 'Vica News',
+            avatar: interaction.guild.iconURL({ dynamic: true })
+          });
+          database.setWebhook(interaction.guild.id, webhook.id);
+          console.log('[CANAL-NOTICIA][INFO] Webhook criado com sucesso:', webhook.id);
+        } catch (webhookError) {
+          console.error('[CANAL-NOTICIA][ERROR] Erro ao criar webhook:', webhookError);
+          // Continua mesmo com erro no webhook
+        }
+
         await interaction.reply({
           content: `✅ Canal de notícias definido com sucesso! As notícias serão postadas no canal ${channel}.`,
           flags: [MessageFlags.Ephemeral]

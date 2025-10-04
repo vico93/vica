@@ -1,6 +1,6 @@
 /*
 ** caminho: commands/noticia.js
-** últimaMod: 2025-10-04 00:20
+** últimaMod: 2025-10-04 00:35
 ** autor: Vico
 ** colaboração: Grok Code (Fast)
 */
@@ -152,29 +152,33 @@ module.exports = {
                 } else { // Text channel - usar webhook
                     console.log('[NOTICIA][INFO] Postando em canal de texto via webhook');
 
-                    // Criar webhook
-                    const webhookName = member.displayName;
-                    const webhookAvatar = member.user.displayAvatarURL({ dynamic: true });
+                    // Buscar webhook existente
+                    const webhookId = database.getWebhook(guildId);
+                    if (!webhookId) {
+                        console.error('[NOTICIA][ERROR] Webhook não encontrado para o servidor:', guildId);
+                        return interaction.editReply({
+                            content: '❌ Configuração de webhook inválida. Peça aos moderadores para reconfigurar o canal de notícias.'
+                        });
+                    }
 
-                    const webhook = await newsChannel.createWebhook({
-                        name: webhookName,
-                        avatar: webhookAvatar
-                    });
-
-                    // Enviar mensagem via webhook
-                    await webhook.send({
-                        content: description,
-                        username: webhookName,
-                        avatarURL: webhookAvatar
-                    });
-
-                    // Deletar webhook após uso
-                    await webhook.delete();
+                    try {
+                        const webhook = await interaction.guild.client.fetchWebhook(webhookId);
+                        await webhook.send({
+                            content: description,
+                            username: member.displayName,
+                            avatarURL: member.user.displayAvatarURL({ dynamic: true })
+                        });
+                    } catch (webhookError) {
+                        console.error('[NOTICIA][ERROR] Falha ao enviar via webhook:', webhookError);
+                        return interaction.editReply({
+                            content: '❌ Erro ao postar notícia via webhook.'
+                        });
+                    }
                 }
 
                 // Responder ao usuário
                 await interaction.editReply({
-                    content: `✅ Notícia postada com sucesso no ${newsChannel}!`
+                    content: `✅ Notícia postada com sucesso no ${newsChannel}! ${member}`
                 });
 
             } catch (postError) {

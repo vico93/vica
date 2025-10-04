@@ -1,6 +1,6 @@
 /*
 ** caminho: core/database.js
-** últimaMod: 2025-10-04 00:07
+** últimaMod: 2025-10-04 00:35
 ** autor: Vico
 ** colaboração: GPT-4o, GLM 4.5 Air, Grok Code (Fast)
 */
@@ -231,6 +231,21 @@ db.pragma('synchronous = NORMAL');    // commits mais rápidos
     // tabela ainda não existe, será criada abaixo
   }
 
+  // Migração para adicionar coluna webhook_id na tabela guild_settings
+  try {
+    const settingsCols = db.prepare('PRAGMA table_info(guild_settings)').all();
+    const hasWebhookId = settingsCols.some(c => c.name === 'webhook_id');
+
+    if (settingsCols.length > 0 && !hasWebhookId) {
+      console.warn('[DB] Migrando tabela guild_settings -> adicionando coluna webhook_id.');
+      db.exec('ALTER TABLE guild_settings ADD COLUMN webhook_id TEXT');
+      console.log('[DB] Adicionada coluna webhook_id à tabela guild_settings');
+    }
+  } catch (e) {
+    console.error('[DB] Erro durante migração da coluna webhook_id:', e.message);
+    // tabela ainda não existe, será criada abaixo
+  }
+
   db.exec(`
 CREATE TABLE IF NOT EXISTS mensagens (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -287,7 +302,8 @@ CREATE TABLE IF NOT EXISTS guild_settings (
   role_congrats_role_id TEXT,
   role_congrats_prompt TEXT,
   thread_reaction_enabled INTEGER DEFAULT 0,
-  news_channel_id TEXT
+  news_channel_id TEXT,
+  webhook_id TEXT
 );
 
 -- TABELA DE MEMÓRIAS DE USUÁRIO (por guild) --
@@ -553,7 +569,13 @@ const stmts = {
  newsChannelGet: db.prepare('SELECT news_channel_id FROM guild_settings WHERE guild_id = ?'),
  newsChannelSet: db.prepare(`INSERT INTO guild_settings (guild_id, news_channel_id)
                                   VALUES (?, ?)
-                                  ON CONFLICT(guild_id) DO UPDATE SET news_channel_id = excluded.news_channel_id`)
+                                  ON CONFLICT(guild_id) DO UPDATE SET news_channel_id = excluded.news_channel_id`),
+
+ /* --- WEBHOOK --- */
+ webhookGet: db.prepare('SELECT webhook_id FROM guild_settings WHERE guild_id = ?'),
+ webhookSet: db.prepare(`INSERT INTO guild_settings (guild_id, webhook_id)
+                                  VALUES (?, ?)
+                                  ON CONFLICT(guild_id) DO UPDATE SET webhook_id = excluded.webhook_id`)
 };
 
 /* ----------------------------------------------------------
@@ -861,6 +883,15 @@ module.exports = {
  },
  setNewsChannel: (guildId, channelId) => {
    return stmts.newsChannelSet.run(guildId, channelId).changes;
+ },
+
+ /* --- WEBHOOK --- */
+ getWebhook: (guildId) => {
+   const row = stmts.webhookGet.get(guildId);
+   return row ? row.webhook_id : null;
+ },
+ setWebhook: (guildId, webhookId) => {
+   return stmts.webhookSet.run(guildId, webhookId).changes;
  },
 
 // helper para graceful shutdown
