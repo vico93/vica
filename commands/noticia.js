@@ -131,7 +131,14 @@ module.exports = {
             const ogData = await fetchOpenGraphData(url);
 
             // Preparar conteúdo da mensagem
-            const title = ogData.title || `Notícia by ${member.displayName}`;
+            const rawTitle = ogData.title || `Notícia by ${member.displayName}`;
+            const title = rawTitle.length > 100 ? rawTitle.substring(0, 97) + '...' : rawTitle;
+
+            console.log('[NOTICIA][DEBUG] Título original:', rawTitle);
+            console.log('[NOTICIA][DEBUG] Título original length:', rawTitle.length);
+            console.log('[NOTICIA][DEBUG] Título final:', title);
+            console.log('[NOTICIA][DEBUG] Título final length:', title.length);
+
             const description = ogData.description ? `${ogData.description}\n➡️ ${url}` : `➡️ ${url}`;
 
             // Verificar tipo do canal e postar adequadamente
