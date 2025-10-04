@@ -39,12 +39,24 @@ function isValidUrl(string) {
  * Extrai metadados OpenGraph do HTML
  */
 function extractOpenGraphData(html) {
-    const ogTitle = html.match(/<meta[^>]*property=["']og:title["'][^>]*content=["']([^"']*)["'][^>]*>/i);
-    const ogDescription = html.match(/<meta[^>]*property=["']og:description["'][^>]*content=["']([^"']*)["'][^>]*>/i);
+    const ogTitleMatch = html.match(
+        /<meta[^>]*(?:property=["']og:title["'][^>]*content=["']([^"']*)["']|content=["']([^"']*)["'][^>]*property=["']og:title["'])[^>]*>/i
+    );
+    const ogDescriptionMatch = html.match(
+        /<meta[^>]*(?:property=["']og:description["'][^>]*content=["']([^"']*)["']|content=["']([^"']*)["'][^>]*property=["']og:description["'])[^>]*>/i
+    );
+
+    // Sanitiza e normaliza texto
+    const sanitize = (text) => {
+        if (!text) return null;
+        return text
+            .replace(/\s+/g, ' ')   // transforma múltiplos espaços/quebras em 1 espaço
+            .trim();
+    };
 
     return {
-        title: ogTitle ? ogTitle[1] : null,
-        description: ogDescription ? ogDescription[1] : null
+        title: sanitize(ogTitleMatch ? (ogTitleMatch[1] || ogTitleMatch[2]) : null),
+        description: sanitize(ogDescriptionMatch ? (ogDescriptionMatch[1] || ogDescriptionMatch[2]) : null)
     };
 }
 
@@ -131,7 +143,7 @@ module.exports = {
             const ogData = await fetchOpenGraphData(url);
 
             // Preparar conteúdo da mensagem
-            const rawTitle = ogData.title || `Notícia by ${member.displayName}`;
+            const rawTitle = ogData.title.replace(/\s+/g, ' ').trim() || `Notícia by ${member.displayName}`;
             const title = rawTitle.length > 100 ? rawTitle.substring(0, 97) + '...' : rawTitle;
 
             console.log('[NOTICIA][DEBUG] Título original:', rawTitle);
