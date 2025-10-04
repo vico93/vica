@@ -1,8 +1,8 @@
 /*
 ** caminho: commands/noticia.js
-** últimaMod: 2025-10-04 00:35
+** últimaMod: 2025-10-04 01:15
 ** autor: Vico
-** colaboração: Grok Code (Fast)
+** colaboração: Grok Code (Fast) e Claude
 */
 
 /*
@@ -14,6 +14,7 @@
 const {
     SlashCommandBuilder,
     MessageFlags,
+    ChannelType,
     WebhookClient
 } = require('discord.js');
 const database = require('../core/database');
@@ -50,7 +51,7 @@ function extractOpenGraphData(html) {
     const sanitize = (text) => {
         if (!text) return null;
         return text
-            .replace(/\s+/g, ' ')   // transforma múltiplos espaços/quebras em 1 espaço
+            .replace(/\s+/g, ' ')
             .trim();
     };
 
@@ -71,7 +72,7 @@ async function fetchOpenGraphData(url) {
             headers: {
                 'User-Agent': 'Mozilla/5.0 (compatible; VicaBot/1.0)'
             },
-            timeout: 10000 // 10 segundos timeout
+            timeout: 10000
         });
 
         if (!response.ok) {
@@ -122,7 +123,7 @@ module.exports = {
             const newsChannelId = database.getNewsChannel(guildId);
             if (!newsChannelId) {
                 return interaction.reply({
-                    content: '❌ Nenhum canal de notícias foi configurado para este servidor. Peça aos moderadores para configurar um canal usando o comando `/config`.',
+                    content: '❌ Nenhum canal de notícias foi configurado para este servidor. Peça aos moderadores para configurar um canal usando o comando `/canal-noticia`.',
                     flags: [MessageFlags.Ephemeral]
                 });
             }
@@ -137,86 +138,109 @@ module.exports = {
                 });
             }
 
+            // Verificar se há webhook configurado
+            const webhookData = database.getWebhook(guildId);
+            if (!webhookData || !webhookData.id) {
+                return interaction.reply({
+                    content: '❌ Nenhum webhook foi configurado para o canal de notícias. Peça aos moderadores para reconfigurar usando `/canal-noticia`.',
+                    flags: [MessageFlags.Ephemeral]
+                });
+            }
+
             // Buscar metadados OpenGraph
             await interaction.deferReply({ flags: [MessageFlags.Ephemeral] });
 
             const ogData = await fetchOpenGraphData(url);
 
             // Preparar conteúdo da mensagem
-            const rawTitle = ogData.title.replace(/\s+/g, ' ').trim() || `Notícia by ${member.displayName}`;
+            const rawTitle = (ogData.title || `Notícia by ${member.displayName}`).replace(/\s+/g, ' ').trim();
             const title = rawTitle.length > 100 ? rawTitle.substring(0, 97) + '...' : rawTitle;
+            const description = ogData.description ? `${ogData.description}\n\n➡️ ${url}` : `➡️ ${url}`;
 
-            console.log('[NOTICIA][DEBUG] Título original:', rawTitle);
-            console.log('[NOTICIA][DEBUG] Título original length:', rawTitle.length);
-            console.log('[NOTICIA][DEBUG] Título final:', title);
-            console.log('[NOTICIA][DEBUG] Título final length:', title.length);
+            console.log('[NOTICIA][DEBUG] Título final:', title, '(', title.length, 'chars)');
 
-            const description = ogData.description ? `${ogData.description}\n➡️ ${url}` : `➡️ ${url}`;
-
-            // Verificar tipo do canal e postar adequadamente
+            // Postar via webhook
             try {
-                if (newsChannel.type === 15) { // Forum channel
-                    console.log('[NOTICIA][INFO] Postando em canal de fórum');
+                const webhookClient = new WebhookClient({
+                    id: webhookData.id,
+                    token: webhookData.token
+                });
 
-                    // Criar thread no fórum
-                    const thread = await newsChannel.threads.create({
-                        name: title,
-                        message: {
-                            content: description
-                        }
+                let webhookMessage;
+
+                // Para canais de FÓRUM: usar threadName
+                if (newsChannel.type === ChannelType.GuildForum) {
+                    console.log('[NOTICIA][INFO] Postando em canal de fórum via webhook');
+
+                    webhookMessage = await webhookClient.send({
+                        content: description,
+                        username: member.displayName,
+                        avatarURL: member.user.displayAvatarURL({ dynamic: true }),
+                        threadName: title,  // Cria nova thread com este nome
+                        wait: true
                     });
 
-                    console.log('[NOTICIA][INFO] Thread criado com sucesso:', thread.id);
+                    console.log('[NOTICIA][INFO] Thread criado via webhook:', webhookMessage.id);
 
-                } else { // Text channel - usar webhook
+                } else {
+                    // Para canais de TEXTO: postar normalmente
                     console.log('[NOTICIA][INFO] Postando em canal de texto via webhook');
 
-                    // Buscar webhook existente
-                    const webhookId = database.getWebhook(guildId);
-                    if (!webhookId) {
-                        console.error('[NOTICIA][ERROR] Webhook não encontrado para o servidor:', guildId);
-                        return interaction.editReply({
-                            content: '❌ Configuração de webhook inválida. Peça aos moderadores para reconfigurar o canal de notícias.'
-                        });
-                    }
+                    webhookMessage = await webhookClient.send({
+                        content: `**${title}**\n\n${description}`,
+                        username: member.displayName,
+                        avatarURL: member.user.displayAvatarURL({ dynamic: true }),
+                        wait: true
+                    });
 
-                    try {
-                        const webhook = await interaction.guild.client.fetchWebhook(webhookId);
-                        await webhook.send({
-                            content: description,
-                            username: member.displayName,
-                            avatarURL: member.user.displayAvatarURL({ dynamic: true })
-                        });
-                    } catch (webhookError) {
-                        console.error('[NOTICIA][ERROR] Falha ao enviar via webhook:', webhookError);
-                        return interaction.editReply({
-                            content: '❌ Erro ao postar notícia via webhook.'
-                        });
-                    }
+                    console.log('[NOTICIA][INFO] Mensagem postada via webhook:', webhookMessage.id);
                 }
+
+                // Buscar a thread/canal onde a mensagem foi postada
+                let targetChannel = newsChannel;
+                if (newsChannel.type === ChannelType.GuildForum && webhookMessage.thread_id) {
+                    // Para fóruns, buscar a thread criada
+                    targetChannel = await newsChannel.threads.fetch(webhookMessage.thread_id);
+                }
+
+                // Postar menção ao autor (como o bot)
+                await targetChannel.send({
+                    content: `📰 Notícia compartilhada por ${member}`,
+                    ...(newsChannel.type === ChannelType.GuildText && {
+                        reply: { messageReference: webhookMessage.id }
+                    })
+                });
 
                 // Responder ao usuário
                 await interaction.editReply({
-                    content: `✅ Notícia postada com sucesso no ${newsChannel}! ${member}`
+                    content: `✅ Notícia postada com sucesso no ${newsChannel}!`
                 });
 
-            } catch (postError) {
-                console.error('[NOTICIA][ERROR] Falha ao postar notícia:', postError.message);
-                return interaction.editReply({
-                    content: '❌ Ocorreu um erro ao postar a notícia. Verifique as permissões do bot no canal de notícias.'
-                });
+            } catch (webhookError) {
+                console.error('[NOTICIA][ERROR] Falha ao enviar via webhook:', webhookError);
+                
+                // Mensagem de erro mais específica
+                let errorMsg = '❌ Erro ao postar notícia via webhook.';
+                if (webhookError.code === 10015) {
+                    errorMsg += ' O webhook não existe mais. Peça aos moderadores para reconfigurar o canal.';
+                } else if (webhookError.message?.includes('thread_name')) {
+                    errorMsg += ' Verifique se o webhook tem permissões para criar threads.';
+                }
+
+                return interaction.editReply({ content: errorMsg });
             }
 
         } catch (error) {
             console.error('[NOTICIA][ERROR] Erro geral no comando noticia:', error);
-            const replyContent = interaction.deferred
-                ? '❌ Ocorreu um erro inesperado. Tente novamente mais tarde.'
-                : { content: '❌ Ocorreu um erro inesperado. Tente novamente mais tarde.', flags: [MessageFlags.Ephemeral] };
+            const replyContent = '❌ Ocorreu um erro inesperado. Tente novamente mais tarde.';
 
             if (interaction.deferred) {
                 return interaction.editReply(replyContent);
             } else {
-                return interaction.reply(replyContent);
+                return interaction.reply({
+                    content: replyContent,
+                    flags: [MessageFlags.Ephemeral]
+                });
             }
         }
     }
