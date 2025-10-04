@@ -1,6 +1,6 @@
 /*
 ** caminho: core/database.js
-** últimaMod: 2025-09-23 11:07
+** últimaMod: 2025-10-04 00:07
 ** autor: Vico
 ** colaboração: GPT-4o, GLM 4.5 Air, Grok Code (Fast)
 */
@@ -216,6 +216,21 @@ db.pragma('synchronous = NORMAL');    // commits mais rápidos
     // tabela ainda não existe, será criada abaixo
   }
 
+  // Migração para adicionar coluna news_channel_id na tabela guild_settings
+  try {
+    const settingsCols = db.prepare('PRAGMA table_info(guild_settings)').all();
+    const hasNewsChannelId = settingsCols.some(c => c.name === 'news_channel_id');
+
+    if (settingsCols.length > 0 && !hasNewsChannelId) {
+      console.warn('[DB] Migrando tabela guild_settings -> adicionando coluna news_channel_id.');
+      db.exec('ALTER TABLE guild_settings ADD COLUMN news_channel_id TEXT');
+      console.log('[DB] Adicionada coluna news_channel_id à tabela guild_settings');
+    }
+  } catch (e) {
+    console.error('[DB] Erro durante migração da coluna news_channel_id:', e.message);
+    // tabela ainda não existe, será criada abaixo
+  }
+
   db.exec(`
 CREATE TABLE IF NOT EXISTS mensagens (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -271,7 +286,8 @@ CREATE TABLE IF NOT EXISTS guild_settings (
   ban_is_prompt INTEGER DEFAULT 0,
   role_congrats_role_id TEXT,
   role_congrats_prompt TEXT,
-  thread_reaction_enabled INTEGER DEFAULT 0
+  thread_reaction_enabled INTEGER DEFAULT 0,
+  news_channel_id TEXT
 );
 
 -- TABELA DE MEMÓRIAS DE USUÁRIO (por guild) --
@@ -531,7 +547,13 @@ const stmts = {
  threadReactionGet: db.prepare('SELECT thread_reaction_enabled FROM guild_settings WHERE guild_id = ?'),
  threadReactionSet: db.prepare(`INSERT INTO guild_settings (guild_id, thread_reaction_enabled)
                                   VALUES (?, ?)
-                                  ON CONFLICT(guild_id) DO UPDATE SET thread_reaction_enabled = excluded.thread_reaction_enabled`)
+                                  ON CONFLICT(guild_id) DO UPDATE SET thread_reaction_enabled = excluded.thread_reaction_enabled`),
+
+ /* --- NEWS CHANNEL --- */
+ newsChannelGet: db.prepare('SELECT news_channel_id FROM guild_settings WHERE guild_id = ?'),
+ newsChannelSet: db.prepare(`INSERT INTO guild_settings (guild_id, news_channel_id)
+                                  VALUES (?, ?)
+                                  ON CONFLICT(guild_id) DO UPDATE SET news_channel_id = excluded.news_channel_id`)
 };
 
 /* ----------------------------------------------------------
@@ -830,6 +852,15 @@ module.exports = {
  },
  setThreadReactionEnabled: (guildId, enabled) => {
    return stmts.threadReactionSet.run(guildId, enabled ? 1 : 0).changes;
+ },
+
+ /* --- NEWS CHANNEL --- */
+ getNewsChannel: (guildId) => {
+   const row = stmts.newsChannelGet.get(guildId);
+   return row ? row.news_channel_id : null;
+ },
+ setNewsChannel: (guildId, channelId) => {
+   return stmts.newsChannelSet.run(guildId, channelId).changes;
  },
 
 // helper para graceful shutdown
