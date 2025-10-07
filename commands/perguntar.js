@@ -1,8 +1,8 @@
 /*
 **  caminho: commands/perguntar.js
-**  últimaMod: 16/07/2025 22:25
+**  últimaMod: 07/10/2025 22:02
 **  autor: Vico
-**  colaboração: ChatGPT, Gemini, Kimi AI
+**  colaboração: ChatGPT, Gemini, Kimi AI, xai/grok-code-fast-1
 */
 
 /*
@@ -12,7 +12,7 @@
   - Agora respeita blacklist do chatbot (alternativa b).
 */
 
-const { SlashCommandBuilder } = require('discord.js');
+const { SlashCommandBuilder, MessageFlags } = require('discord.js');
 const oai         = require('../core/oai_interface');
 const database    = require('../core/database');
 const { perguntas } = require('../core/static_data'); // já em memória
@@ -48,7 +48,7 @@ module.exports = {
       });
     }
 
-    await interaction.deferReply();
+    await interaction.deferReply({ flags: [MessageFlags.Ephemeral] });
 
     let pergunta;
 
@@ -60,15 +60,15 @@ module.exports = {
         pergunta = await oai.gerarPerguntaViaAPI();
       } catch (err) {
         console.error('[VICA][PERGUNTAR] Erro IA:', err);
-        return interaction.editReply('Desculpa, tive um bug e não consegui pensar em nada... 😓');
+        return interaction.editReply({ content: 'Desculpa, tive um bug e não consegui pensar em nada... 😓', flags: [MessageFlags.Ephemeral] });
       }
     } else {
-      return interaction.editReply('Fonte inválida.');
+      return interaction.editReply({ content: 'Fonte inválida.', flags: [MessageFlags.Ephemeral] });
     }
 
-    const respostaFinal = `${mencionar ? `${mencionar} ` : ''}${pergunta}`;
-    await interaction.editReply({
-      content: respostaFinal,
+    await interaction.editReply({ content: 'Pergunta gerada com sucesso.', flags: [MessageFlags.Ephemeral] });
+    await interaction.channel.send({
+      content: `${mencionar ? `${mencionar} ` : ''}${pergunta}`,
       allowedMentions: mencionar ? { parse: ['everyone', 'roles', 'users'] } : {}
     });
   }
