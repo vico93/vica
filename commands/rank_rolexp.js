@@ -1,6 +1,6 @@
 /*
 ** caminho: commands/rank_rolexp.js
-** últimaMod: 2025-09-13 17:45
+** últimaMod: 2025-10-09 17:34
 ** autor: Vico
 ** colaboração: Roo Sonic (xai/grok-code-fast-1)
 */
@@ -37,19 +37,19 @@ module.exports = {
             .setMaxValue(10.0)))
 
     /*
-      Subcomando: show
+      Subcomando: list
     */
     .addSubcommand(subcommand =>
       subcommand
-        .setName('show')
+        .setName('list')
         .setDescription('Mostrar todos os multiplicadores de XP para cargos'))
 
     /*
-      Subcomando: remove
+      Subcomando: delete
     */
     .addSubcommand(subcommand =>
       subcommand
-        .setName('remove')
+        .setName('delete')
         .setDescription('Remover multiplicador de XP para um cargo')
         .addRoleOption(option =>
           option.setName('role')
@@ -97,7 +97,7 @@ module.exports = {
           });
         }
 
-      } else if (subcommand === 'show') {
+      } else if (subcommand === 'list') {
         /*
           Subcomando: mostrar multiplicadores
         */
@@ -129,7 +129,7 @@ module.exports = {
           });
         }
 
-      } else if (subcommand === 'remove') {
+      } else if (subcommand === 'delete') {
         /*
           Subcomando: remover multiplicador
         */

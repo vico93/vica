@@ -1,6 +1,6 @@
 /*
 ** caminho: commands/rank_blacklist.js
-** últimaMod: 2025-09-13 17:42
+** últimaMod: 2025-10-09 17:33
 ** autor: Vico
 ** colaboração: Roo Sonic (xai/grok-code-fast-1)
 */
@@ -32,19 +32,19 @@ module.exports = {
             .setRequired(true)))
 
     /*
-       Subcomando: show (mostrar canais)
+       Subcomando: list (mostrar canais)
     */
     .addSubcommand(subcommand =>
       subcommand
-        .setName('show')
+        .setName('list')
         .setDescription('Mostrar todos os canais na blacklist'))
 
     /*
-       Subcomando: remove (remover canal)
+       Subcomando: delete (remover canal)
     */
     .addSubcommand(subcommand =>
       subcommand
-        .setName('remove')
+        .setName('delete')
         .setDescription('Remover canal da blacklist do XP')
         .addChannelOption(option =>
           option.setName('channel')
@@ -92,9 +92,9 @@ module.exports = {
           });
         }
 
-      } else if (subcommand === 'show') {
+      } else if (subcommand === 'list') {
         /*
-           Subcomando: mostrar canais na blacklist
+           Subcomando: listar canais na blacklist
         */
         try {
           const channels = database.xpListarCanais(guildId);
@@ -118,9 +118,9 @@ module.exports = {
           });
         }
 
-      } else if (subcommand === 'remove') {
+      } else if (subcommand === 'delete') {
         /*
-           Subcomando: remover canal da blacklist
+           Subcomando: deletar canal da blacklist
         */
         const channel = interaction.options.getChannel('channel');
 
