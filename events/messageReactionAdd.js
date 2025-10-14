@@ -116,7 +116,7 @@ module.exports = {
         await message.channel.sendTyping();
 
         const resposta = await oai.gerarRespostaContextual(
-          guildId, canalId, usuarioId, message.client.user.id, prompt, imageUrl
+          guildId, canalId, usuarioId, message.client.user.id, prompt, imageUrl, message.channel, message.id, usuarioId
         );
 
         const chunks = splitText(resposta);

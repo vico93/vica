@@ -17,6 +17,44 @@ const rateLimitMap = new Map();
 /* --- Funções Helper Para Processar Chamadas de Ferramentas --- */
 // (Removido suporte a tool-calls; manteremos somente tags SGML via tagParser)
 
+/* --- Helper para detecção de thread de conversa --- */
+// Função auxiliar para determinar se uma mensagem deve ser incluída no contexto da conversa
+function shouldIncludeMessageInContext(message, originalAuthorId, botUserId) {
+  // Sempre incluir mensagens do autor original
+  if (message.author.id === originalAuthorId) {
+    return true;
+  }
+
+  // Sempre incluir respostas do bot
+  if (message.author.id === botUserId) {
+    return true;
+  }
+
+  // Incluir mensagens que mencionam o autor original ou o bot
+  if (message.mentions && (message.mentions.users.has(originalAuthorId) || message.mentions.users.has(botUserId))) {
+    return true;
+  }
+
+  // Incluir mensagens que são respostas diretas ao autor original ou ao bot
+  if (message.reference) {
+    // Para casos onde temos o message.reference.guildId, mas pode não ter o messageId completo
+    // Vamos assumir que se há referência, pode ser relevante
+    return true;
+  }
+
+  // Para outros casos, incluir apenas se for uma mensagem recente e relevante
+  // (evitar incluir mensagens muito antigas ou irrelevantes)
+  const messageAge = Date.now() - message.createdTimestamp;
+  const maxAge = 30 * 60 * 1000; // 30 minutos
+
+  if (messageAge < maxAge) {
+    // Para mensagens recentes, incluir apenas se tiver conteúdo substancial
+    return message.content && message.content.length > 10;
+  }
+
+  return false;
+}
+
 
 
 // Função para sanitizar fato (truncar e remover quebras de linha)
@@ -309,7 +347,7 @@ async function gerarParabensCargoViaAPI(guildId, userId, promptUsuario, roleName
    }
  
  // Função para gerar uma resposta à partir da API
- async function gerarRespostaContextual(guildId, canalId, usuarioId, botUserId, mensagemUsuario, imageUrl = null, channel = null, sourceMessageId = null) {
+ async function gerarRespostaContextual(guildId, canalId, usuarioId, botUserId, mensagemUsuario, imageUrl = null, channel = null, sourceMessageId = null, originalAuthorId = null) {
     // Rate limiting check per user+guild
     const rateLimitMs = config.settings.rate_limit_ms || 5000; // fallback 5 seconds
     if (guildId && usuarioId) {
@@ -399,32 +437,88 @@ async function gerarParabensCargoViaAPI(guildId, userId, promptUsuario, roleName
       messages.push({ role: 'system', content: systemPrompt });
     }
 
-    // Agora o histórico retorna IDs de mensagens do Discord
-    const historyLimit = (config.settings && Number.isInteger(config.settings.historyLimit)) ? config.settings.historyLimit : 6;
-    const historicoIds = await database.buscarHistoricoConversa(guildId, canalId, usuarioId, historyLimit);
+    // Nova lógica de thread de conversa com contexto melhorado
+    let historicoTextos = [];
 
-   // Se tivermos o channel, buscamos o conteúdo atual das mensagens por ID
-   let historicoTextos = [];
-   if (channel && typeof channel.messages?.fetch === 'function') {
-     try {
-       const fetched = await Promise.all(
-         historicoIds.map(async (id) => {
-           try {
-             const m = await channel.messages.fetch(id);
-             if (m?.content) {
-               return { content: m.content, authorId: m.author.id, username: m.author.username };
-             }
-             return null;
-           } catch {
-             return null;
-           }
-         })
-       );
-       historicoTextos = fetched.filter(Boolean);
-     } catch (e) {
-       console.warn('[WARN] Falha ao buscar histórico por IDs, seguindo sem histórico.', e?.message || e);
-     }
-   }
+    // Se temos originalAuthorId (caso de reação), usar lógica de thread de conversa
+    if (originalAuthorId && channel && typeof channel.messages?.fetch === 'function') {
+      try {
+        console.log(`[CONVERSATION_THREAD][INFO] Buscando thread de conversa para autor original ${originalAuthorId} no canal ${canalId}`);
+
+        // Buscar mensagens recentes do canal (últimas 20 mensagens)
+        const recentMessages = await channel.messages.fetch({ limit: 20 });
+
+        // Filtrar mensagens relevantes para o contexto da conversa
+        const relevantConversation = [];
+
+        for (const [msgId, message] of recentMessages) {
+          if (shouldIncludeMessageInContext(message, originalAuthorId, botUserId)) {
+            relevantConversation.push({
+              content: message.content,
+              authorId: message.author.id,
+              username: message.author.username,
+              createdAt: message.createdTimestamp
+            });
+          }
+        }
+
+        // Ordenar por timestamp (mais antigas primeiro) e limitar
+        relevantConversation.sort((a, b) => a.createdAt - b.createdAt);
+        historicoTextos = relevantConversation.slice(-6); // últimas 6 mensagens relevantes
+
+        console.log(`[CONVERSATION_THREAD][INFO] Encontradas ${historicoTextos.length} mensagens relevantes no thread de conversa`);
+
+      } catch (e) {
+        console.warn('[CONVERSATION_THREAD][WARN] Falha ao buscar thread de conversa, usando fallback.', e?.message || e);
+        // Fallback para o método antigo se houver erro
+        try {
+          const historyLimit = (config.settings && Number.isInteger(config.settings.historyLimit)) ? config.settings.historyLimit : 6;
+          const historicoIds = await database.buscarHistoricoConversa(guildId, canalId, usuarioId, historyLimit);
+
+          const fetched = await Promise.all(
+            historicoIds.map(async (id) => {
+              try {
+                const m = await channel.messages.fetch(id);
+                if (m?.content) {
+                  return { content: m.content, authorId: m.author.id, username: m.author.username };
+                }
+                return null;
+              } catch {
+                return null;
+              }
+            })
+          );
+          historicoTextos = fetched.filter(Boolean);
+        } catch (fallbackError) {
+          console.warn('[CONVERSATION_THREAD][WARN] Fallback também falhou.', fallbackError?.message || fallbackError);
+        }
+      }
+    } else {
+      // Método tradicional para casos sem originalAuthorId (como comandos normais)
+      try {
+        const historyLimit = (config.settings && Number.isInteger(config.settings.historyLimit)) ? config.settings.historyLimit : 6;
+        const historicoIds = await database.buscarHistoricoConversa(guildId, canalId, usuarioId, historyLimit);
+
+        if (channel && typeof channel.messages?.fetch === 'function') {
+          const fetched = await Promise.all(
+            historicoIds.map(async (id) => {
+              try {
+                const m = await channel.messages.fetch(id);
+                if (m?.content) {
+                  return { content: m.content, authorId: m.author.id, username: m.author.username };
+                }
+                return null;
+              } catch {
+                return null;
+              }
+            })
+          );
+          historicoTextos = fetched.filter(Boolean);
+        }
+      } catch (e) {
+        console.warn('[WARN] Falha ao buscar histórico tradicional, seguindo sem histórico.', e?.message || e);
+      }
+    }
 
    for (const msg of historicoTextos) {
      const isBot = msg.authorId === botUserId;

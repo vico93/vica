@@ -35,7 +35,8 @@ module.exports = {
         prefixedPrompt,
         null, // no image
         interaction.channel,
-        null // no sourceMessageId since it's a command
+        null, // no sourceMessageId since it's a command
+        null // originalAuthorId for context - trigger commands start fresh conversations
       );
 
       await interaction.channel.send(response);

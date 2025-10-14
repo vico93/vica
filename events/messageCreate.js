@@ -224,7 +224,7 @@ module.exports = {
       if (!prompt) return;
 
       const resposta = await oai.gerarRespostaContextual(
-        guildId, canalId, usuarioId, message.client.user.id, prompt, imageUrl, message.channel, message.id
+        guildId, canalId, usuarioId, message.client.user.id, prompt, imageUrl, message.channel, message.id, usuarioId
       );
 
       const chunks = splitText(resposta);
