@@ -15,7 +15,8 @@ const {
     SlashCommandBuilder,
     MessageFlags,
     ChannelType,
-    WebhookClient
+    WebhookClient,
+    PermissionsBitField
 } = require('discord.js');
 const database = require('../core/database');
 const fetch = require('node-fetch');
@@ -103,7 +104,8 @@ module.exports = {
             option.setName('url')
                 .setDescription('URL da notícia para compartilhar')
                 .setRequired(true)
-        ),
+        )
+        .setDefaultMemberPermissions(PermissionsBitField.Flags.EmbedLinks),
 
     async execute(interaction) {
         const url = interaction.options.getString('url');
