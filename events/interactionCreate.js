@@ -140,13 +140,10 @@ module.exports = {
               flags: [MessageFlags.Ephemeral]
             });
           }
-        } else {
-          // Botão não reconhecido
-          await interaction.reply({
-            content: '❌ Interação não reconhecida. Isso pode indicar uma versão desatualizada.',
-            flags: [MessageFlags.Ephemeral]
-          });
         }
+        // Se a interação do botão não corresponder a nenhum dos casos acima,
+        // não fazemos nada aqui para permitir que coletores específicos (nos arquivos de comando)
+        // processem a interação.
       } catch (error) {
         console.error(`[VICA][BUTTON] Erro ao processar botão "${interaction.customId}":`, error);
         const payload = { content: 'Ocorreu um erro ao processar a interação! 😢', flags: [MessageFlags.Ephemeral] };
