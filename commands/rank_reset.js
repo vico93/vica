@@ -1,8 +1,8 @@
 /*
 ** caminho: commands/rank_reset.js
-** últimaMod: 2025-10-09 17:24
+** últimaMod: 2025-11-18 10:30
 ** autor: Vico
-** colaboração: Grok Code (Fast)
+** colaboração: Grok Code (Fast), Gemini
 */
 
 /*
@@ -74,13 +74,22 @@ module.exports = {
             }
 
             if (i.customId === generateComponentId(interaction.user.id, 'confirm_reset_xp')) {
-                // Executar o reset
-                const affectedUsers = database.resetarXP(interaction.guild.id);
+                await i.deferUpdate(); // Adia a resposta para evitar timeout
+                try {
+                    // Executar o reset
+                    const affectedUsers = database.resetarXP(interaction.guild.id);
 
-                await i.update({
-                    content: `💥 **Ranking de XP resetado com sucesso!**\n\n${affectedUsers} usuários foram afetados. Todos os XPs e níveis foram zerados.`,
-                    components: []
-                });
+                    await i.editReply({
+                        content: `💥 **Ranking de XP resetado com sucesso!**\n\n${affectedUsers} usuários foram afetados. Todos os XPs e níveis foram zerados.`, 
+                        components: []
+                    });
+                } catch (err) {
+                    console.error('[RANK_RESET][ERROR]', err);
+                    await i.editReply({
+                        content: `❌ Erro ao resetar o ranking: ${err.message}`,
+                        components: []
+                    });
+                }
             } else if (i.customId === generateComponentId(interaction.user.id, 'cancel_reset_xp')) {
                 // Cancelar
                 await i.update({
