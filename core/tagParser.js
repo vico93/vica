@@ -262,7 +262,7 @@ function parseTags(message, context = {}) {
     text = text.replace(/\[salvar_memoria\].*?\[\/salvar_memoria\]/gi, '');
 
     // Limpar espaços extras do texto resultante
-    const cleanedMessage = text.trim().replace(/\s+/g, ' ');
+    const cleanedMessage = text.trim().replace(/[ \t]+/g, ' ');
 
     // Retornar objeto com dados parseados
     return {
