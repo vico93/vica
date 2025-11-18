@@ -25,6 +25,7 @@ GEMINI.md
 
 # Ferramentas de depuração
 .vscode/
+tmp/
 
 # Environment variables
 .env
