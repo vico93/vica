@@ -48,8 +48,9 @@ module.exports = {
       const podiumLines = [];
       for (let i = 0; i < Math.min(4, ranking.length); i++) {
       const user = ranking[i];
+      const nivelDisplay = user.nivel >= 100 ? '**\\*\\***' : `**${user.nivel}**`;
       podiumLines.push(
-          `${medalhas[i]} <@${user.usuario_id}> ・ **${user.xp} XP** ・ Nível **${user.nivel}**`
+          `${medalhas[i]} <@${user.usuario_id}> ・ **${user.xp} XP** ・ Nível ${nivelDisplay}`
       );
       }
       const podiumText = podiumLines.join('\n');
@@ -61,8 +62,9 @@ module.exports = {
       const icones = ['5️⃣', '6️⃣', '7️⃣', '8️⃣', '9️⃣', '🔟'];
       for (let i = 4; i < ranking.length; i++) {
         const user = ranking[i];
+        const nivelDisplay = user.nivel >= 100 ? '**\\*\\***' : `**${user.nivel}**`;
         restLines.push(
-          `${icones[i - 4]} <@${user.usuario_id}> ・ **${user.xp} XP** ・ Nível **${user.nivel}**`
+          `${icones[i - 4]} <@${user.usuario_id}> ・ **${user.xp} XP** ・ Nível ${nivelDisplay}`
         );
       }
       tambemText = restLines.join('\n');

@@ -624,6 +624,11 @@ module.exports = {
   atualizarUsuarioXP: (g, u, xpAdd, ts) => {
     const row   = stmts.xpGet.get(g, u);
     const oldLv = row?.nivel || 0;
+
+    if (oldLv >= 100) {
+      return { levelUp: false, novoNivel: oldLv };
+    }
+
     const newXp = (row?.xp || 0) + xpAdd;
     const newLv = Math.floor(newXp / 1000);
     stmts.xpUpsert.run(g, u, xpAdd, newLv, ts);
