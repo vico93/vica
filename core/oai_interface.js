@@ -559,6 +559,11 @@ async function gerarRespostaContextual(guildId, canalId, usuarioId, botUserId, m
     const message = choice?.message;
     let content = message?.content || '';
 
+    // Handle case where response was truncated due to token limits
+    if (choice?.finish_reason === 'length') {
+      content = 'Desculpe, minha resposta ficou muito longa devido aos limites de tokens! Tente dividir a conversa em partes menores ou usar mensagens mais curtas. 😊';
+    }
+
     // Processa tags [salvar_memoria] usando tagParser com contexto (guildId)
     console.log(`[AI_RESPONSE_PROCESSOR][DEBUG] Context guildId: ${guildId}, AI response content length: ${content.length}`);
     console.log(`[AI_RESPONSE_PROCESSOR][DEBUG] AI response content (first 500 chars): ${content.substring(0, 500)}${content.length > 500 ? '...' : ''}`);
