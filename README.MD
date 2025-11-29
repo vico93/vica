@@ -57,7 +57,13 @@ npm install
 
 4. Adicione perguntas no arquivo `data/perguntas.txt` (uma por linha)
 
-5. Inicie o bot
+5. Registre os comandos slash no Discord
+
+```bash
+node deploy-commands.js
+```
+
+6. Inicie o bot
 
 ```bash
 node bot.js
@@ -78,6 +84,17 @@ node bot.js
 
 ---
 
+## Funcionalidades
+
+* **Chatbot com IA:** Responde a menções e replies utilizando modelos compatíveis com OpenAI, com suporte a contexto de conversação.
+* **Sistema de Níveis (XP):** Ganho de XP por mensagens, com ranking e mensagens de level up configuráveis.
+* **Memória de Longo Prazo:** Armazena fatos sobre usuários e o servidor para personalizar interações futuras (via embeddings e busca semântica).
+* **Configuração via Discord:** Painel interativo (`/config`) para gerenciar canais, mensagens de boas-vindas, e outras configurações sem reiniciar o bot.
+* **Blacklists:** Comandos para impedir o chatbot (`/chat_blacklist`) ou o sistema de XP (`/rank_blacklist`) de funcionar em canais específicos.
+* **Multimodalidade:** Suporte a envio de imagens para análise pela IA.
+
+---
+
 ## Sistema de Memórias
 Vica usa tags especiais para armazenar e sinalizar contexto:
 - `[salvar_memoria]...[/salvar_memoria]`: salva um fato no banco com `importance` (1–10) e `confidence` (0.0–1.0).
@@ -93,6 +110,5 @@ As tags são parseadas por [core/tagParser.js](core/tagParser.js) e consumidas n
  
 ## Próximos Passos
 
-* Implementar armazenamento e gerenciamento do histórico de mensagens com SQLite
-* Criar blacklist de canais para modo chatbot
-* Desenvolver comandos para configurar o bot diretamente pelo Discord
+* Refinamento da "personalidade" através de prompt engineering contínuo.
+* Melhorias na performance de busca de memórias (embeddings).
