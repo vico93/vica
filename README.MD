@@ -1,4 +1,4 @@
-# Vica - Bot Único para Discord
+# Vica - Apenas mais um bot para o Discord
 
 ## Sobre
 
