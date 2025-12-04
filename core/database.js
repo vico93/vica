@@ -414,6 +414,7 @@ const stmts = {
   xpResetGuild: db.prepare('DELETE FROM rank_xp WHERE guild_id=?'),
   xpDelUser:    db.prepare('DELETE FROM rank_xp WHERE guild_id=? AND usuario_id=?'),
   rankTop:      db.prepare('SELECT usuario_id, xp, nivel FROM rank_xp WHERE guild_id=? ORDER BY xp DESC LIMIT ?'),
+  xpGetAll:     db.prepare('SELECT * FROM rank_xp WHERE guild_id=?'),
 
   /* --- Mensagens para histórico da IA (agora armazena message_id) --- */
   msgInsert:  db.prepare('INSERT OR IGNORE INTO mensagens (guild_id, canal_id, usuario_id, message_id, timestamp) VALUES (?, ?, ?, ?, ?)'),
@@ -641,6 +642,7 @@ module.exports = {
   resetarXP: (g) => stmts.xpResetGuild.run(g).changes,
   removerUsuarioXP: (g, u) => stmts.xpDelUser.run(g, u).changes,
   buscarRank: (g, limit = 10) => stmts.rankTop.all(g, limit),
+  buscarTodosUsuariosXP: (g) => stmts.xpGetAll.all(g),
 
   // mensagens (salvando IDs do Discord)
   inserirMensagem: (g, c, u, messageId, ts) => stmts.msgInsert.run(g, c, u, messageId, ts).lastInsertRowid,
