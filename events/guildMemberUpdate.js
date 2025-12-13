@@ -23,18 +23,23 @@ module.exports = {
     // Ignora bots
     if (newMember.user.bot) return;
 
+    // Ignora se o oldMember for partial (incompleto/não cacheado)
+    // Isso evita disparar eventos falsos de "cargo adicionado" quando o bot reinicia
+    // e recebe um update de profile (avatar, etc) antes de ter os cargos cacheados.
+    if (oldMember.partial) return;
+
     // Obtém IDs dos cargos antes e depois
     const oldRoleIds = oldMember.roles.cache.map(r => r.id);
     const newRoleIds = newMember.roles.cache.map(r => r.id);
-    
+
     // Cria Sets para comparação eficiente
     const oldRoleSet = new Set(oldRoleIds);
     const newRoleSet = new Set(newRoleIds);
-    
+
     // Detecta cargos adicionados/removidos
     const addedRoleIds = newRoleIds.filter(roleId => !oldRoleSet.has(roleId));
     const removedRoleIds = oldRoleIds.filter(roleId => !newRoleSet.has(roleId));
-    
+
     // Se não houve mudança real nos cargos, retorna (evita nickname/avatar disparar evento)
     if (
       addedRoleIds.length === 0 &&
@@ -59,7 +64,7 @@ module.exports = {
     }
 
     const guildId = newMember.guild.id;
-    
+
     // Busca configurações de parabéns por cargo
     const configs = database.listRoleCongratsConfigs(guildId);
     if (!configs || configs.length === 0) {
@@ -80,7 +85,7 @@ module.exports = {
     try {
       // Determina o canal de destino
       let targetChannel = null;
-      
+
       // 1. Canal de sistema configurado
       const systemChannelId = database.getSystemChannel(guildId);
       if (systemChannelId) {
@@ -105,8 +110,8 @@ module.exports = {
       if (!targetChannel) {
         const botMember = newMember.guild.members.me;
         if (botMember) {
-          targetChannel = newMember.guild.channels.cache.find(channel => 
-            channel.isTextBased() && 
+          targetChannel = newMember.guild.channels.cache.find(channel =>
+            channel.isTextBased() &&
             channel.permissionsFor(botMember).has(['ViewChannel', 'SendMessages'])
           );
         }
@@ -118,7 +123,7 @@ module.exports = {
       }
 
       // Agrupa prompts por texto para evitar duplicados
-       const promptsToSend = new Map(); // replacedPrompt -> { roleName, replacedPrompt }
+      const promptsToSend = new Map(); // replacedPrompt -> { roleName, replacedPrompt }
 
       for (const cfg of matchedConfigs) {
         const role = newMember.guild.roles.cache.get(cfg.roleId);
