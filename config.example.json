@@ -16,5 +16,9 @@
     "historyLimit": 6,
     "maxTokens": 500,
     "rate_limit_ms": 5000
+  },
+  "tools": {
+    "enabled": true,
+    "config_file": "data/tools.json"
   }
 }

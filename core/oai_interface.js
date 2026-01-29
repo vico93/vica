@@ -11,6 +11,7 @@ const fs = require('fs');
 const config = require('../config.json');
 const database = require('../core/database');
 const tagParser = require('../core/tagParser');
+const toolLoader = require('../core/tool_loader');
 
 const rateLimitMap = new Map();
 
@@ -542,14 +543,37 @@ async function gerarRespostaContextual(guildId, canalId, usuarioId, botUserId, m
   console.log('[OAI][DEBUG] Constructed messages array:', JSON.stringify(messages, null, 2));
 
   try {
+    // Carrega ferramentas disponíveis se estiverem habilitadas
+    let tools = [];
+    let hasTools = false;
+    
+    if (config.tools?.enabled !== false) {
+      tools = toolLoader.getOpenAITools();
+      hasTools = tools && tools.length > 0;
+      
+      if (hasTools) {
+        console.log(`[TOOLS][INFO] ${tools.length} ferramentas disponíveis para uso`);
+      }
+    } else {
+      console.log('[TOOLS][INFO] Ferramentas desabilitadas na configuração');
+    }
+
+    // Prepara os parâmetros da requisição
+    const requestParams = {
+      model: config.openai.model,
+      messages,
+      temperature: 0.8,
+      max_tokens: config.settings.maxTokens,
+    };
+
+    // Adiciona ferramentas se disponíveis
+    if (hasTools) {
+      requestParams.tools = tools;
+    }
+
     // Use the full message array with system prompt and conversation history
     const response = await withRetries(
-      () => openai.chat.completions.create({
-        model: config.openai.model,
-        messages,
-        temperature: 0.8,
-        max_tokens: config.settings.maxTokens,
-      }),
+      () => openai.chat.completions.create(requestParams),
       '[CHAT][resposta_contextual]'
     );
 
@@ -557,6 +581,107 @@ async function gerarRespostaContextual(guildId, canalId, usuarioId, botUserId, m
 
     const choice = response?.choices?.[0];
     const message = choice?.message;
+    
+    // Verifica se há chamadas de ferramentas
+    const toolCalls = message?.tool_calls;
+    
+    if (toolCalls && toolCalls.length > 0) {
+      console.log(`[TOOLS][INFO] API retornou ${toolCalls.length} chamadas de ferramentas`);
+      
+      // Executa as ferramentas
+      const toolResults = await toolLoader.executeToolCalls(toolCalls);
+      
+      console.log(`[TOOLS][INFO] Resultados das ferramentas:`, JSON.stringify(toolResults, null, 2));
+      
+      // Adiciona a resposta do assistente com as chamadas de ferramentas
+      messages.push({
+        role: 'assistant',
+        tool_calls: toolCalls
+      });
+      
+      // Adiciona os resultados das ferramentas
+      for (const toolResult of toolResults) {
+        messages.push({
+          role: 'tool',
+          tool_call_id: toolResult.tool_call_id,
+          content: toolResult.result
+        });
+      }
+      
+      // Faz uma nova requisição com os resultados das ferramentas
+      const followUpResponse = await withRetries(
+        () => openai.chat.completions.create(requestParams),
+        '[CHAT][resposta_contextual_followup]'
+      );
+      
+      console.log('[OAI][DEBUG] Follow-up API response:', JSON.stringify(followUpResponse, null, 2));
+      
+      const followUpChoice = followUpResponse?.choices?.[0];
+      const followUpMessage = followUpChoice?.message;
+      let content = followUpMessage?.content || '';
+      
+      // Handle case where response was truncated due to token limits
+      if (followUpChoice?.finish_reason === 'length') {
+        content = 'Desculpe, minha resposta ficou muito longa devido aos limites de tokens! Tente dividir a conversa em partes menores ou usar mensagens mais curtas. 😊';
+      }
+      
+      // Processa tags [salvar_memoria] usando tagParser com contexto (guildId)
+      console.log(`[AI_RESPONSE_PROCESSOR][DEBUG] Context guildId: ${guildId}, AI response content length: ${content.length}`);
+      console.log(`[AI_RESPONSE_PROCESSOR][DEBUG] AI response content (first 500 chars): ${content.substring(0, 500)}${content.length > 500 ? '...' : ''}`);
+      const context = { guildId };
+      const parsedTags = tagParser.parseTags(content, context);
+      console.log('[OAI][DEBUG] Cleaned content:', parsedTags.cleanedMessage);
+      console.log('[OAI][DEBUG] Processed memories:', JSON.stringify(parsedTags.memories, null, 2));
+      console.log(`[AI_RESPONSE_PROCESSOR][DEBUG] Parsed tags result - cleanedMessage length: ${parsedTags.cleanedMessage.length}, memories found: ${parsedTags.memories.length}`);
+      let memoriesProcessed = 0;
+
+      // Processa memórias encontradas nas tags
+      if (parsedTags.memories && parsedTags.memories.length > 0) {
+        for (const memory of parsedTags.memories) {
+          if (!memory.hasErrors) {
+            try {
+              console.log(`[AI_RESPONSE_PROCESSOR][INFO] Processando memória: ${memory.guildId}:${memory.userId}:${memory.fact}...`);
+              const result = database.adicionarMemoriaUsuario(
+                memory.guildId,
+                memory.userId,
+                memory.fact,
+                {
+                  importance: memory.importance,
+                  confidence: memory.confidence,
+                  sourceMessageId: sourceMessageId,
+                  createdAt: Date.now()
+                }
+              );
+              console.log(`[AI_RESPONSE_PROCESSOR][SUCCESS] Memória salva: inserted=${result.inserted} duplicate=${result.duplicate} importance=${memory.importance} confidence=${memory.confidence}`);
+              memoriesProcessed++;
+            } catch (memError) {
+              console.error(`[AI_RESPONSE_PROCESSOR][ERROR] Falha ao salvar memória: ${memError.message}`);
+            }
+          } else {
+            console.warn(`[AI_RESPONSE_PROCESSOR][WARN] Memória com erros ignorada: ${memory.errorMessage}`);
+          }
+        }
+      }
+
+      if (memoriesProcessed > 0) {
+        console.log(`[AI_RESPONSE_PROCESSOR][INFO] Total memórias processadas: ${memoriesProcessed}`);
+      }
+
+      // Usa o conteúdo limpo do tagParser (tags já removidas)
+      content = parsedTags.cleanedMessage;
+
+      if (!content) {
+        // Caso não haja conteúdo mas houve memórias processadas, assume sucesso
+        if (memoriesProcessed > 0) {
+          console.log('[AI_RESPONSE_PROCESSOR][INFO] Sem conteúdo textual, mas memórias salvas com sucesso');
+          content = 'Memória salva/atualizada com sucesso!';
+        } else {
+          throw new Error('A API não retornou conteúdo na resposta.');
+        }
+      }
+      return content;
+    }
+
     let content = message?.content || '';
 
     // Handle case where response was truncated due to token limits
