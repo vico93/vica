@@ -325,7 +325,7 @@ CREATE TABLE IF NOT EXISTS user_memories (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   guild_id TEXT NOT NULL,
   user_id TEXT NOT NULL,
-  fact TEXT NOT NULL,
+  content TEXT NOT NULL,
   fact_key TEXT NOT NULL,
   confidence REAL,
   source_message_id TEXT,
@@ -356,7 +356,7 @@ INSERT OR IGNORE INTO role_congrats (guild_id, role_id, prompt, is_prompt)
 CREATE TABLE IF NOT EXISTS guild_memories (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   guild_id TEXT NOT NULL,
-  fact TEXT NOT NULL,
+  content TEXT NOT NULL,
   embedding TEXT,
   created_at INTEGER NOT NULL
 );
@@ -452,9 +452,9 @@ const stmts = {
 
   /* --- MEMÓRIAS DE USUÁRIO --- */
   memInsert: db.prepare(`INSERT OR IGNORE INTO user_memories
-                        (guild_id, user_id, fact, fact_key, confidence, source_message_id, importance, embedding, created_at)
+                        (guild_id, user_id, content, fact_key, confidence, source_message_id, importance, embedding, created_at)
                         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`),
-  memList:   db.prepare(`SELECT id, fact, confidence, importance, source_message_id, created_at
+  memList:   db.prepare(`SELECT id, content, confidence, importance, source_message_id, created_at
                         FROM user_memories
                         WHERE guild_id = ? AND user_id = ?
                         ORDER BY created_at DESC
@@ -462,16 +462,16 @@ const stmts = {
   memDelete: db.prepare('DELETE FROM user_memories WHERE guild_id = ? AND user_id = ? AND fact_key = ?'),
   /* --- Novo prepared statements para embeddings --- */
   memUpdateEmbedding: db.prepare('UPDATE user_memories SET embedding = ? WHERE id = ?'),
-  memGetWithEmbedding: db.prepare(`SELECT id, fact, embedding, confidence, importance, source_message_id, created_at FROM user_memories WHERE guild_id = ? AND user_id = ? AND embedding IS NOT NULL ORDER BY created_at DESC LIMIT ? OFFSET ?`),
+  memGetWithEmbedding: db.prepare(`SELECT id, content, embedding, confidence, importance, source_message_id, created_at FROM user_memories WHERE guild_id = ? AND user_id = ? AND embedding IS NOT NULL ORDER BY created_at DESC LIMIT ? OFFSET ?`),
 
  /* --- MEMÓRIAS DE GUILD --- */
- guildMemInsert: db.prepare('INSERT INTO guild_memories (guild_id, fact, embedding, created_at) VALUES (?, ?, ?, ?)'),
- guildMemList:   db.prepare(`SELECT id, fact, created_at FROM guild_memories WHERE guild_id = ? ORDER BY created_at DESC LIMIT ? OFFSET ?`),
- guildMemDelete: db.prepare('DELETE FROM guild_memories WHERE guild_id = ? AND id = ?'),
+  guildMemInsert: db.prepare('INSERT INTO guild_memories (guild_id, content, embedding, created_at) VALUES (?, ?, ?, ?)'),
+  guildMemList:   db.prepare(`SELECT id, content, created_at FROM guild_memories WHERE guild_id = ? ORDER BY created_at DESC LIMIT ? OFFSET ?`),
+  guildMemDelete: db.prepare('DELETE FROM guild_memories WHERE guild_id = ? AND id = ?'),
 
- /* --- Prepared statements para embeddings de guild --- */
- guildMemUpdateEmbedding: db.prepare('UPDATE guild_memories SET embedding = ? WHERE id = ?'),
- guildMemGetWithEmbedding: db.prepare(`SELECT id, fact, embedding, created_at FROM guild_memories WHERE guild_id = ? AND embedding IS NOT NULL ORDER BY created_at DESC LIMIT ? OFFSET ?`),
+  /* --- Prepared statements para embeddings de guild --- */
+  guildMemUpdateEmbedding: db.prepare('UPDATE guild_memories SET embedding = ? WHERE id = ?'),
+  guildMemGetWithEmbedding: db.prepare(`SELECT id, content, embedding, created_at FROM guild_memories WHERE guild_id = ? AND embedding IS NOT NULL ORDER BY created_at DESC LIMIT ? OFFSET ?`),
 
  /* --- Welcome/Leave Messages --- */
  welcomeSettingsSet: db.prepare(`
