@@ -108,17 +108,105 @@ function getCurrentDatetimeString() {
 }
 
 
-const openai = new OpenAI({
-  apiKey: config.openai.api_key,
-  baseURL: config.openai.base_url,
-  defaultHeaders: {
-    "X-Title": "Vica",
-  },
-});
+/* --- Configuração de Clientes OpenAI --- */
+// Cliente para Requesty Responses API (prioritário)
+let responsesClient = null;
+// Cliente para OpenAI legado (fallback)
+let legacyClient = null;
+
+// Inicializa o cliente Responses API se configurado
+if (config.requesty?.base_url && config.requesty?.api_key) {
+  responsesClient = new OpenAI({
+    apiKey: config.requesty.api_key,
+    baseURL: config.requesty.base_url,
+    defaultHeaders: {
+      "X-Title": "Vica",
+    },
+  });
+  console.log('[OAI][INFO] Cliente Responses API inicializado:', config.requesty.base_url);
+}
+
+// Inicializa o cliente legado se configurado (fallback)
+if (config.openai?.base_url && config.openai?.api_key) {
+  legacyClient = new OpenAI({
+    apiKey: config.openai.api_key,
+    baseURL: config.openai.base_url,
+    defaultHeaders: {
+      "X-Title": "Vica",
+    },
+  });
+  console.log('[OAI][INFO] Cliente legado inicializado:', config.openai.base_url);
+}
+
+// Cliente principal (para compatibilidade com código existente)
+// Usa Responses API se disponível, senão usa legado
+const openai = responsesClient || legacyClient;
+
+// Verifica se há pelo menos um cliente configurado
+if (!openai) {
+  throw new Error('Nenhum cliente OpenAI configurado. Configure config.requesty ou config.openai');
+}
+/* --- Helper para obter configuração de retry --- */
+function getRetryConfig() {
+  // Prioriza Requesty, depois legado
+  if (config.requesty) {
+    return {
+      maxRetries: Number.isInteger(config.requesty.retries) ? config.requesty.retries : 3,
+      baseDelay: Number.isInteger(config.requesty.initial_delay_ms) ? config.requesty.initial_delay_ms : 1000,
+    };
+  }
+  // Fallback para configuração legada
+  if (config.openai) {
+    return {
+      maxRetries: Number.isInteger(config.openai.retries) ? config.openai.retries : 3,
+      baseDelay: Number.isInteger(config.openai.initial_delay_ms) ? config.openai.initial_delay_ms : 1000,
+    };
+  }
+  // Valores padrão
+  return {
+    maxRetries: 3,
+    baseDelay: 1000,
+  };
+}
+
+/* --- Helper para obter modelo a ser usado --- */
+function getModel() {
+  // Prioriza Requesty
+  if (config.requesty?.model) {
+    return config.requesty.model;
+  }
+  // Fallback para configuração legada
+  if (config.openai?.model) {
+    return config.openai.model;
+  }
+  throw new Error('Nenhum modelo configurado. Configure config.requesty.model ou config.openai.model');
+}
+
+/* --- Helper para obter modelo de embeddings --- */
+function getEmbeddingModel() {
+  // Prioriza configuração de embeddings do Requesty
+  if (config.requesty?.model_embeddings) {
+    return config.requesty.model_embeddings;
+  }
+  // Fallback para configuração legada
+  if (config.openai?.model_embeddings) {
+    return config.openai.model_embeddings;
+  }
+  throw new Error('Nenhum modelo de embeddings configurado. Configure config.requesty.model_embeddings ou config.openai.model_embeddings');
+}
+
+/* --- Helper para obter cliente de embeddings --- */
+function getEmbeddingClient() {
+  // Usa o mesmo cliente principal (Requesty ou legado)
+  if (openai) {
+    return openai;
+  }
+  throw new Error('Nenhum cliente de embeddings configurado. Configure config.requesty ou config.openai');
+}
+
 /* --- Helper de Retry com Backoff Exponencial e Jitter --- */
 async function withRetries(fn, label = 'OAI_CALL') {
-  const maxRetries = Number.isInteger(config.openai?.retries) ? config.openai.retries : 3;
-  const baseDelay = Number.isInteger(config.openai?.initial_delay_ms) ? config.openai.initial_delay_ms : 1000;
+  const { maxRetries, baseDelay } = getRetryConfig();
 
   let attempt = 0;
   while (true) {
@@ -150,7 +238,11 @@ async function withRetries(fn, label = 'OAI_CALL') {
 // Função do comando /perguntar
 async function gerarPerguntaViaAPI(promptUsuario = null) {
   const messages = [];
-  if (config.openai.sendSystemPrompt !== false) {
+  // Verifica se deve enviar system prompt (prioriza Requesty, depois legado)
+  const sendSystemPrompt = config.requesty?.sendSystemPrompt !== false &&
+                          config.openai?.sendSystemPrompt !== false;
+  
+  if (sendSystemPrompt) {
     const systemPrompt = await carregarSystemPrompt();
     messages.push({ role: 'system', content: systemPrompt });
   }
@@ -162,7 +254,7 @@ async function gerarPerguntaViaAPI(promptUsuario = null) {
   try {
     const response = await withRetries(
       () => openai.chat.completions.create({
-        model: config.openai.model,
+        model: getModel(),
         messages,
         temperature: 0.8,
         max_tokens: config.settings.maxTokens,
@@ -175,7 +267,7 @@ async function gerarPerguntaViaAPI(promptUsuario = null) {
     const parsedTags = tagParser.parseTags(content, { guildId: null });
     return parsedTags.cleanedMessage;
   } catch (error) {
-    console.error('[ERRO] Não consegui gerar uma pergunta pela API da OpenAI:', error.message);
+    console.error('[ERRO] Não consegui gerar uma pergunta pela API:', error.message);
     throw error;
   }
 }
@@ -184,7 +276,11 @@ async function gerarPerguntaViaAPI(promptUsuario = null) {
 // Função para gerar parabéns por cargo via API
 async function gerarParabensCargoViaAPI(guildId, userId, promptUsuario, roleName) {
   const messages = [];
-  if (config.openai.sendSystemPrompt !== false) {
+  // Verifica se deve enviar system prompt (prioriza Requesty, depois legado)
+  const sendSystemPrompt = config.requesty?.sendSystemPrompt !== false &&
+                          config.openai?.sendSystemPrompt !== false;
+  
+  if (sendSystemPrompt) {
     const systemPrompt = await carregarSystemPrompt();
     messages.push({ role: 'system', content: systemPrompt });
   }
@@ -197,7 +293,7 @@ async function gerarParabensCargoViaAPI(guildId, userId, promptUsuario, roleName
   try {
     const response = await withRetries(
       () => openai.chat.completions.create({
-        model: config.openai.model,
+        model: getModel(),
         messages,
         temperature: 0.8,
         max_tokens: 100, // Resposta curta e objetiva para parabéns
@@ -259,7 +355,7 @@ async function gerarParabensCargoViaAPI(guildId, userId, promptUsuario, roleName
     content = parsedTags.cleanedMessage;
     return content;
   } catch (error) {
-    console.error('[ERRO] Não consegui gerar parabéns pela API da OpenAI:', error.message);
+    console.error('[ERRO] Não consegui gerar parabéns pela API:', error.message);
     throw error;
   }
 }
@@ -280,7 +376,11 @@ async function gerarMensagemBemVindoViaAPI(guildId, userId, userName, messageTyp
   const tag = (messageType && messageTypeMapping[messageType.toLowerCase()]) || 'welcome';
 
   const messages = [];
-  if (config.openai.sendSystemPrompt !== false) {
+  // Verifica se deve enviar system prompt (prioriza Requesty, depois legado)
+  const sendSystemPrompt = config.requesty?.sendSystemPrompt !== false &&
+                          config.openai?.sendSystemPrompt !== false;
+  
+  if (sendSystemPrompt) {
     const systemPrompt = await carregarSystemPrompt();
     messages.push({ role: 'system', content: systemPrompt });
   }
@@ -293,7 +393,7 @@ async function gerarMensagemBemVindoViaAPI(guildId, userId, userName, messageTyp
   try {
     const response = await withRetries(
       () => openai.chat.completions.create({
-        model: config.openai.model,
+        model: getModel(),
         messages,
         temperature: 0.8,
         max_tokens: config.settings.maxTokens,
@@ -342,7 +442,7 @@ async function gerarMensagemBemVindoViaAPI(guildId, userId, userName, messageTyp
     content = parsedTags.cleanedMessage;
     return content;
   } catch (error) {
-    console.error(`[ERRO] Não consegui gerar mensagem de ${messageType} pela API da OpenAI:`, error.message);
+    console.error(`[ERRO] Não consegui gerar mensagem de ${messageType} pela API:`, error.message);
     throw error;
   }
 }
@@ -362,7 +462,11 @@ async function gerarRespostaContextual(guildId, canalId, usuarioId, botUserId, m
     rateLimitMap.set(rateLimitKey, Date.now());
   }
   const messages = [];
-  if (config.openai.sendSystemPrompt !== false) {
+  // Verifica se deve enviar system prompt (prioriza Requesty, depois legado)
+  const sendSystemPrompt = config.requesty?.sendSystemPrompt !== false &&
+                          config.openai?.sendSystemPrompt !== false;
+  
+  if (sendSystemPrompt) {
     let systemPrompt = await carregarSystemPrompt();
 
     /* --- Busca Semântica de Memórias por Similaridade de Embedding --- */
@@ -560,7 +664,7 @@ async function gerarRespostaContextual(guildId, canalId, usuarioId, botUserId, m
 
     // Prepara os parâmetros da requisição
     const requestParams = {
-      model: config.openai.model,
+      model: getModel(),
       messages,
       temperature: 0.8,
       max_tokens: config.settings.maxTokens,
@@ -745,7 +849,7 @@ async function gerarRespostaContextual(guildId, canalId, usuarioId, botUserId, m
     }
     return content;
   } catch (error) {
-    console.error('[ERRO] Não consegui gerar uma resposta pela API da OpenAI:', error.message);
+    console.error('[ERRO] Não consegui gerar uma resposta pela API:', error.message);
     throw error;
   }
 }
@@ -753,7 +857,11 @@ async function gerarRespostaContextual(guildId, canalId, usuarioId, botUserId, m
 // Função para gerar comentário baseado em conversa via API
 async function gerarComentarioViaAPI(conversationText) {
   const messages = [];
-  if (config.openai.sendSystemPrompt !== false) {
+  // Verifica se deve enviar system prompt (prioriza Requesty, depois legado)
+  const sendSystemPrompt = config.requesty?.sendSystemPrompt !== false &&
+                          config.openai?.sendSystemPrompt !== false;
+  
+  if (sendSystemPrompt) {
     const systemPrompt = await carregarSystemPrompt();
     messages.push({ role: 'system', content: systemPrompt });
   }
@@ -766,7 +874,7 @@ async function gerarComentarioViaAPI(conversationText) {
   try {
     const response = await withRetries(
       () => openai.chat.completions.create({
-        model: config.openai.model,
+        model: getModel(),
         messages,
         temperature: 0.8,
         max_tokens: config.settings.maxTokens,
@@ -812,7 +920,7 @@ async function gerarComentarioViaAPI(conversationText) {
     const parsedTags = tagParser.parseTags(content, { guildId: null });
     return parsedTags.cleanedMessage;
   } catch (error) {
-    console.error('[ERRO] Não consegui gerar comentário pela API da OpenAI:', error.message);
+    console.error('[ERRO] Não consegui gerar comentário pela API:', error.message);
     throw error;
   }
 }
@@ -922,11 +1030,14 @@ async function gerarEmbedding(text) {
   }
 
   try {
-    console.log(`[EMBEDDING][INFO] Gerando embedding para texto de ${text.length} caracteres usando modelo ${config.openai.model_embeddings}`);
+    const embeddingModel = getEmbeddingModel();
+    const embeddingClient = getEmbeddingClient();
+    
+    console.log(`[EMBEDDING][INFO] Gerando embedding para texto de ${text.length} caracteres usando modelo ${embeddingModel}`);
 
     const response = await withRetries(
-      () => openai.embeddings.create({
-        model: config.openai.model_embeddings,
+      () => embeddingClient.embeddings.create({
+        model: embeddingModel,
         input: text,
       }),
       '[EMBEDDING]'
