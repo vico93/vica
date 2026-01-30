@@ -644,8 +644,6 @@ async function gerarRespostaContextual(guildId, canalId, usuarioId, botUserId, m
 
   messages.push({ role: 'user', content: userContent });
 
-  console.log('[OAI][DEBUG] Constructed messages array:', JSON.stringify(messages, null, 2));
-
   try {
     // Carrega ferramentas disponíveis se estiverem habilitadas
     let tools = [];
@@ -680,8 +678,6 @@ async function gerarRespostaContextual(guildId, canalId, usuarioId, botUserId, m
       () => openai.chat.completions.create(requestParams),
       '[CHAT][resposta_contextual]'
     );
-
-    console.log('[OAI][DEBUG] Raw API response:', JSON.stringify(response, null, 2));
 
     const choice = response?.choices?.[0];
     const message = choice?.message;
@@ -718,8 +714,6 @@ async function gerarRespostaContextual(guildId, canalId, usuarioId, botUserId, m
         '[CHAT][resposta_contextual_followup]'
       );
       
-      console.log('[OAI][DEBUG] Follow-up API response:', JSON.stringify(followUpResponse, null, 2));
-      
       const followUpChoice = followUpResponse?.choices?.[0];
       const followUpMessage = followUpChoice?.message;
       let content = followUpMessage?.content || '';
@@ -730,13 +724,8 @@ async function gerarRespostaContextual(guildId, canalId, usuarioId, botUserId, m
       }
       
       // Processa tags [salvar_memoria] usando tagParser com contexto (guildId)
-      console.log(`[AI_RESPONSE_PROCESSOR][DEBUG] Context guildId: ${guildId}, AI response content length: ${content.length}`);
-      console.log(`[AI_RESPONSE_PROCESSOR][DEBUG] AI response content (first 500 chars): ${content.substring(0, 500)}${content.length > 500 ? '...' : ''}`);
       const context = { guildId };
       const parsedTags = tagParser.parseTags(content, context);
-      console.log('[OAI][DEBUG] Cleaned content:', parsedTags.cleanedMessage);
-      console.log('[OAI][DEBUG] Processed memories:', JSON.stringify(parsedTags.memories, null, 2));
-      console.log(`[AI_RESPONSE_PROCESSOR][DEBUG] Parsed tags result - cleanedMessage length: ${parsedTags.cleanedMessage.length}, memories found: ${parsedTags.memories.length}`);
       let memoriesProcessed = 0;
 
       // Processa memórias encontradas nas tags
@@ -794,13 +783,8 @@ async function gerarRespostaContextual(guildId, canalId, usuarioId, botUserId, m
     }
 
     // Processa tags [salvar_memoria] usando tagParser com contexto (guildId)
-    console.log(`[AI_RESPONSE_PROCESSOR][DEBUG] Context guildId: ${guildId}, AI response content length: ${content.length}`);
-    console.log(`[AI_RESPONSE_PROCESSOR][DEBUG] AI response content (first 500 chars): ${content.substring(0, 500)}${content.length > 500 ? '...' : ''}`);
     const context = { guildId };
     const parsedTags = tagParser.parseTags(content, context);
-    console.log('[OAI][DEBUG] Cleaned content:', parsedTags.cleanedMessage);
-    console.log('[OAI][DEBUG] Processed memories:', JSON.stringify(parsedTags.memories, null, 2));
-    console.log(`[AI_RESPONSE_PROCESSOR][DEBUG] Parsed tags result - cleanedMessage length: ${parsedTags.cleanedMessage.length}, memories found: ${parsedTags.memories.length}`);
     let memoriesProcessed = 0;
 
     // Processa memórias encontradas nas tags
@@ -905,39 +889,6 @@ async function gerarComentarioViaAPI(conversationText) {
       '[CHAT][comentario]'
     );
 
-    // /* --- Logging da Resposta Raw da API --- */
-    console.log('[OAI][DEBUG] Resposta raw da API recebida (gerarComentarioViaAPI):');
-    console.log(`- Status HTTP: ${response.status || 'N/A'}`);
-    console.log(`- Cabeçalhos importantes:`, {
-      'content-type': response.headers?.get?.('content-type') || 'N/A',
-      'x-ratelimit-remaining': response.headers?.get?.('x-ratelimit-remaining') || 'N/A'
-    });
-
-    // Sanitizar resposta para logging (remover dados sensíveis)
-    const sanitizedResponse = {
-      id: response.id,
-      object: response.object,
-      created: response.created,
-      model: response.model,
-      choices: response.choices,
-      usage: response.usage
-    };
-    console.log('- Resposta completa (sanitizada):', JSON.stringify(sanitizedResponse, null, 2));
-    console.log('- Detalhes de choices[0]:', response.choices?.[0] ? JSON.stringify(response.choices[0], null, 2) : 'N/A');
-
-    const mainChoice = response.choices?.[0];
-    if (mainChoice) {
-      console.log('- Tipo da resposta:', typeof mainChoice);
-      console.log('- Tem mensagem:', !!mainChoice.message);
-      if (mainChoice.message) {
-        console.log('- Conteúdo da mensagem:', mainChoice.message.content ? 'Presente' : 'Ausente');
-        console.log('- Tool calls:', mainChoice.message.tool_calls ? `Presente (${mainChoice.message.tool_calls.length})` : 'Ausente');
-      }
-      console.log('- Finish reason:', mainChoice.finish_reason || 'N/A');
-    } else {
-      console.log('- ERRO: Não há choices[0] na resposta!');
-    }
-
     const choice = response?.choices?.[0];
     const message = choice?.message;
     
@@ -972,8 +923,6 @@ async function gerarComentarioViaAPI(conversationText) {
         () => openai.chat.completions.create(requestParams),
         '[CHAT][comentario_followup]'
       );
-      
-      console.log('[OAI][DEBUG] Follow-up API response (gerarComentarioViaAPI):', JSON.stringify(followUpResponse, null, 2));
       
       const followUpChoice = followUpResponse?.choices?.[0];
       const followUpMessage = followUpChoice?.message;
@@ -1013,10 +962,7 @@ function calculateWeightedSimilarity(baseSimilarity, importance, configWeight) {
 // Função para buscar memórias de usuário por similaridade de embedding
 async function buscarMemoriasUsuarioSemanitcas(guildId, userId, userEmbedding, topK = 3) {
   try {
-    console.log(`[SEMANTIC_SEARCH][INFO] Buscando memórias semânticas de usuário ${userId} em guild ${guildId}, topK=${topK}`);
-
     const userMemories = database.listarMemoriasUsuarioComEmbedding(guildId, userId, 100); // limit to 100 for performance
-    console.log(`[SEMANTIC_SEARCH][INFO] Encontradas ${userMemories.length} memórias de usuário com embeddings`);
 
     const similarities = [];
 
@@ -1045,7 +991,6 @@ async function buscarMemoriasUsuarioSemanitcas(guildId, userId, userEmbedding, t
     similarities.sort((a, b) => b.weightedSimilarity - a.weightedSimilarity);
     const topMemories = similarities.slice(0, topK);
 
-    console.log(`[SEMANTIC_SEARCH][INFO] Retornadas ${topMemories.length} memórias de usuário mais similares`);
     return topMemories;
 
   } catch (error) {
@@ -1057,10 +1002,7 @@ async function buscarMemoriasUsuarioSemanitcas(guildId, userId, userEmbedding, t
 // Função para buscar memórias da guild por similaridade de embedding
 async function buscarMemoriasGuildSemanticas(guildId, userEmbedding, topK = 2) {
   try {
-    console.log(`[SEMANTIC_SEARCH][INFO] Buscando memórias semânticas da guild ${guildId}, topK=${topK}`);
-
     const guildMemories = database.listarMemoriasGuildComEmbedding(guildId, 100); // limit to 100 for performance
-    console.log(`[SEMANTIC_SEARCH][INFO] Encontradas ${guildMemories.length} memórias da guild com embeddings`);
 
     const similarities = [];
 
@@ -1087,7 +1029,6 @@ async function buscarMemoriasGuildSemanticas(guildId, userEmbedding, topK = 2) {
     similarities.sort((a, b) => b.weightedSimilarity - a.weightedSimilarity);
     const topMemories = similarities.slice(0, topK);
 
-    console.log(`[SEMANTIC_SEARCH][INFO] Retornadas ${topMemories.length} memórias da guild mais similares`);
     return topMemories;
 
   } catch (error) {
@@ -1108,8 +1049,6 @@ async function gerarEmbedding(text) {
   try {
     const embeddingModel = getEmbeddingModel();
     const embeddingClient = getEmbeddingClient();
-    
-    console.log(`[EMBEDDING][INFO] Gerando embedding para texto de ${text.length} caracteres usando modelo ${embeddingModel}`);
 
     const response = await withRetries(
       () => embeddingClient.embeddings.create({
@@ -1124,7 +1063,6 @@ async function gerarEmbedding(text) {
       throw new Error('A API não retornou os dados de embedding na resposta');
     }
 
-    console.log(`[EMBEDDING][INFO] Embedding gerado com sucesso: ${embedding.length} dimensões`);
     return embedding; // Retorna o array de floats diretamente
   } catch (error) {
     console.error('[EMBEDDING][ERRO] Falha ao gerar embedding:', error.message);
@@ -1177,7 +1115,6 @@ function cosineSimilarity(vecA, vecB) {
     }
 
     const similarity = dotProduct / (magnitudeA * magnitudeB);
-    console.log(`[COSINE][INFO] Similaridade coseno calculada: ${similarity.toFixed(4)}`);
     return similarity;
   } catch (error) {
     console.error('[COSINE][ERRO] Falha ao calcular similaridade coseno:', error.message);
