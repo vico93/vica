@@ -872,13 +872,36 @@ async function gerarComentarioViaAPI(conversationText) {
   });
 
   try {
+    // Carrega ferramentas disponíveis se estiverem habilitadas
+    let tools = [];
+    let hasTools = false;
+    
+    if (config.tools?.enabled !== false) {
+      tools = toolLoader.getOpenAITools();
+      hasTools = tools && tools.length > 0;
+      
+      if (hasTools) {
+        console.log(`[TOOLS][INFO] ${tools.length} ferramentas disponíveis para uso em gerarComentarioViaAPI`);
+      }
+    } else {
+      console.log('[TOOLS][INFO] Ferramentas desabilitadas na configuração');
+    }
+
+    // Prepara os parâmetros da requisição
+    const requestParams = {
+      model: getModel(),
+      messages,
+      temperature: 0.8,
+      max_tokens: config.settings.maxTokens,
+    };
+
+    // Adiciona ferramentas se disponíveis
+    if (hasTools) {
+      requestParams.tools = tools;
+    }
+
     const response = await withRetries(
-      () => openai.chat.completions.create({
-        model: getModel(),
-        messages,
-        temperature: 0.8,
-        max_tokens: config.settings.maxTokens,
-      }),
+      () => openai.chat.completions.create(requestParams),
       '[CHAT][comentario]'
     );
 
@@ -913,6 +936,59 @@ async function gerarComentarioViaAPI(conversationText) {
       console.log('- Finish reason:', mainChoice.finish_reason || 'N/A');
     } else {
       console.log('- ERRO: Não há choices[0] na resposta!');
+    }
+
+    const choice = response?.choices?.[0];
+    const message = choice?.message;
+    
+    // Verifica se há chamadas de ferramentas
+    const toolCalls = message?.tool_calls;
+    
+    if (toolCalls && toolCalls.length > 0) {
+      console.log(`[TOOLS][INFO] API retornou ${toolCalls.length} chamadas de ferramentas em gerarComentarioViaAPI`);
+      
+      // Executa as ferramentas
+      const toolResults = await toolLoader.executeToolCalls(toolCalls);
+      
+      console.log(`[TOOLS][INFO] Resultados das ferramentas:`, JSON.stringify(toolResults, null, 2));
+      
+      // Adiciona a resposta do assistente com as chamadas de ferramentas
+      messages.push({
+        role: 'assistant',
+        tool_calls: toolCalls
+      });
+      
+      // Adiciona os resultados das ferramentas
+      for (const toolResult of toolResults) {
+        messages.push({
+          role: 'tool',
+          tool_call_id: toolResult.tool_call_id,
+          content: toolResult.result
+        });
+      }
+      
+      // Faz uma nova requisição com os resultados das ferramentas
+      const followUpResponse = await withRetries(
+        () => openai.chat.completions.create(requestParams),
+        '[CHAT][comentario_followup]'
+      );
+      
+      console.log('[OAI][DEBUG] Follow-up API response (gerarComentarioViaAPI):', JSON.stringify(followUpResponse, null, 2));
+      
+      const followUpChoice = followUpResponse?.choices?.[0];
+      const followUpMessage = followUpChoice?.message;
+      let content = followUpMessage?.content || '';
+      
+      // Handle case where response was truncated due to token limits
+      if (followUpChoice?.finish_reason === 'length') {
+        content = 'Desculpe, minha resposta ficou muito longa devido aos limites de tokens! Tente dividir a conversa em partes menores ou usar mensagens mais curtas. 😊';
+      }
+      
+      if (!content) {
+        throw new Error('A API não retornou conteúdo na resposta.');
+      }
+      const parsedTags = tagParser.parseTags(content, { guildId: null });
+      return parsedTags.cleanedMessage;
     }
 
     const content = response?.choices?.[0]?.message?.content;

@@ -58,14 +58,25 @@ function getOpenAITools() {
   }
 
   // Converte para o formato OpenAI
-  return config.tools.map(tool => ({
-    type: 'function',
-    function: {
-      name: tool.name,
-      description: tool.description,
-      parameters: tool.parameters
+  // Ferramentas com 'type' são ferramentas nativas do OpenAI (ex: web_search)
+  // Ferramentas com 'handler' são ferramentas customizadas
+  return config.tools.map(tool => {
+    // Se a ferramenta tem um tipo específico (ex: web_search), retorna como está
+    if (tool.type) {
+      console.log(`[TOOL_LOADER][INFO] Ferramenta nativa do OpenAI: ${tool.type}`);
+      return tool;
     }
-  }));
+    
+    // Caso contrário, é uma ferramenta customizada com handler
+    return {
+      type: 'function',
+      function: {
+        name: tool.name,
+        description: tool.description,
+        parameters: tool.parameters
+      }
+    };
+  });
 }
 
 /**
