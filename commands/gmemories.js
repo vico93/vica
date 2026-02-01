@@ -1,8 +1,8 @@
 /*
 ** caminho: commands/gmemories.js
-** últimaMod: 2025-09-06 21:42
+** últimaMod: 2026-02-01
 ** autor: Vico
-** colaboração: Roo Sonic e ChatGPT
+** colaboração: Gemini, Roo Sonic e ChatGPT
 */
 
 /* --- Imports --- */
@@ -11,19 +11,16 @@ const {
     EmbedBuilder,
     ActionRowBuilder,
     StringSelectMenuBuilder,
-    ButtonBuilder,
-    ButtonStyle,
     PermissionsBitField,
     ComponentType,
     MessageFlags
 } = require('discord.js');
-const { listarMemoriasGuild, adicionarMemoriaGuild, removerMemoriaGuild, listarMemoriasGuildComEmbedding } = require('../core/database');
-const embeddingHelper = require('../helpers/embeddingHelper');
+const toolLoader = require('../core/tool_loader');
 
 /* --- Command Data --- */
 const data = new SlashCommandBuilder()
     .setName('gmemories')
-    .setDescription('Gerenciar memórias do servidor')
+    .setDescription('Gerenciar memórias do servidor (MCP)')
     .setDefaultMemberPermissions(PermissionsBitField.Flags.ManageGuild)
     .addSubcommand(subcommand =>
         subcommand
@@ -60,157 +57,174 @@ const data = new SlashCommandBuilder()
 async function execute(interaction) {
     const subcommand = interaction.options.getSubcommand();
     const guildId = interaction.guild.id;
+    const guildName = interaction.guild.name;
+
+    // Helper to ensure guild entity exists
+    const ensureGuildEntity = async () => {
+        // Try to create/update the guild entity
+        await toolLoader.executeTool('create_entities', {
+            entities: [{
+                name: guildId,
+                entityType: 'guild',
+                observations: [`Nome do servidor: ${guildName}`]
+            }]
+        });
+    };
 
     if (subcommand === 'list') {
-        /* --- List Subcommand --- */
-        const memories = listarMemoriasGuild(guildId);
+        await interaction.deferReply();
 
-        const embed = new EmbedBuilder()
-            .setTitle('Memórias do Servidor')
-            .setColor(0x0099FF)
-            .setDescription(memories.length > 0
-                ? memories.map((m, i) => `${i + 1}. ${m.fact}`).join('\n')
-                : 'Nenhuma memória encontrada para este servidor.'
-            );
+        try {
+            // Read guild node
+            const response = await toolLoader.executeTool('open_nodes', { names: [guildId] });
 
-        await interaction.reply({ embeds: [embed] });
+            if (!response.success) {
+                return await interaction.editReply({ content: 'Erro ao acessar o sistema de memória: ' + response.error });
+            }
 
-    } else if (subcommand === 'add') {
-        /* --- Add Subcommand --- */
-        const memory = interaction.options.getString('memory');
+            const entities = response.result?.entities || [];
+            const guildEntity = entities.find(e => e.name === guildId);
+            const memories = guildEntity?.observations || [];
 
-        adicionarMemoriaGuild(guildId, memory);
+            const embed = new EmbedBuilder()
+                .setTitle('Memórias do Servidor (MCP)')
+                .setColor(0x0099FF)
+                .setDescription(memories.length > 0
+                    ? memories.map((m, i) => `${i + 1}. ${m}`).join('\n')
+                    : 'Nenhuma memória encontrada para este servidor.'
+                );
 
-        await interaction.reply({
-            content: 'Memória adicionada com sucesso ao servidor.',
-            flags: [MessageFlags.Ephemeral]
-        });
+            await interaction.editReply({ embeds: [embed] });
 
-    } else if (subcommand === 'search') {
-        /* --- Search Subcommand --- */
-        const query = interaction.options.getString('query');
-
-        const memories = listarMemoriasGuildComEmbedding(guildId, 100, 0);
-
-        const relevant = await embeddingHelper.buscarMemoriasRelevantes({
-            memoriaArray: memories,
-            contexto: query,
-            topK: 5
-        });
-
-        const embed = new EmbedBuilder()
-            .setTitle(`Memórias do Servidor - Busca por "${query}"`)
-            .setColor(0x0099FF)
-            .setDescription(relevant.length > 0
-                ? relevant.map((m, i) => `${i + 1}. ${m.fact}`).join('\n')
-                : 'Nenhuma memória relevante encontrada.'
-            )
-            .setFooter({ text: `Encontradas ${relevant.length} memórias` });
-
-        await interaction.reply({ embeds: [embed] });
-
-    } else if (subcommand === 'delete') {
-        /* --- Delete Subcommand --- */
-        const memories = listarMemoriasGuild(guildId);
-
-        if (memories.length === 0) {
-            return await interaction.reply({
-                content: 'Nenhuma memória encontrada para este servidor.',
-                flags: [MessageFlags.Ephemeral]
-            });
+        } catch (error) {
+            console.error(error);
+            await interaction.editReply({ content: 'Ocorreu um erro ao listar as memórias.' });
         }
 
-        const selectMenu = new StringSelectMenuBuilder()
-            .setCustomId('select_memory_guild')
-            .setPlaceholder('Selecione uma memória para deletar')
-            .addOptions(
-                memories.map((m, i) => ({
-                    label: `Memória ${i + 1}`,
-                    value: m.id.toString(),
-                    description: m.fact.length > 50 ? m.fact.substring(0, 47) + '...' : m.fact
-                }))
-            );
+    } else if (subcommand === 'add') {
+        const memory = interaction.options.getString('memory');
+        await interaction.deferReply({ flags: [MessageFlags.Ephemeral] });
 
-        const actionRow = new ActionRowBuilder().addComponents(selectMenu);
+        try {
+            await ensureGuildEntity();
 
-        await interaction.reply({
-            content: 'Selecione uma memória do servidor para deletar:',
-            components: [actionRow],
-            flags: [MessageFlags.Ephemeral]
-        });
-
-        const filter = (i) => i.customId === 'select_memory_guild' && i.user.id === interaction.user.id;
-
-        const selectCollector = interaction.channel.createMessageComponentCollector({
-            filter,
-            componentType: ComponentType.StringSelect,
-            time: 60000
-        });
-
-        selectCollector.on('collect', async (selectInteraction) => {
-            const memoryId = selectInteraction.values[0];
-            const memory = memories.find(m => m.id == memoryId);
-
-            const confirmButton = new ButtonBuilder()
-                .setCustomId('confirm_delete_guild')
-                .setLabel('Confirmar')
-                .setStyle(ButtonStyle.Danger);
-
-            const cancelButton = new ButtonBuilder()
-                .setCustomId('cancel_delete_guild')
-                .setLabel('Cancelar')
-                .setStyle(ButtonStyle.Secondary);
-
-            const buttonRow = new ActionRowBuilder().addComponents(confirmButton, cancelButton);
-
-            await selectInteraction.update({
-                content: `Tem certeza que deseja deletar a memória "${memory.fact}" do servidor?`,
-                components: [buttonRow]
+            const response = await toolLoader.executeTool('add_observations', {
+                observations: [{
+                    entityName: guildId,
+                    contents: [memory]
+                }]
             });
 
-            const buttonFilter = (u) => u.user.id === interaction.user.id && (u.customId === 'confirm_delete_guild' || u.customId === 'cancel_delete_guild');
-
-            const buttonCollector = selectInteraction.message.createMessageComponentCollector({
-                filter: buttonFilter,
-                componentType: ComponentType.Button,
-                time: 30000
-            });
-
-            buttonCollector.on('collect', async (buttonInteraction) => {
-                if (buttonInteraction.customId === 'confirm_delete_guild') {
-                    removerMemoriaGuild(guildId, memoryId);
-                    await buttonInteraction.update({
-                        content: 'Memória deletada com sucesso.',
-                        components: []
-                    });
-                } else {
-                    await buttonInteraction.update({
-                        content: 'Deleção cancelada.',
-                        components: []
-                    });
-                }
-                selectCollector.stop();
-                buttonCollector.stop();
-            });
-
-            buttonCollector.on('end', async (collected, reason) => {
-                if (reason === 'time') {
-                    await selectInteraction.editReply({
-                        content: 'Tempo esgotado.',
-                        components: []
-                    });
-                }
-            });
-        });
-
-        selectCollector.on('end', async (collected, reason) => {
-            if (reason === 'time') {
-                await interaction.editReply({
-                    content: 'Tempo esgotado.',
-                    components: []
-                });
+            if (response.success) {
+                await interaction.editReply({ content: 'Memória adicionada com sucesso ao servidor.' });
+            } else {
+                await interaction.editReply({ content: 'Erro ao adicionar memória: ' + response.error });
             }
-        });
+        } catch (error) {
+            console.error(error);
+            await interaction.editReply({ content: 'Ocorreu um erro ao processar sua solicitação.' });
+        }
+
+    } else if (subcommand === 'search') {
+        const query = interaction.options.getString('query');
+        await interaction.deferReply();
+
+        try {
+            const response = await toolLoader.executeTool('search_nodes', { query: query });
+
+            if (!response.success) {
+                return await interaction.editReply({ content: 'Erro na busca: ' + response.error });
+            }
+
+            const entities = response.result?.entities || [];
+
+            const guildEntity = entities.find(e => e.name === guildId);
+
+            const embed = new EmbedBuilder()
+                .setTitle(`Busca por "${query}"`)
+                .setColor(0x0099FF);
+
+            if (guildEntity && guildEntity.observations.length > 0) {
+                embed.setDescription(guildEntity.observations.map((m, i) => `${i + 1}. ${m}`).join('\n'));
+                embed.setFooter({ text: 'Exibindo observações da entidade Servidor encontrada.' });
+            } else {
+                embed.setDescription('Nenhuma observação direta do servidor encontrada com esse termo.');
+            }
+
+            const otherEntities = entities.filter(e => e.name !== guildId);
+            if (otherEntities.length > 0) {
+                const othersText = otherEntities.map(e => `**${e.name}** (${e.entityType})`).join(', ');
+                embed.addFields({ name: 'Outras Entidades Relacionadas', value: othersText.substring(0, 1024) });
+            }
+
+            await interaction.editReply({ embeds: [embed] });
+
+        } catch (error) {
+            console.error(error);
+            await interaction.editReply({ content: 'Erro na busca.' });
+        }
+
+    } else if (subcommand === 'delete') {
+        await interaction.deferReply({ flags: [MessageFlags.Ephemeral] });
+
+        try {
+            const response = await toolLoader.executeTool('open_nodes', { names: [guildId] });
+            if (!response.success) {
+                return await interaction.editReply({ content: 'Erro ao acessar memórias: ' + response.error });
+            }
+
+            const entities = response.result?.entities || [];
+            const guildEntity = entities.find(e => e.name === guildId);
+            const memories = guildEntity?.observations || [];
+
+            if (memories.length === 0) {
+                return await interaction.editReply({ content: 'Nenhuma memória encontrada para este servidor.' });
+            }
+
+            const selectMenu = new StringSelectMenuBuilder()
+                .setCustomId('select_memory_guild')
+                .setPlaceholder('Selecione uma memória para deletar')
+                .addOptions(
+                    memories.map((m, i) => ({
+                        label: `Memória ${i + 1}`,
+                        value: i.toString(),
+                        description: m.length > 50 ? m.substring(0, 47) + '...' : m
+                    })).slice(0, 25)
+                );
+
+            const actionRow = new ActionRowBuilder().addComponents(selectMenu);
+
+            const msg = await interaction.editReply({
+                content: 'Selecione uma memória do servidor para deletar:',
+                components: [actionRow]
+            });
+
+            const filter = (i) => i.customId === 'select_memory_guild' && i.user.id === interaction.user.id;
+            const collector = msg.createMessageComponentCollector({ filter, componentType: ComponentType.StringSelect, time: 60000 });
+
+            collector.on('collect', async i => {
+                const index = parseInt(i.values[0]);
+                const memoryContent = memories[index];
+
+                await toolLoader.executeTool('delete_observations', {
+                    deletions: [{
+                        entityName: guildId,
+                        observations: [memoryContent]
+                    }]
+                });
+
+                await i.update({ content: `Memória removida com sucesso!`, components: [] });
+                collector.stop();
+            });
+
+            collector.on('end', (_, reason) => {
+                if (reason === 'time') interaction.editReply({ content: 'Tempo esgotado.', components: [] });
+            });
+
+        } catch (error) {
+            console.error(error);
+            await interaction.editReply({ content: 'Erro ao carregar menu de deleção.' });
+        }
     }
 }
 

@@ -413,7 +413,8 @@ async function gerarRespostaContextual(guildId, canalId, usuarioId, botUserId, m
   if (sendSystemPrompt) {
     let systemPrompt = await carregarSystemPrompt();
 
-    /* --- Busca Semântica de Memórias por Similaridade de Embedding --- */
+    /* --- Busca Semântica de Memórias por Similaridade de Embedding (DESATIVADO - MIGRADO PARA MCP) --- */
+    /*
     try {
       // Gera embedding para a mensagem do usuário
       const userEmbedding = await gerarEmbedding(mensagemUsuario);
@@ -469,6 +470,7 @@ async function gerarRespostaContextual(guildId, canalId, usuarioId, botUserId, m
         console.error('[OAI_SEMANTIC][ERRO] Fallback também falhou:', fallbackError.message);
       }
     }
+    */
 
     // Carrega ranking de participação e injeta no system prompt
     try {
