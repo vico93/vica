@@ -240,8 +240,8 @@ async function gerarPerguntaViaAPI(promptUsuario = null) {
   const messages = [];
   // Verifica se deve enviar system prompt (prioriza Requesty, depois legado)
   const sendSystemPrompt = config.requesty?.sendSystemPrompt !== false &&
-                          config.openai?.sendSystemPrompt !== false;
-  
+    config.openai?.sendSystemPrompt !== false;
+
   if (sendSystemPrompt) {
     const systemPrompt = await carregarSystemPrompt();
     messages.push({ role: 'system', content: systemPrompt });
@@ -278,8 +278,8 @@ async function gerarParabensCargoViaAPI(guildId, userId, promptUsuario, roleName
   const messages = [];
   // Verifica se deve enviar system prompt (prioriza Requesty, depois legado)
   const sendSystemPrompt = config.requesty?.sendSystemPrompt !== false &&
-                          config.openai?.sendSystemPrompt !== false;
-  
+    config.openai?.sendSystemPrompt !== false;
+
   if (sendSystemPrompt) {
     const systemPrompt = await carregarSystemPrompt();
     messages.push({ role: 'system', content: systemPrompt });
@@ -350,8 +350,8 @@ async function gerarMensagemBemVindoViaAPI(guildId, userId, userName, messageTyp
   const messages = [];
   // Verifica se deve enviar system prompt (prioriza Requesty, depois legado)
   const sendSystemPrompt = config.requesty?.sendSystemPrompt !== false &&
-                          config.openai?.sendSystemPrompt !== false;
-  
+    config.openai?.sendSystemPrompt !== false;
+
   if (sendSystemPrompt) {
     const systemPrompt = await carregarSystemPrompt();
     messages.push({ role: 'system', content: systemPrompt });
@@ -408,8 +408,8 @@ async function gerarRespostaContextual(guildId, canalId, usuarioId, botUserId, m
   const messages = [];
   // Verifica se deve enviar system prompt (prioriza Requesty, depois legado)
   const sendSystemPrompt = config.requesty?.sendSystemPrompt !== false &&
-                          config.openai?.sendSystemPrompt !== false;
-  
+    config.openai?.sendSystemPrompt !== false;
+
   if (sendSystemPrompt) {
     let systemPrompt = await carregarSystemPrompt();
 
@@ -506,6 +506,7 @@ async function gerarRespostaContextual(guildId, canalId, usuarioId, botUserId, m
             content: message.content,
             authorId: message.author.id,
             username: message.author.username,
+            globalName: message.author.globalName || message.author.username,
             createdAt: message.createdTimestamp
           });
         }
@@ -529,7 +530,12 @@ async function gerarRespostaContextual(guildId, canalId, usuarioId, botUserId, m
             try {
               const m = await channel.messages.fetch(id);
               if (m?.content) {
-                return { content: m.content, authorId: m.author.id, username: m.author.username };
+                return {
+                  content: m.content,
+                  authorId: m.author.id,
+                  username: m.author.username,
+                  globalName: m.author.globalName || m.author.username
+                };
               }
               return null;
             } catch {
@@ -554,7 +560,12 @@ async function gerarRespostaContextual(guildId, canalId, usuarioId, botUserId, m
             try {
               const m = await channel.messages.fetch(id);
               if (m?.content) {
-                return { content: m.content, authorId: m.author.id, username: m.author.username };
+                return {
+                  content: m.content,
+                  authorId: m.author.id,
+                  username: m.author.username,
+                  globalName: m.author.globalName || m.author.username
+                };
               }
               return null;
             } catch {
@@ -571,7 +582,7 @@ async function gerarRespostaContextual(guildId, canalId, usuarioId, botUserId, m
 
   for (const msg of historicoTextos) {
     const isBot = msg.authorId === botUserId;
-    const content = isBot ? msg.content : `${msg.username}: ${msg.content} [meta]user:${msg.username}|id:${msg.authorId}[/meta]`;
+    const content = isBot ? msg.content : `${msg.username}: ${msg.content} [meta]user:${msg.username}|globalname:${msg.globalName}|id:${msg.authorId}[/meta]`;
     messages.push({ role: isBot ? 'assistant' : 'user', content: content });
   }
 
@@ -592,11 +603,11 @@ async function gerarRespostaContextual(guildId, canalId, usuarioId, botUserId, m
     // Carrega ferramentas disponíveis se estiverem habilitadas
     let tools = [];
     let hasTools = false;
-    
+
     if (config.tools?.enabled !== false) {
       tools = toolLoader.getOpenAITools();
       hasTools = tools && tools.length > 0;
-      
+
       if (hasTools) {
         console.log(`[TOOLS][INFO] ${tools.length} ferramentas disponíveis para uso`);
       }
@@ -625,24 +636,24 @@ async function gerarRespostaContextual(guildId, canalId, usuarioId, botUserId, m
 
     const choice = response?.choices?.[0];
     const message = choice?.message;
-    
+
     // Verifica se há chamadas de ferramentas
     const toolCalls = message?.tool_calls;
-    
+
     if (toolCalls && toolCalls.length > 0) {
       console.log(`[TOOLS][INFO] API retornou ${toolCalls.length} chamadas de ferramentas`);
-      
+
       // Executa as ferramentas
       const toolResults = await toolLoader.executeToolCalls(toolCalls);
-      
+
       console.log(`[TOOLS][INFO] Resultados das ferramentas:`, JSON.stringify(toolResults, null, 2));
-      
+
       // Adiciona a resposta do assistente com as chamadas de ferramentas
       messages.push({
         role: 'assistant',
         tool_calls: toolCalls
       });
-      
+
       // Adiciona os resultados das ferramentas
       for (const toolResult of toolResults) {
         messages.push({
@@ -651,22 +662,22 @@ async function gerarRespostaContextual(guildId, canalId, usuarioId, botUserId, m
           content: toolResult.result
         });
       }
-      
+
       // Faz uma nova requisição com os resultados das ferramentas
       const followUpResponse = await withRetries(
         () => openai.chat.completions.create(requestParams),
         '[CHAT][resposta_contextual_followup]'
       );
-      
+
       const followUpChoice = followUpResponse?.choices?.[0];
       const followUpMessage = followUpChoice?.message;
       let content = followUpMessage?.content || '';
-      
+
       // Handle case where response was truncated due to token limits
       if (followUpChoice?.finish_reason === 'length') {
         content = 'Desculpe, minha resposta ficou muito longa devido aos limites de tokens! Tente dividir a conversa em partes menores ou usar mensagens mais curtas. 😊';
       }
-      
+
       // Processa tags [salvar_memoria] usando tagParser com contexto (guildId)
       const context = { guildId };
       const parsedTags = tagParser.parseTags(content, context);
@@ -709,8 +720,8 @@ async function gerarComentarioViaAPI(conversationText) {
   const messages = [];
   // Verifica se deve enviar system prompt (prioriza Requesty, depois legado)
   const sendSystemPrompt = config.requesty?.sendSystemPrompt !== false &&
-                          config.openai?.sendSystemPrompt !== false;
-  
+    config.openai?.sendSystemPrompt !== false;
+
   if (sendSystemPrompt) {
     const systemPrompt = await carregarSystemPrompt();
     messages.push({ role: 'system', content: systemPrompt });
@@ -725,11 +736,11 @@ async function gerarComentarioViaAPI(conversationText) {
     // Carrega ferramentas disponíveis se estiverem habilitadas
     let tools = [];
     let hasTools = false;
-    
+
     if (config.tools?.enabled !== false) {
       tools = toolLoader.getOpenAITools();
       hasTools = tools && tools.length > 0;
-      
+
       if (hasTools) {
         console.log(`[TOOLS][INFO] ${tools.length} ferramentas disponíveis para uso em gerarComentarioViaAPI`);
       }
@@ -757,24 +768,24 @@ async function gerarComentarioViaAPI(conversationText) {
 
     const choice = response?.choices?.[0];
     const message = choice?.message;
-    
+
     // Verifica se há chamadas de ferramentas
     const toolCalls = message?.tool_calls;
-    
+
     if (toolCalls && toolCalls.length > 0) {
       console.log(`[TOOLS][INFO] API retornou ${toolCalls.length} chamadas de ferramentas em gerarComentarioViaAPI`);
-      
+
       // Executa as ferramentas
       const toolResults = await toolLoader.executeToolCalls(toolCalls);
-      
+
       console.log(`[TOOLS][INFO] Resultados das ferramentas:`, JSON.stringify(toolResults, null, 2));
-      
+
       // Adiciona a resposta do assistente com as chamadas de ferramentas
       messages.push({
         role: 'assistant',
         tool_calls: toolCalls
       });
-      
+
       // Adiciona os resultados das ferramentas
       for (const toolResult of toolResults) {
         messages.push({
@@ -783,22 +794,22 @@ async function gerarComentarioViaAPI(conversationText) {
           content: toolResult.result
         });
       }
-      
+
       // Faz uma nova requisição com os resultados das ferramentas
       const followUpResponse = await withRetries(
         () => openai.chat.completions.create(requestParams),
         '[CHAT][comentario_followup]'
       );
-      
+
       const followUpChoice = followUpResponse?.choices?.[0];
       const followUpMessage = followUpChoice?.message;
       let content = followUpMessage?.content || '';
-      
+
       // Handle case where response was truncated due to token limits
       if (followUpChoice?.finish_reason === 'length') {
         content = 'Desculpe, minha resposta ficou muito longa devido aos limites de tokens! Tente dividir a conversa em partes menores ou usar mensagens mais curtas. 😊';
       }
-      
+
       if (!content) {
         throw new Error('A API não retornou conteúdo na resposta.');
       }

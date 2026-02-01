@@ -14,7 +14,7 @@
   4. Gerar resposta via IA (respeitando blacklist) e enviar.
 */
 
-const oai      = require('../core/oai_interface');
+const oai = require('../core/oai_interface');
 const database = require('../core/database');
 const tagParser = require('../core/tagParser');
 
@@ -76,8 +76,8 @@ module.exports = {
     // Ignora bots e mensagens em DM
     if ((message.author.bot && message.author.id !== client.user.id) || !message.guild) return;
 
-    const guildId  = message.guild.id;
-    const canalId  = message.channel.id;
+    const guildId = message.guild.id;
+    const canalId = message.channel.id;
     const usuarioId = message.author.id;
 
 
@@ -113,7 +113,7 @@ module.exports = {
                 console.warn(`[AVISO] Canal de sistema (${systemChannelId}) não encontrado no servidor ${guildId}. Usando canal de origem.`);
               }
             }
-            
+
             try {
               await targetChannel.send(
                 `🎉 Parabéns, <@${usuarioId}>! Você avançou para o nível **${novoNivel}**!`
@@ -193,8 +193,9 @@ module.exports = {
 
       // Adicionar contexto do usuário para o prompt
       const username = message.author.username;
+      const globalName = message.author.globalName || username;
       const userId = message.author.id;
-      prompt = `${username}: ${prompt} [meta]user:${username}|id:${userId}[/meta]`;
+      prompt = `${username}: ${prompt} [meta]user:${username}|globalname:${globalName}|id:${userId}[/meta]`;
 
       if (!prompt) return;
 
