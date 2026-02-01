@@ -133,12 +133,14 @@ async function runTests() {
         logSection('Test 4: Executing a Tool');
         
         // Try to find a simple tool to execute
-        const timeTool = mcpTools.find(t => t.function?.name === 'get_current_time');
-        const sequentialTool = mcpTools.find(t => t.function?.name === 'sequential_thinking');
+        const allToolsForExec = await toolLoader.getOpenAITools();
+        const timeTool = allToolsForExec.find(t => t.function?.name === 'get_current_time');
+        const sequentialTool = mcpTools.find(t => t.function?.name === 'sequential-thinking'); // Note: name might be 'sequential-thinking' or 'sequential_thinking' depending on server
 
         if (timeTool) {
             logInfo('Executing get_current_time tool...\n');
             try {
+                // For custom tools, we pass the tool name directly
                 const result = await toolLoader.executeTool('get_current_time', {});
                 
                 if (result.success !== false) {
