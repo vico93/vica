@@ -5,7 +5,7 @@
 ** colaboração: Gemini, ChatGPT, Roo Sonic, Kimi, Roo Sonic (xai/grok-code-fast-1)
 
 // Módulo de parser de tags especiais
-// Responsável por analisar mensagens com tags específicas como [imagem], [meta]...[/meta] e [salvar_memoria]...[/salvar_memoria] (case-insensitive)
+// Responsável por analisar mensagens com tags específicas como [imagem], [meta]...[/meta] e [memory]...[/memory] (case-insensitive)
 
 /* --- Funções de Validação --- */
 
@@ -16,26 +16,6 @@
  */
 function isValidDiscordId(id) {
     return typeof id === 'string' && /^\d{17,19}$/.test(id);
-}
-
-/**
- * Valida se o parâmetro importance é um número inteiro entre 1 e 10
- * @param {string|number} importance - Valor de importance a ser validado
- * @returns {boolean} True se válido
- */
-function isValidImportance(importance) {
-    const num = parseInt(importance, 10);
-    return !isNaN(num) && num >= 1 && num <= 10;
-}
-
-/**
- * Valida se o parâmetro confidence é um número entre 0.0 e 1.0
- * @param {string|number} confidence - Valor de confidence a ser validado
- * @returns {boolean} True se válido
- */
-function isValidConfidence(confidence) {
-    const num = parseFloat(confidence);
-    return !isNaN(num) && num >= 0.0 && num <= 1.0;
 }
 
 /* --- Funções de Substituição de Placeholders --- */
@@ -58,109 +38,6 @@ function replacePlaceholders(content, context = {}) {
     return result;
 }
 
-/**
- * Processa uma tag [salvar_memoria] e extrai os parâmetros validados
- * @param {string} content - Conteúdo interno da tag (sem as tags de abertura/fechamento)
- * @param {number} position - Posição da tag na mensagem original (para logging)
- * @param {object} context - Objeto de contexto para substituição de placeholders
- * @returns {object} Objeto com dados da memória parseado e validado
- */
-function parseMemoryTag(content, position = 0, context = {}) {
-    let hasErrors = false;
-    const errors = [];
-
-    // Aplicar substituição de placeholders no conteúdo antes de processar
-    console.log(`[TAG_PARSER][DEBUG] Parsing memory tag at position ${position}, original content: "${content}"`);
-    console.log(`[TAG_PARSER][DEBUG] Context provided: ${JSON.stringify(context)}`);
-    let processedContent = replacePlaceholders(content, context);
-    console.log(`[TAG_PARSER][DEBUG] Content after placeholder replacement: "${processedContent}"`);
-
-    // Dividir o conteúdo por ':' em exatamente 5 partes
-    const parts = processedContent.split(':');
-
-    if (parts.length !== 5) {
-        hasErrors = true;
-        errors.push(`Quantidade de parâmetros incorreta: esperado 5, encontrado ${parts.length}`);
-
-        // Criar estrutura padrão com valores vazios/inválidos
-        return {
-            guildId: '',
-            userId: '',
-            fact: content.trim(),
-            importance: 1,
-            confidence: 0.5,
-            hasErrors: true,
-            errorMessage: errors.join('; ')
-        };
-    }
-
-    let [guildId, userId, fact, importance, confidence] = parts;
-
-    // Validar guildId - se inválido, tentar usar o guildId do contexto (fallback para AI-generated tags)
-    if (!isValidDiscordId(guildId)) {
-        if (context.guildId && isValidDiscordId(context.guildId)) {
-            console.log(`[TAG_PARSER][FALLBACK] guildId inválido "${guildId}", usando contexto guildId: ${context.guildId}`);
-            console.log(`[TAG_PARSER][DEBUG] Before replace: processedContent="${processedContent}"`);
-            processedContent = processedContent.replace(guildId, context.guildId);
-            console.log(`[TAG_PARSER][DEBUG] After replace: processedContent="${processedContent}"`);
-            const parts = processedContent.split(':');
-            if (parts.length >= 5) {
-                guildId = parts[0]; // Atualizar guildId com o do contexto
-                console.log(`[TAG_PARSER][DEBUG] Updated guildId: "${guildId}"`);
-            }
-        } else {
-            hasErrors = true;
-            errors.push(`guildId inválido: deve ser ID do Discord (17-19 dígitos numéricos)`);
-        }
-    }
-
-    // Validar userId
-    if (!isValidDiscordId(userId)) {
-        hasErrors = true;
-        errors.push(`userId inválido: deve ser ID do Discord (17-19 dígitos numéricos)`);
-    }
-
-    // Validar fact (não vazio após trim)
-    const trimmedFact = fact.trim();
-    if (!trimmedFact) {
-        hasErrors = true;
-        errors.push(`fact não pode ser vazio`);
-    }
-
-    // Validar importance
-    if (!isValidImportance(importance)) {
-        hasErrors = true;
-        errors.push(`importance deve ser um número inteiro entre 1 e 10`);
-    }
-
-    // Validar confidence
-    if (!isValidConfidence(confidence)) {
-        hasErrors = true;
-        errors.push(`confidence deve ser um número entre 0.0 e 1.0`);
-    }
-
-    // Log de resultados de validação
-    console.log(`[TAG_PARSER][VALIDATION] Parsed memory validation results: guildId=${isValidDiscordId(guildId)}, userId=${isValidDiscordId(userId)}, fact=${!!trimmedFact}, importance=${isValidImportance(importance)}, confidence=${isValidConfidence(confidence)}`);
-
-    // Log de erro se houver problemas
-    if (hasErrors) {
-        console.error('[TAG_PARSER][ERROR] Tag salvar_memoria malformada na posição', position, '-', errors.join('; '));
-    }
-
-    const result = {
-        guildId: guildId || '',
-        userId: userId || '',
-        fact: trimmedFact,
-        importance: parseInt(importance, 10) || 1,
-        confidence: parseFloat(confidence) || 0.5,
-        hasErrors,
-        errorMessage: hasErrors ? errors.join('; ') : null
-    };
-
-    console.log(`[TAG_PARSER][DEBUG] Parsed memory result: guildId=${result.guildId}, userId=${result.userId}, fact="${result.fact.substring(0, 50)}${result.fact.length > 50 ? '...' : ''}", importance=${result.importance}, confidence=${result.confidence}, hasErrors=${result.hasErrors}`);
-    return result;
-}
-
 /* --- Função de Construção de Mensagens --- */
 
 /**
@@ -170,12 +47,11 @@ function parseMemoryTag(content, position = 0, context = {}) {
  * @param {string} params.text - Texto base da mensagem (obrigatório)
  * @param {boolean} [params.imagem=false] - Flag para adicionar tag [imagem]
  * @param {object|null} [params.meta=null] - Objeto com pares chave-valor para tag meta
- * @param {object|null} [params.memories=null] - Array de objetos de memória para salvar
  * @param {object} [params.context=null] - Objeto de contexto para substituição de placeholders
  * @returns {string} Mensagem formatada com tags
  * @throws {Error} Se texto não for fornecido ou for inválido
  */
-function buildTaggedMessage({ text, imagem = false, meta = null, memories = null, context = null }) {
+function buildTaggedMessage({ text, imagem = false, meta = null, context = null }) {
     // Validação do texto (sempre obrigatório e deve ser string)
     if (!text || typeof text !== 'string') {
         throw new Error('Texto é obrigatório e deve ser uma string válida');
@@ -200,18 +76,6 @@ function buildTaggedMessage({ text, imagem = false, meta = null, memories = null
         }
         if (metaPairs.length > 0) {
             components.push(`[meta]${metaPairs.join('|')}[/meta]`);
-        }
-    }
-
-    // Construir tags [save_memory] se fornecidas
-    if (memories && Array.isArray(memories)) {
-        for (const memory of memories) {
-            if (memory && typeof memory === 'object') {
-                const { guildId, userId, fact, importance, confidence } = memory;
-                if (guildId && userId && fact) {
-                    components.push(`[salvar_memoria]${guildId}:${userId}:${fact}:${importance}:${confidence}[/salvar_memoria]`);
-                }
-            }
         }
     }
 
@@ -246,20 +110,15 @@ function parseTags(message, context = {}) {
         text = text.replace(/\[meta\].*?\[\/meta\]/gs, '');
     }
 
-    // Processar tags [salvar_memoria]...[/salvar_memoria] (case-insensitive)
-    const memories = [];
-    const saveMemoryRegex = /\[salvar_memoria\](.*?)\[\/salvar_memoria\]/gi;
-    let saveMemoryMatch;
-
-    while ((saveMemoryMatch = saveMemoryRegex.exec(message)) !== null) {
-        const content = saveMemoryMatch[1];
-        const memory = parseMemoryTag(content, saveMemoryMatch.index + 15, context); // +15 to account for "[salvar_memoria]" length
-
-        memories.push(memory);
+    // Remover tags [memory]...[/memory] (case-insensitive, dotAll)
+    // Estas tags são usadas para "pensamentos" de memória que devem ser ocultados do usuário final
+    const memoryRegex = /\[memory\](.*?)\[\/memory\]/gsi;
+    if (memoryRegex.test(text)) {
+        // Opcional: Logar o conteúdo removido se necessário para debug
+        // const match = text.match(memoryRegex);
+        // console.log('[TAG_PARSER][INFO] Stripping memory tag content:', match[1]);
+        text = text.replace(memoryRegex, '');
     }
-
-    // Remover tags [salvar_memoria] do texto (case-insensitive)
-    text = text.replace(/\[salvar_memoria\].*?\[\/salvar_memoria\]/gi, '');
 
     // Limpar espaços extras do texto resultante
     const cleanedMessage = text.trim().replace(/[ \t]+/g, ' ');
@@ -268,8 +127,7 @@ function parseTags(message, context = {}) {
     return {
         cleanedMessage,
         hasImage,
-        meta,
-        memories
+        meta
     };
 }
 
@@ -277,15 +135,6 @@ module.exports = { parseTags, buildTaggedMessage };
 
 // Exemplos de uso:
 //
-// const result = parseTags("Olá [imagem] como vai? [meta]Isso é meta[/meta] Olá novamente [salvar_memoria]123456789012345678:987654321098765432:Este usuário é amigável:8:0.95[/salvar_memoria]");
+// const result = parseTags("Olá [imagem] como vai? [meta]Isso é meta[/meta] [memory]Checking memory...[/memory]");
 // console.log(result);
-// // Output: { cleanedMessage: "Olá como vai? Olá novamente", hasImage: true, meta: "Isso é meta", memories: [{guildId: "123456789012345678", userId: "987654321098765432", fact: "Este usuário é amigável", importance: 8, confidence: 0.95, hasErrors: false}] }
-//
-// const constructed = buildTaggedMessage({
-//   text: "Como você está?",
-//   imagem: true,
-//   meta: { user: "João", id: "123" },
-//   memories: [{ guildId: "123456789012345678", userId: "987654321098765432", fact: "João é muito amigável", importance: 7, confidence: 0.9 }]
-// });
-// console.log(constructed);
-// // Output: "[imagem] Como você está? [meta]user:João|id:123[/meta] [salvar_memoria]123456789012345678:987654321098765432:João é muito amigável:7:0.9[/salvar_memoria]"
+// // Output: { cleanedMessage: "Olá como vai?", hasImage: true, meta: "Isso é meta" }

@@ -309,34 +309,6 @@ async function gerarParabensCargoViaAPI(guildId, userId, promptUsuario, roleName
 
     // Processa tags [salvar_memoria] usando tagParser com contexto (guildId)
     const parsedTags = tagParser.parseTags(content, { guildId });
-    let memoriesProcessed = 0;
-
-    if (parsedTags.memories && parsedTags.memories.length > 0) {
-      for (const memory of parsedTags.memories) {
-        if (!memory.hasErrors) {
-          try {
-            console.log(`[ROLE-CONGRATS][INFO] Processando memória: ${memory.guildId}:${memory.userId}:${memory.fact}...`);
-            const result = await database.adicionarMemoriaUsuario(
-              memory.guildId,
-              memory.userId,
-              memory.fact,
-              {
-                importance: memory.importance,
-                confidence: memory.confidence,
-                sourceMessageId: null,
-                createdAt: Date.now()
-              }
-            );
-            console.log(`[ROLE-CONGRATS][SUCCESS] Memória salva: inserted=${result.inserted} duplicate=${result.duplicate} importance=${memory.importance} confidence=${memory.confidence}`);
-            memoriesProcessed++;
-          } catch (memError) {
-            console.error(`[ROLE-CONGRATS][ERROR] Falha ao salvar memória: ${memError.message}`);
-          }
-        } else {
-          console.warn(`[ROLE-CONGRATS][WARN] Memória com erros ignorada: ${memory.errorMessage}`);
-        }
-      }
-    }
 
     // Adiciona automaticamente uma memória sobre o usuário estar no cargo
     if (roleName && userId) {
@@ -409,34 +381,6 @@ async function gerarMensagemBemVindoViaAPI(guildId, userId, userName, messageTyp
 
     // Processa tags [salvar_memoria] usando tagParser com contexto (guildId)
     const parsedTags = tagParser.parseTags(content, { guildId });
-    let memoriesProcessed = 0;
-
-    if (parsedTags.memories && parsedTags.memories.length > 0) {
-      for (const memory of parsedTags.memories) {
-        if (!memory.hasErrors) {
-          try {
-            console.log(`[${tag.toUpperCase()}][INFO] Processando memória: ${memory.guildId}:${memory.userId}:${memory.fact}...`);
-            const result = await database.adicionarMemoriaUsuario(
-              memory.guildId,
-              memory.userId,
-              memory.fact,
-              {
-                importance: memory.importance,
-                confidence: memory.confidence,
-                sourceMessageId: null,
-                createdAt: Date.now()
-              }
-            );
-            console.log(`[${tag.toUpperCase()}][SUCCESS] Memória salva: inserted=${result.inserted} duplicate=${result.duplicate} importance=${memory.importance} confidence=${memory.confidence}`);
-            memoriesProcessed++;
-          } catch (memError) {
-            console.error(`[${tag.toUpperCase()}][ERROR] Falha ao salvar memória: ${memError.message}`);
-          }
-        } else {
-          console.warn(`[${tag.toUpperCase()}][WARN] Memória com erros ignorada: ${memory.errorMessage}`);
-        }
-      }
-    }
 
     // Usa o conteúdo limpo do tagParser (tags já removidas)
     content = parsedTags.cleanedMessage;
@@ -726,51 +670,12 @@ async function gerarRespostaContextual(guildId, canalId, usuarioId, botUserId, m
       // Processa tags [salvar_memoria] usando tagParser com contexto (guildId)
       const context = { guildId };
       const parsedTags = tagParser.parseTags(content, context);
-      let memoriesProcessed = 0;
-
-      // Processa memórias encontradas nas tags
-      if (parsedTags.memories && parsedTags.memories.length > 0) {
-        for (const memory of parsedTags.memories) {
-          if (!memory.hasErrors) {
-            try {
-              console.log(`[AI_RESPONSE_PROCESSOR][INFO] Processando memória: ${memory.guildId}:${memory.userId}:${memory.fact}...`);
-              const result = database.adicionarMemoriaUsuario(
-                memory.guildId,
-                memory.userId,
-                memory.fact,
-                {
-                  importance: memory.importance,
-                  confidence: memory.confidence,
-                  sourceMessageId: sourceMessageId,
-                  createdAt: Date.now()
-                }
-              );
-              console.log(`[AI_RESPONSE_PROCESSOR][SUCCESS] Memória salva: inserted=${result.inserted} duplicate=${result.duplicate} importance=${memory.importance} confidence=${memory.confidence}`);
-              memoriesProcessed++;
-            } catch (memError) {
-              console.error(`[AI_RESPONSE_PROCESSOR][ERROR] Falha ao salvar memória: ${memError.message}`);
-            }
-          } else {
-            console.warn(`[AI_RESPONSE_PROCESSOR][WARN] Memória com erros ignorada: ${memory.errorMessage}`);
-          }
-        }
-      }
-
-      if (memoriesProcessed > 0) {
-        console.log(`[AI_RESPONSE_PROCESSOR][INFO] Total memórias processadas: ${memoriesProcessed}`);
-      }
 
       // Usa o conteúdo limpo do tagParser (tags já removidas)
       content = parsedTags.cleanedMessage;
 
       if (!content) {
-        // Caso não haja conteúdo mas houve memórias processadas, assume sucesso
-        if (memoriesProcessed > 0) {
-          console.log('[AI_RESPONSE_PROCESSOR][INFO] Sem conteúdo textual, mas memórias salvas com sucesso');
-          content = 'Memória salva/atualizada com sucesso!';
-        } else {
-          throw new Error('A API não retornou conteúdo na resposta.');
-        }
+        throw new Error('A API não retornou conteúdo na resposta.');
       }
       return content;
     }
@@ -785,51 +690,12 @@ async function gerarRespostaContextual(guildId, canalId, usuarioId, botUserId, m
     // Processa tags [salvar_memoria] usando tagParser com contexto (guildId)
     const context = { guildId };
     const parsedTags = tagParser.parseTags(content, context);
-    let memoriesProcessed = 0;
-
-    // Processa memórias encontradas nas tags
-    if (parsedTags.memories && parsedTags.memories.length > 0) {
-      for (const memory of parsedTags.memories) {
-        if (!memory.hasErrors) {
-          try {
-            console.log(`[AI_RESPONSE_PROCESSOR][INFO] Processando memória: ${memory.guildId}:${memory.userId}:${memory.fact}...`);
-            const result = database.adicionarMemoriaUsuario(
-              memory.guildId,
-              memory.userId,
-              memory.fact,
-              {
-                importance: memory.importance,
-                confidence: memory.confidence,
-                sourceMessageId: sourceMessageId,
-                createdAt: Date.now()
-              }
-            );
-            console.log(`[AI_RESPONSE_PROCESSOR][SUCCESS] Memória salva: inserted=${result.inserted} duplicate=${result.duplicate} importance=${memory.importance} confidence=${memory.confidence}`);
-            memoriesProcessed++;
-          } catch (memError) {
-            console.error(`[AI_RESPONSE_PROCESSOR][ERROR] Falha ao salvar memória: ${memError.message}`);
-          }
-        } else {
-          console.warn(`[AI_RESPONSE_PROCESSOR][WARN] Memória com erros ignorada: ${memory.errorMessage}`);
-        }
-      }
-    }
-
-    if (memoriesProcessed > 0) {
-      console.log(`[AI_RESPONSE_PROCESSOR][INFO] Total memórias processadas: ${memoriesProcessed}`);
-    }
 
     // Usa o conteúdo limpo do tagParser (tags já removidas)
     content = parsedTags.cleanedMessage;
 
     if (!content) {
-      // Caso não haja conteúdo mas houve impegnias memórias processadas, assume sucesso
-      if (memoriesProcessed > 0) {
-        console.log('[AI_RESPONSE_PROCESSOR][INFO] Sem conteúdo textual, mas memórias salvas com sucesso');
-        content = 'Memória salva/atualizada com sucesso!';
-      } else {
-        throw new Error('A API não retornou conteúdo na resposta.');
-      }
+      throw new Error('A API não retornou conteúdo na resposta.');
     }
     return content;
   } catch (error) {
