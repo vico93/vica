@@ -13,8 +13,8 @@ const runningServers = new Map();
 // Request ID counter for JSON-RPC
 let requestIdCounter = 0;
 
-// Default timeout for requests (30 seconds)
-const DEFAULT_TIMEOUT = 30000;
+// Default timeout for requests (120 seconds)
+const DEFAULT_TIMEOUT = 120000;
 
 /**
  * Generate a unique request ID for JSON-RPC
