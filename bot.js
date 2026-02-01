@@ -17,6 +17,7 @@ const path = require('path');
 const { Client, GatewayIntentBits, Collection, Partials } = require('discord.js');
 const config   = require('./config.json');
 const database = require('./core/database');
+const toolLoader = require('./core/tool_loader');
 
 // ----------------------------------------------------------
 // Cliente Discord
@@ -73,6 +74,22 @@ if (fs.existsSync(eventsPath)) {
 }
 
 // ----------------------------------------------------------
+// Ready event - Start MCP servers
+// ----------------------------------------------------------
+client.once('ready', async () => {
+    console.log(`[BOT][INFO] Bot conectado como ${client.user.tag}`);
+    
+    // Start MCP servers
+    try {
+        await toolLoader.startMCPServers();
+        console.log('[BOT][INFO] MCP servers iniciados com sucesso');
+    } catch (error) {
+        console.error('[BOT][ERROR] Falha ao iniciar MCP servers:', error);
+        // Bot continues to work even if MCP servers fail to start
+    }
+});
+
+// ----------------------------------------------------------
 // Login
 // ----------------------------------------------------------
 client.login(config.discord.token);
@@ -83,9 +100,18 @@ client.login(config.discord.token);
 process.on('SIGINT',  gracefulShutdown);
 process.on('SIGTERM', gracefulShutdown);
 
-function gracefulShutdown() {
-  console.log('\n[VICA] Recebido sinal de desligamento. Fechando recursos...');
-  database.close();
-  client.destroy();
-  process.exit(0);
+async function gracefulShutdown() {
+    console.log('\n[BOT][INFO] Recebido sinal de desligamento. Fechando recursos...');
+    
+    try {
+        // Stop MCP servers
+        await toolLoader.stopAllMCPServers();
+        console.log('[BOT][INFO] MCP servers parados com sucesso');
+    } catch (error) {
+        console.error('[BOT][ERROR] Erro ao parar MCP servers:', error);
+    }
+    
+    database.close();
+    client.destroy();
+    process.exit(0);
 }

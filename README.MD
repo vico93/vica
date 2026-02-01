@@ -95,6 +95,130 @@ node bot.js
 
 ---
 
+## MCP Integration
+
+### O que é MCP?
+
+O **Model Context Protocol (MCP)** é um protocolo padronizado que permite que assistentes de IA se comuniquem com serviços externos e ferramentas. O Vica suporta MCP para estender suas capacidades sem modificar o código principal.
+
+### Servidores MCP Suportados
+
+| Servidor | Transporte | Status | Ferramentas |
+|----------|------------|--------|-------------|
+| Memory | stdio | ✅ Funcionando | 9 ferramentas (operações de grafo de conhecimento) |
+| Sequential Thinking | http | ⚠️ Precisa de investigação | - |
+| Time | http | ⚠️ Precisa de investigação | - |
+
+### Configurando Servidores MCP
+
+Os servidores MCP são configurados no arquivo [`data/tools.json`](data/tools.json). Adicione servidores com o seguinte formato:
+
+**Transporte stdio (servidores locais):**
+
+```json
+{
+  "name": "memory",
+  "type": "mcp",
+  "transport": "stdio",
+  "command": "npx",
+  "args": ["-y", "@modelcontextprotocol/server-memory@latest"],
+  "env": {
+    "MEMORY_FILE_PATH": "./data/memory.json"
+  }
+}
+```
+
+**Transporte http (servidores hospedados):**
+
+```json
+{
+  "name": "example_server",
+  "type": "mcp",
+  "transport": "http",
+  "url": "https://example.com/mcp-endpoint"
+}
+```
+
+### Variáveis de Ambiente
+
+Servidores MCP podem receber variáveis de ambiente através do campo `env`:
+
+```json
+"env": {
+  "MEMORY_FILE_PATH": "d:/Projetos/Discord/vica/data/memory.json",
+  "CUSTOM_VAR": "valor"
+}
+```
+
+### Servidor de Memória
+
+O servidor MCP de memória fornece operações de grafo de conhecimento:
+
+**Ferramentas disponíveis:**
+1. `create_entities` - Criar múltiplas entidades no grafo
+2. `create_relations` - Criar relações entre entidades
+3. `add_observations` - Adicionar observações a entidades existentes
+4. `delete_entities` - Remover entidades e suas relações
+5. `delete_observations` - Remover observações específicas
+6. `delete_relations` - Remover relações do grafo
+7. `read_graph` - Ler o grafo completo
+8. `search_nodes` - Buscar nós baseado em queries
+9. `open_nodes` - Abrir nós específicos por nome
+
+### Testando Integração MCP
+
+Execute o script de teste para verificar a conectividade dos servidores MCP:
+
+```bash
+node test_mcp.js
+```
+
+Este script:
+- Inicia todos os servidores MCP configurados
+- Lista as ferramentas disponíveis de cada servidor
+- Realiza um teste simples de chamada de ferramenta
+- Para todos os servidores gracefulmente
+
+### Solução de Problemas
+
+**Servidores HTTP retornando HTML:**
+
+As URLs do mcp.so podem não ser endpoints HTTP MCP corretos. Possíveis problemas:
+- Protocolo diferente necessário (SSE, WebSocket)
+- Headers de autenticação faltando
+- Formato de endpoint incorreto
+
+**Compatibilidade com Windows:**
+
+- Use `npm.cmd exec` em vez de `npx` no Windows
+- O [`core/mcp_client.js`](core/mcp_client.js) adiciona automaticamente `shell: true` para Windows
+
+**Falhas na inicialização do servidor:**
+
+- Verifique se o comando está disponível no PATH do sistema
+- Confirme que as variáveis de ambiente estão configuradas corretamente
+- Certifique-se de que as dependências necessárias estão instaladas
+- Revise os logs do servidor para mensagens de erro detalhadas
+
+### Adicionando um Novo Servidor MCP
+
+1. Adicione a configuração do servidor em [`data/tools.json`](data/tools.json)
+2. Escolha o tipo de transporte apropriado (stdio ou http)
+3. Configure as variáveis de ambiente necessárias
+4. Teste com `node test_mcp.js`
+5. Reinicie o bot para carregar o novo servidor
+6. Verifique que as ferramentas estão disponíveis para chamada de função da IA
+
+### Boas Práticas MCP
+
+1. **Prefira transporte stdio** para servidores locais (mais confiável e fácil de debugar)
+2. **Use caminhos absolutos** para configurações de servidores baseados em arquivos
+3. **Teste completamente** antes de implantar em produção
+4. **Monitore a saúde do servidor** através dos logs
+5. **Implemente lógica de fallback** quando ferramentas MCP falharem
+
+---
+
 ## Sistema de Memórias
 Vica usa tags especiais para armazenar e sinalizar contexto:
 - `[salvar_memoria]...[/salvar_memoria]`: salva um fato no banco com `importance` (1–10) e `confidence` (0.0–1.0).

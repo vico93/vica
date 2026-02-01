@@ -6,6 +6,7 @@ This document provides comprehensive guidance for Gemini and Antigravity to work
 - [Project Overview](#project-overview)
 - [Architecture Overview](#architecture-overview)
 - [Key Features](#key-features)
+- [MCP Integration](#mcp-integration)
 - [Database Schema](#database-schema)
 - [Memory System](#memory-system)
 - [Configuration](#configuration)
@@ -25,6 +26,7 @@ This document provides comprehensive guidance for Gemini and Antigravity to work
 - **Platform**: Discord.js library
 - **Deployment**: Runs on Raspberry Pi 3b+ via systemd
 - **AI Integration**: Uses OpenAI-compatible APIs (Requesty) for AI features
+- **MCP Support**: Model Context Protocol for extending bot capabilities
 - **Primary Language**: Portuguese (codebase and user-facing content)
 
 ### Purpose
@@ -45,8 +47,9 @@ Vica serves as an intelligent Discord assistant that can:
 |-----------|------|---------|
 | Database Interface | [`core/database.js`](core/database.js) | SQLite database operations with prepared statements |
 | OpenAI Interface | [`core/oai_interface.js`](core/oai_interface.js) | AI API integration for chat and embeddings |
+| MCP Client | [`core/mcp_client.js`](core/mcp_client.js) | Model Context Protocol client for external tools |
 | Tag Parser | [`core/tagParser.js`](core/tagParser.js) | Parses special tags in messages ([salvar_memoria], [meta], [imagem]) |
-| Tool Loader | [`core/tool_loader.js`](core/tool_loader.js) | Loads OpenAI function calling tools |
+| Tool Loader | [`core/tool_loader.js`](core/tool_loader.js) | Loads OpenAI function calling tools and MCP servers |
 | Static Data | [`core/static_data.js`](core/static_data.js) | Manages static configuration data |
 | Transcriber | [`core/transcriber.js`](core/transcriber.js) | Handles audio/image transcription |
 | Audit Cache | [`core/auditCache.js`](core/auditCache.js) | Caches audit logs for performance |
@@ -94,6 +97,14 @@ Vica serves as an intelligent Discord assistant that can:
 |------|------|---------|
 | `calculate` | [`tools/calculate.js`](tools/calculate.js) | Perform mathematical calculations |
 | `get_current_time` | [`tools/get_current_time.js`](tools/get_current_time.js) | Get current date/time |
+
+### MCP Servers (Model Context Protocol)
+
+| Server | Transport | Status | Tools |
+|--------|-----------|--------|-------|
+| Memory | stdio | ✅ Working | 9 tools (knowledge graph operations) |
+| Sequential Thinking | http | ⚠️ Needs investigation | - |
+| Time | http | ⚠️ Needs investigation | - |
 
 ### Helpers
 
@@ -158,6 +169,158 @@ Vica serves as an intelligent Discord assistant that can:
 - Customizable welcome messages
 - Customizable leave messages
 - Configurable system channel
+
+---
+
+## MCP Integration
+
+### Overview
+
+The Vica bot supports Model Context Protocol (MCP), a standardized protocol that enables AI assistants to communicate with external services and tools. MCP allows extending the bot's capabilities without modifying the core codebase.
+
+### MCP Client Module
+
+The [`core/mcp_client.js`](core/mcp_client.js) module provides the interface for MCP server communication:
+
+**Key Functions:**
+- `startServer(config)` - Initialize and start an MCP server
+- `stopServer(server)` - Gracefully stop a running MCP server
+- `initializeServer(server)` - Perform MCP handshake and initialization
+- `listTools(server)` - Retrieve available tools from an MCP server
+- `callTool(server, toolName, args)` - Execute a tool on an MCP server
+- `getServer(name)` - Retrieve a running server instance by name
+- `getAllServers()` - Get all active MCP server instances
+- `stopAllServers()` - Stop all running MCP servers
+
+### MCP Server Configuration
+
+MCP servers are configured in [`data/tools.json`](data/tools.json) with the following structure:
+
+**stdio Transport (Local Servers):**
+
+```json
+{
+  "name": "memory",
+  "type": "mcp",
+  "transport": "stdio",
+  "command": "npx",
+  "args": ["-y", "@modelcontextprotocol/server-memory@latest"],
+  "env": {
+    "MEMORY_FILE_PATH": "./data/memory.json"
+  }
+}
+```
+
+**http Transport (Hosted Servers):**
+
+```json
+{
+  "name": "example_server",
+  "type": "mcp",
+  "transport": "http",
+  "url": "https://example.com/mcp-endpoint"
+}
+```
+
+### Environment Variables
+
+MCP servers can receive environment variables through the `env` field. These are merged with the process environment:
+
+```json
+"env": {
+  "MEMORY_FILE_PATH": "d:/Projetos/Discord/vica/data/memory.json",
+  "CUSTOM_VAR": "value"
+}
+```
+
+### Memory MCP Server
+
+The Memory MCP server provides knowledge graph operations:
+
+**Available Tools:**
+1. `create_entities` - Create multiple entities in the knowledge graph
+2. `create_relations` - Create relationships between entities
+3. `add_observations` - Add observations to existing entities
+4. `delete_entities` - Remove entities and their relations
+5. `delete_observations` - Remove specific observations
+6. `delete_relations` - Remove relationships from the graph
+7. `read_graph` - Read the entire knowledge graph
+8. `search_nodes` - Search for nodes based on queries
+9. `open_nodes` - Open specific nodes by name
+
+### MCP Server Lifecycle
+
+MCP servers are managed in [`bot.js`](bot.js):
+
+1. **Startup Phase**: All configured MCP servers are initialized when the bot starts
+2. **Runtime Phase**: MCP tools are available for AI function calling
+3. **Shutdown Phase**: All MCP servers are gracefully stopped on bot exit
+
+### Using MCP Tools
+
+The [`core/tool_loader.js`](core/tool_loader.js) module automatically loads MCP tools and makes them available to the AI:
+
+```javascript
+const tool_loader = require('./core/tool_loader');
+
+// Load all tools including MCP tools
+const tools = tool_loader.loadTools();
+
+// Use in OpenAI chat completion
+const response = await oai.chatCompletion(messages, tools);
+```
+
+### Testing MCP Integration
+
+Use the test script to verify MCP server connectivity:
+
+```bash
+node test_mcp.js
+```
+
+This script:
+- Starts all configured MCP servers
+- Lists available tools from each server
+- Performs a simple tool call test
+- Stops all servers gracefully
+
+### Troubleshooting MCP Servers
+
+**HTTP-based servers returning HTML:**
+
+The mcp.so URLs may not be correct MCP HTTP endpoints. Possible issues:
+- Different protocol required (SSE, WebSocket)
+- Missing authentication headers
+- Incorrect endpoint format
+
+**Windows Compatibility:**
+
+- Use `npm.cmd exec` instead of `npx` on Windows
+- The [`mcp_client.js`](core/mcp_client.js) automatically adds `shell: true` for Windows
+
+**Server Startup Failures:**
+
+- Verify the command is available in system PATH
+- Check environment variables are correctly configured
+- Ensure required dependencies are installed
+- Review server logs for detailed error messages
+
+### Adding a New MCP Server
+
+1. Add server configuration to [`data/tools.json`](data/tools.json)
+2. Select appropriate transport type (stdio or http)
+3. Configure required environment variables
+4. Test with `node test_mcp.js`
+5. Restart the bot to load the new server
+6. Verify tools are available for AI function calling
+
+### MCP Best Practices
+
+1. **Prefer stdio transport** for local servers (more reliable and easier to debug)
+2. **Use absolute paths** for file-based server configurations
+3. **Test thoroughly** before deploying to production
+4. **Monitor server health** through logs
+5. **Implement fallback logic** when MCP tools fail
 
 ---
 
@@ -648,6 +811,7 @@ vica/
 ├── delete-commands.js              # Delete slash commands
 ├── deploy-commands.js              # Deploy slash commands
 ├── package.json                    # Node.js dependencies
+├── test_mcp.js                     # MCP integration test script
 ├── README.MD                       # Project documentation
 ├── GEMINI.MD                       # This file
 │
@@ -676,10 +840,11 @@ vica/
 ├── core/                           # Core functionality
 │   ├── auditCache.js
 │   ├── database.js
+│   ├── mcp_client.js               # MCP client for external tools
 │   ├── oai_interface.js
 │   ├── static_data.js
 │   ├── tagParser.js
-│   ├── tool_loader.js
+│   ├── tool_loader.js              # Loads tools and MCP servers
 │   └── transcriber.js
 │
 ├── events/                         # Discord event handlers
@@ -728,5 +893,5 @@ See [`LICENSE`](LICENSE) file for details.
 
 ---
 
-*Last updated: 2024-01-29*
-*Document version: 1.0*
+*Last updated: 2026-02-01*
+*Document version: 1.1*

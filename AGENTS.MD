@@ -8,6 +8,7 @@ This document provides comprehensive guidelines for AI agents (Roo, Cursor, etc.
 - [Working with Commands](#working-with-commands)
 - [Working with Events](#working-with-events)
 - [Working with Core Modules](#working-with-core-modules)
+- [Working with MCP Servers](#working-with-mcp-servers)
 - [Code Style Guidelines](#code-style-guidelines)
 - [Database Operations](#database-operations)
 - [AI Integration](#ai-integration)
@@ -30,6 +31,7 @@ This document provides comprehensive guidelines for AI agents (Roo, Cursor, etc.
 **Key Technologies**:
 - Discord.js (v14)
 - OpenAI API (GPT-4, embeddings, function calling)
+- Model Context Protocol (MCP)
 - SQLite database
 - Node.js
 
@@ -64,13 +66,14 @@ vica/
 │   ├── system_channel.js  # System channel configuration
 │   ├── trigger.js         # Trigger word configuration
 │   └── up_role.js         # Role upgrade configuration
-├── core/                  # Core modules (7 files)
+├── core/                  # Core modules (8 files)
 │   ├── auditCache.js      # LRU cache for audit log deduplication
 │   ├── database.js        # All database operations with prepared statements
+│   ├── mcp_client.js      # MCP client for communicating with MCP servers
 │   ├── oai_interface.js   # OpenAI API integration with retry logic
 │   ├── static_data.js     # Loads questions and system prompt
 │   ├── tagParser.js       # SGML tag parser for memory tags
-│   ├── tool_loader.js     # Dynamic tool loading from data/tools.json
+│   ├── tool_loader.js     # Dynamic tool loading from data/tools.json (supports MCP)
 │   └── transcriber.js     # Audio transcription
 ├── events/                # Discord event handlers (7 files)
 │   ├── guildBanAdd.js     # Handle user bans
@@ -86,7 +89,8 @@ vica/
 │   ├── calculate.js       # Calculator tool
 │   └── get_current_time.js # Current time tool
 ├── data/                  # Data files
-│   └── tools.json         # Tool definitions for OpenAI function calling
+│   └── tools.json         # Tool definitions for OpenAI function calling and MCP servers
+├── test_mcp.js            # Test script for MCP integration
 └── .roo/                  # Roo-specific rules
 ```
 
@@ -284,6 +288,165 @@ Audio transcription using OpenAI Whisper API.
 LRU cache for audit log deduplication.
 
 **Usage**: Prevent duplicate audit log entries within a time window.
+
+---
+
+## Working with MCP Servers
+
+### Overview
+
+The Vica bot now supports Model Context Protocol (MCP) servers, which allow extending the bot's capabilities with external tools. MCP is a protocol that enables AI assistants to communicate with external services through a standardized interface.
+
+### MCP Client Module
+
+The [`core/mcp_client.js`](core/mcp_client.js:1) module provides functions for communicating with MCP servers:
+
+- `startServer(config)` - Start an MCP server with the given configuration
+- `stopServer(server)` - Stop a running MCP server
+- `initializeServer(server)` - Initialize MCP connection and handshake
+- `listTools(server)` - List available tools from an MCP server
+- `callTool(server, toolName, args)` - Call a tool on an MCP server
+- `getServer(name)` - Get a running server by name
+- `getAllServers()` - Get all running servers
+- `stopAllServers()` - Stop all running servers
+
+### Configuring MCP Servers
+
+Add MCP servers to [`data/tools.json`](data/tools.json:1). MCP servers are identified by `"type": "mcp"` in their configuration.
+
+**stdio transport (local npx):**
+
+```json
+{
+  "name": "memory",
+  "type": "mcp",
+  "transport": "stdio",
+  "command": "npx",
+  "args": ["-y", "@modelcontextprotocol/server-memory@latest"],
+  "env": {
+    "MEMORY_FILE_PATH": "./data/memory.json"
+  }
+}
+```
+
+**http transport (hosted servers):**
+
+```json
+{
+  "name": "example_server",
+  "type": "mcp",
+  "transport": "http",
+  "url": "https://example.com/mcp-endpoint"
+}
+```
+
+### Environment Variables
+
+MCP servers can receive environment variables via the `env` field in the configuration. These are merged with the existing process environment variables.
+
+Example for the memory server:
+
+```json
+"env": {
+  "MEMORY_FILE_PATH": "d:/Projetos/Discord/vica/data/memory.json"
+}
+```
+
+### Currently Supported MCP Servers
+
+| Server | Transport | Status | Tools |
+|---------|-----------|--------|--------|
+| Memory | stdio | ✅ Working | 9 tools (knowledge graph operations) |
+| Sequential Thinking | http | ⚠️ Needs investigation | - |
+| Time | http | ⚠️ Needs investigation | - |
+
+### Memory Server Tools
+
+The memory MCP server provides the following tools for knowledge graph operations:
+
+1. **create_entities** - Create multiple new entities in knowledge graph
+2. **create_relations** - Create multiple new relations between entities
+3. **add_observations** - Add new observations to existing entities
+4. **delete_entities** - Delete multiple entities and their relations
+5. **delete_observations** - Delete specific observations from entities
+6. **delete_relations** - Delete multiple relations from knowledge graph
+7. **read_graph** - Read entire knowledge graph
+8. **search_nodes** - Search for nodes based on a query
+9. **open_nodes** - Open specific nodes by their names
+
+### Using MCP Tools in Code
+
+The [`core/tool_loader.js`](core/tool_loader.js:1) module automatically loads MCP tools and makes them available for OpenAI function calling:
+
+```javascript
+const tool_loader = require('./core/tool_loader');
+
+// Load all tools (including MCP tools)
+const tools = tool_loader.loadTools();
+
+// Use tools in OpenAI chat completion
+const response = await oai.chatCompletion(messages, tools);
+```
+
+### MCP Server Lifecycle
+
+MCP servers are managed in [`bot.js`](bot.js:1):
+
+1. **Startup**: All configured MCP servers are started when the bot initializes
+2. **Runtime**: Tools are available for AI function calling
+3. **Shutdown**: All MCP servers are gracefully stopped when the bot exits
+
+### Troubleshooting
+
+**HTTP-based servers returning HTML:**
+
+The mcp.so URLs may not be correct MCP HTTP endpoints. They might require:
+- Different protocol (SSE, WebSocket)
+- Authentication headers
+- Different endpoint format
+
+**Windows compatibility:**
+
+- Use `npm.cmd exec` instead of `npx` on Windows
+- The [`mcp_client.js`](core/mcp_client.js:1) automatically adds `shell: true` for Windows
+
+**Server startup failures:**
+
+- Check that the command is available in the system PATH
+- Verify environment variables are correctly set
+- Ensure required dependencies are installed
+- Check server logs for detailed error messages
+
+### Testing MCP Integration
+
+Run the test script to verify MCP server connectivity:
+
+```bash
+node test_mcp.js
+```
+
+This will:
+1. Start all configured MCP servers
+2. List available tools from each server
+3. Test a simple tool call
+4. Stop all servers
+
+### Adding a New MCP Server
+
+1. Add the server configuration to [`data/tools.json`](data/tools.json:1)
+2. Choose the appropriate transport type (stdio or http)
+3. Configure any required environment variables
+4. Test the server using `node test_mcp.js`
+5. Restart the bot to load the new server
+6. Verify tools are available in the AI function calling context
+
+### Best Practices
+
+1. **Use stdio transport for local servers**: More reliable and easier to debug
+2. **Configure environment variables**: Use absolute paths for file-based servers
+3. **Test before deployment**: Always test MCP servers in development first
+4. **Monitor server health**: Check logs for MCP server errors
+5. **Handle failures gracefully**: Implement fallback logic when MCP tools fail
 
 ---
 
@@ -643,6 +806,15 @@ sudo journalctl -u vica.service -f
 4. Test the tool with AI integration
 5. Update documentation if needed
 
+### Adding a New MCP Server
+
+1. Add server configuration to `data/tools.json`
+2. Choose transport type (stdio or http)
+3. Configure environment variables if needed
+4. Test with `node test_mcp.js`
+5. Restart the bot to load the server
+6. Verify tools are available for AI function calling
+
 ### Modifying Database
 
 1. Plan the schema changes
@@ -790,6 +962,6 @@ For questions or issues:
 
 ---
 
-**Last Updated**: 2026-01-29  
-**Maintained By**: Vico  
+**Last Updated**: 2026-02-01
+**Maintained By**: Vico
 **Contributors**: AI assistants (Roo, Cursor, etc.)
