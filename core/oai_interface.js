@@ -607,7 +607,7 @@ async function gerarRespostaContextual(guildId, canalId, usuarioId, botUserId, m
     let hasTools = false;
 
     if (config.tools?.enabled !== false) {
-      tools = toolLoader.getOpenAITools();
+      tools = await toolLoader.getOpenAITools();
       hasTools = tools && tools.length > 0;
 
       if (hasTools) {
@@ -740,7 +740,7 @@ async function gerarComentarioViaAPI(conversationText) {
     let hasTools = false;
 
     if (config.tools?.enabled !== false) {
-      tools = toolLoader.getOpenAITools();
+      tools = await toolLoader.getOpenAITools();
       hasTools = tools && tools.length > 0;
 
       if (hasTools) {
