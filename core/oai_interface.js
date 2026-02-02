@@ -663,7 +663,6 @@ async function gerarRespostaContextual(guildId, canalId, usuarioId, botUserId, m
 
       // Executa as ferramentas
       const toolResults = await toolLoader.executeToolCalls(toolCalls, context);
-      console.log(`[TOOLS][INFO] Resultados das ferramentas (Turno ${turns}):`, JSON.stringify(toolResults, null, 2));
 
       // Adiciona os resultados das ferramentas ao histórico
       for (const toolResult of toolResults) {
@@ -785,7 +784,6 @@ async function gerarComentarioViaAPI(conversationText) {
 
       // Executa as ferramentas
       const toolResults = await toolLoader.executeToolCalls(toolCalls);
-      console.log(`[TOOLS][INFO] Resultados das ferramentas (Turno ${turns}):`, JSON.stringify(toolResults, null, 2));
 
       // Adiciona os resultados das ferramentas
       for (const toolResult of toolResults) {

@@ -88,7 +88,7 @@ async function startServer(config) {
 
             // Collect stderr for debugging
             server.process.stderr.on('data', (data) => {
-                console.log(`[MCP_CLIENT][DEBUG] ${config.name} stderr:`, data.toString());
+                // Silenced debug logs
             });
 
             // Initialize the server
@@ -185,7 +185,6 @@ async function initializeServer(server) {
         }
 
         server.capabilities = initResponse.result?.capabilities || {};
-        console.log(`[MCP_CLIENT][INFO] Server ${server.name} capabilities:`, server.capabilities);
 
         // Send initialized notification
         const initializedNotification = {
@@ -235,7 +234,6 @@ async function listTools(server) {
             }
         }));
 
-        console.log(`[MCP_CLIENT][INFO] Found ${openaiTools.length} tools for ${server.name}`);
         return openaiTools;
     } catch (error) {
         console.error(`[MCP_CLIENT][ERROR] Failed to list tools for ${server.name}:`, error);
@@ -251,8 +249,6 @@ async function listTools(server) {
  * @returns {Promise<object>} Tool result
  */
 async function callTool(server, toolName, args = {}) {
-    console.log(`[MCP_CLIENT][INFO] Calling tool ${toolName} on server: ${server.name}`);
-
     try {
         if (!server.initialized) {
             throw new Error(`Server ${server.name} is not initialized`);

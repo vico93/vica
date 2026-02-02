@@ -262,12 +262,8 @@ async function executeTool(toolName, args, context = {}) {
       };
     }
 
-    console.log(`[TOOL_LOADER][INFO] Executando ferramenta '${toolName}' com args:`, JSON.stringify(args));
-
     // Executa o handler
     const result = await handler.execute(args, context);
-
-    console.log(`[TOOL_LOADER][INFO] Ferramenta '${toolName}' executada com sucesso`);
 
     return {
       success: true,
@@ -302,12 +298,8 @@ async function executeMCPTool(toolName, args, serverName) {
   }
 
   try {
-    console.log(`[TOOL_LOADER][INFO] Executando ferramenta MCP '${toolName}' no servidor '${serverName}' com args:`, JSON.stringify(args));
-
     // Call the MCP tool
     const result = await mcpClient.callTool(server, toolName, args);
-
-    console.log(`[TOOL_LOADER][INFO] Ferramenta MCP '${toolName}' executada com sucesso`);
 
     // Return consistent format
     return {
