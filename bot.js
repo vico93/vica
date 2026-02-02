@@ -14,7 +14,7 @@
 
 const fs   = require('fs');
 const path = require('path');
-const { Client, GatewayIntentBits, Collection, Partials } = require('discord.js');
+const { Client, GatewayIntentBits, Collection, Partials, Events } = require('discord.js');
 const config   = require('./config.json');
 const database = require('./core/database');
 const toolLoader = require('./core/tool_loader');
@@ -76,7 +76,7 @@ if (fs.existsSync(eventsPath)) {
 // ----------------------------------------------------------
 // Ready event - Start MCP servers
 // ----------------------------------------------------------
-client.once('ready', async () => {
+client.once(Events.ClientReady, async () => {
     console.log(`[BOT][INFO] Bot conectado como ${client.user.tag}`);
     
     // Start MCP servers
