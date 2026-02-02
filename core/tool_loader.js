@@ -196,8 +196,8 @@ async function getTool(toolName) {
     return null;
   }
 
-  // First, check custom tools
-  const customTool = config.tools.find(tool => tool.name === toolName);
+  // First, check custom tools (skipping MCP server configs)
+  const customTool = config.tools.find(tool => tool.name === toolName && tool.type !== 'mcp');
   if (customTool) {
     return customTool;
   }
