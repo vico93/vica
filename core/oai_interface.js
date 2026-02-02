@@ -654,8 +654,15 @@ async function gerarRespostaContextual(guildId, canalId, usuarioId, botUserId, m
         tool_calls: toolCalls
       });
 
+      // Cria contexto para as ferramentas
+      const context = {
+        guildId,
+        channel,
+        client: channel?.client || channel?.guild?.client
+      };
+
       // Executa as ferramentas
-      const toolResults = await toolLoader.executeToolCalls(toolCalls);
+      const toolResults = await toolLoader.executeToolCalls(toolCalls, context);
       console.log(`[TOOLS][INFO] Resultados das ferramentas (Turno ${turns}):`, JSON.stringify(toolResults, null, 2));
 
       // Adiciona os resultados das ferramentas ao histórico

@@ -216,9 +216,10 @@ async function getTool(toolName) {
  * Executa uma ferramenta específica
  * @param {string} toolName - Nome da ferramenta
  * @param {Object} args - Argumentos para a ferramenta
+ * @param {Object} context - Contexto adicional (client, guild, channel, etc.)
  * @returns {Promise<Object>} Resultado da execução da ferramenta
  */
-async function executeTool(toolName, args) {
+async function executeTool(toolName, args, context = {}) {
   const tool = await getTool(toolName);
 
   if (!tool) {
@@ -264,7 +265,7 @@ async function executeTool(toolName, args) {
     console.log(`[TOOL_LOADER][INFO] Executando ferramenta '${toolName}' com args:`, JSON.stringify(args));
 
     // Executa o handler
-    const result = await handler.execute(args);
+    const result = await handler.execute(args, context);
 
     console.log(`[TOOL_LOADER][INFO] Ferramenta '${toolName}' executada com sucesso`);
 
@@ -326,9 +327,10 @@ async function executeMCPTool(toolName, args, serverName) {
 /**
  * Processa múltiplas chamadas de ferramentas de uma resposta da API
  * @param {Array} toolCalls - Array de tool_calls da resposta da API
+ * @param {Object} context - Contexto adicional (client, guild, channel, etc.)
  * @returns {Promise<Array>} Array de resultados das ferramentas
  */
-async function executeToolCalls(toolCalls) {
+async function executeToolCalls(toolCalls, context = {}) {
   if (!toolCalls || !Array.isArray(toolCalls)) {
     return [];
   }
@@ -359,7 +361,7 @@ async function executeToolCalls(toolCalls) {
       continue;
     }
 
-    const executionResult = await executeTool(toolName, parsedArgs);
+    const executionResult = await executeTool(toolName, parsedArgs, context);
 
     results.push({
       tool_call_id: toolCall.id,
