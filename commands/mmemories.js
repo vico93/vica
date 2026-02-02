@@ -113,7 +113,16 @@ async function execute(interaction) {
                 return await interaction.editReply({ content: 'Erro ao acessar o sistema de memória: ' + response.error });
             }
 
-            const entities = response.result?.entities || [];
+            // Helper to parse MCP result
+            let resultData = response.result;
+            if (typeof resultData === 'string') {
+                try { resultData = JSON.parse(resultData); } catch (e) {}
+            }
+            if (resultData && typeof resultData === 'object' && resultData.result && typeof resultData.result === 'string') {
+                try { resultData = JSON.parse(resultData.result); } catch (e) {}
+            }
+
+            const entities = resultData?.entities || [];
             const userEntity = entities.find(e => e.name === member.id);
             const memories = userEntity?.observations || [];
 
@@ -168,7 +177,16 @@ async function execute(interaction) {
                 return await interaction.editReply({ content: 'Erro na busca: ' + response.error });
             }
 
-            const entities = response.result?.entities || [];
+            // Helper to parse MCP result
+            let resultData = response.result;
+            if (typeof resultData === 'string') {
+                try { resultData = JSON.parse(resultData); } catch (e) {}
+            }
+            if (resultData && typeof resultData === 'object' && resultData.result && typeof resultData.result === 'string') {
+                try { resultData = JSON.parse(resultData.result); } catch (e) {}
+            }
+
+            const entities = resultData?.entities || [];
             const userEntity = entities.find(e => e.name === member.id);
 
             const embed = new EmbedBuilder()
@@ -199,7 +217,16 @@ async function execute(interaction) {
                 return await interaction.editReply({ content: 'Erro ao acessar memórias: ' + response.error });
             }
 
-            const entities = response.result?.entities || [];
+            // Helper to parse MCP result
+            let resultData = response.result;
+            if (typeof resultData === 'string') {
+                try { resultData = JSON.parse(resultData); } catch (e) {}
+            }
+            if (resultData && typeof resultData === 'object' && resultData.result && typeof resultData.result === 'string') {
+                try { resultData = JSON.parse(resultData.result); } catch (e) {}
+            }
+
+            const entities = resultData?.entities || [];
             const userEntity = entities.find(e => e.name === member.id);
             const memories = userEntity?.observations || [];
 
