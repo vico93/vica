@@ -631,32 +631,34 @@ async function gerarRespostaContextual(guildId, canalId, usuarioId, botUserId, m
     }
 
     // Use the full message array with system prompt and conversation history
-    const response = await withRetries(
+    let response = await withRetries(
       () => openai.chat.completions.create(requestParams),
       '[CHAT][resposta_contextual]'
     );
 
-    const choice = response?.choices?.[0];
-    const message = choice?.message;
+    let choice = response?.choices?.[0];
+    let message = choice?.message;
+    let toolCalls = message?.tool_calls;
 
-    // Verifica se há chamadas de ferramentas
-    const toolCalls = message?.tool_calls;
+    // Loop para lidar com chamadas de ferramentas recursivas (max 5 turnos)
+    let turns = 0;
+    const maxTurns = 5;
 
-    if (toolCalls && toolCalls.length > 0) {
-      console.log(`[TOOLS][INFO] API retornou ${toolCalls.length} chamadas de ferramentas`);
+    while (toolCalls && toolCalls.length > 0 && turns < maxTurns) {
+      turns++;
+      console.log(`[TOOLS][INFO] Turno ${turns}: API retornou ${toolCalls.length} chamadas de ferramentas`);
 
-      // Executa as ferramentas
-      const toolResults = await toolLoader.executeToolCalls(toolCalls);
-
-      console.log(`[TOOLS][INFO] Resultados das ferramentas:`, JSON.stringify(toolResults, null, 2));
-
-      // Adiciona a resposta do assistente com as chamadas de ferramentas
+      // Adiciona a resposta do assistente com as chamadas de ferramentas ao histórico
       messages.push({
         role: 'assistant',
         tool_calls: toolCalls
       });
 
-      // Adiciona os resultados das ferramentas
+      // Executa as ferramentas
+      const toolResults = await toolLoader.executeToolCalls(toolCalls);
+      console.log(`[TOOLS][INFO] Resultados das ferramentas (Turno ${turns}):`, JSON.stringify(toolResults, null, 2));
+
+      // Adiciona os resultados das ferramentas ao histórico
       for (const toolResult of toolResults) {
         messages.push({
           role: 'tool',
@@ -665,32 +667,19 @@ async function gerarRespostaContextual(guildId, canalId, usuarioId, botUserId, m
         });
       }
 
-      // Faz uma nova requisição com os resultados das ferramentas
-      const followUpResponse = await withRetries(
+      // Faz uma nova requisição com o histórico atualizado
+      response = await withRetries(
         () => openai.chat.completions.create(requestParams),
-        '[CHAT][resposta_contextual_followup]'
+        `[CHAT][resposta_contextual_turn_${turns}]`
       );
 
-      const followUpChoice = followUpResponse?.choices?.[0];
-      const followUpMessage = followUpChoice?.message;
-      let content = followUpMessage?.content || '';
+      choice = response?.choices?.[0];
+      message = choice?.message;
+      toolCalls = message?.tool_calls;
+    }
 
-      // Handle case where response was truncated due to token limits
-      if (followUpChoice?.finish_reason === 'length') {
-        content = 'Desculpe, minha resposta ficou muito longa devido aos limites de tokens! Tente dividir a conversa em partes menores ou usar mensagens mais curtas. 😊';
-      }
-
-      // Processa tags [salvar_memoria] usando tagParser com contexto (guildId)
-      const context = { guildId };
-      const parsedTags = tagParser.parseTags(content, context);
-
-      // Usa o conteúdo limpo do tagParser (tags já removidas)
-      content = parsedTags.cleanedMessage;
-
-      if (!content) {
-        throw new Error('A API não retornou conteúdo na resposta.');
-      }
-      return content;
+    if (turns >= maxTurns && toolCalls) {
+      console.warn(`[TOOLS][WARN] Atingido limite de ${maxTurns} turnos de ferramentas.`);
     }
 
     let content = message?.content || '';
@@ -708,7 +697,8 @@ async function gerarRespostaContextual(guildId, canalId, usuarioId, botUserId, m
     content = parsedTags.cleanedMessage;
 
     if (!content) {
-      throw new Error('A API não retornou conteúdo na resposta.');
+      // Se não há conteúdo e não há tool_calls pendentes (ou limite atingido)
+      throw new Error('A API não retornou conteúdo na resposta após execução de ferramentas.');
     }
     return content;
   } catch (error) {
@@ -763,30 +753,32 @@ async function gerarComentarioViaAPI(conversationText) {
       requestParams.tools = tools;
     }
 
-    const response = await withRetries(
+    let response = await withRetries(
       () => openai.chat.completions.create(requestParams),
       '[CHAT][comentario]'
     );
 
-    const choice = response?.choices?.[0];
-    const message = choice?.message;
+    let choice = response?.choices?.[0];
+    let message = choice?.message;
+    let toolCalls = message?.tool_calls;
 
-    // Verifica se há chamadas de ferramentas
-    const toolCalls = message?.tool_calls;
+    // Loop para lidar com chamadas de ferramentas recursivas (max 5 turnos)
+    let turns = 0;
+    const maxTurns = 5;
 
-    if (toolCalls && toolCalls.length > 0) {
-      console.log(`[TOOLS][INFO] API retornou ${toolCalls.length} chamadas de ferramentas em gerarComentarioViaAPI`);
-
-      // Executa as ferramentas
-      const toolResults = await toolLoader.executeToolCalls(toolCalls);
-
-      console.log(`[TOOLS][INFO] Resultados das ferramentas:`, JSON.stringify(toolResults, null, 2));
+    while (toolCalls && toolCalls.length > 0 && turns < maxTurns) {
+      turns++;
+      console.log(`[TOOLS][INFO] Turno ${turns} (Comentário): API retornou ${toolCalls.length} chamadas de ferramentas`);
 
       // Adiciona a resposta do assistente com as chamadas de ferramentas
       messages.push({
         role: 'assistant',
         tool_calls: toolCalls
       });
+
+      // Executa as ferramentas
+      const toolResults = await toolLoader.executeToolCalls(toolCalls);
+      console.log(`[TOOLS][INFO] Resultados das ferramentas (Turno ${turns}):`, JSON.stringify(toolResults, null, 2));
 
       // Adiciona os resultados das ferramentas
       for (const toolResult of toolResults) {
@@ -798,29 +790,30 @@ async function gerarComentarioViaAPI(conversationText) {
       }
 
       // Faz uma nova requisição com os resultados das ferramentas
-      const followUpResponse = await withRetries(
+      response = await withRetries(
         () => openai.chat.completions.create(requestParams),
-        '[CHAT][comentario_followup]'
+        `[CHAT][comentario_followup_turn_${turns}]`
       );
 
-      const followUpChoice = followUpResponse?.choices?.[0];
-      const followUpMessage = followUpChoice?.message;
-      let content = followUpMessage?.content || '';
-
-      // Handle case where response was truncated due to token limits
-      if (followUpChoice?.finish_reason === 'length') {
-        content = 'Desculpe, minha resposta ficou muito longa devido aos limites de tokens! Tente dividir a conversa em partes menores ou usar mensagens mais curtas. 😊';
-      }
-
-      if (!content) {
-        throw new Error('A API não retornou conteúdo na resposta.');
-      }
-      const parsedTags = tagParser.parseTags(content, { guildId: null });
-      return parsedTags.cleanedMessage;
+      choice = response?.choices?.[0];
+      message = choice?.message;
+      toolCalls = message?.tool_calls;
     }
 
-    const content = response?.choices?.[0]?.message?.content;
-    if (!content) throw new Error('A API não retornou conteúdo na resposta.');
+    if (turns >= maxTurns && toolCalls) {
+      console.warn(`[TOOLS][WARN] Atingido limite de ${maxTurns} turnos de ferramentas em gerarComentarioViaAPI.`);
+    }
+
+    let content = message?.content || '';
+
+    // Handle case where response was truncated due to token limits
+    if (choice?.finish_reason === 'length') {
+      content = 'Desculpe, minha resposta ficou muito longa devido aos limites de tokens! Tente dividir a conversa em partes menores ou usar mensagens mais curtas. 😊';
+    }
+
+    if (!content) {
+      throw new Error('A API não retornou conteúdo na resposta após execução de ferramentas.');
+    }
     const parsedTags = tagParser.parseTags(content, { guildId: null });
     return parsedTags.cleanedMessage;
   } catch (error) {
