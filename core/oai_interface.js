@@ -611,7 +611,7 @@ async function gerarRespostaContextual(guildId, canalId, usuarioId, botUserId, m
       hasTools = tools && tools.length > 0;
 
       if (hasTools) {
-        console.log(`[TOOLS][INFO] ${tools.length} ferramentas disponíveis para uso`);
+        console.log(`[TOOLS][INFO] ${tools.length} ferramentas disponíveis para uso: ${tools.map(t => t.function?.name).join(', ')}`);
       }
     } else {
       console.log('[TOOLS][INFO] Ferramentas desabilitadas na configuração');
