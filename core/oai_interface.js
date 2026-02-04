@@ -21,6 +21,11 @@ const rateLimitMap = new Map();
 /* --- Helper para detecção de thread de conversa --- */
 // Função auxiliar para determinar se uma mensagem deve ser incluída no contexto da conversa
 function shouldIncludeMessageInContext(message, originalAuthorId, botUserId) {
+  // Ignorar mensagens de tradução do próprio bot
+  if (message.author.id === botUserId && message.content && message.content.startsWith('🔄 Tradução:')) {
+    return false;
+  }
+
   // Sempre incluir mensagens do autor original
   if (message.author.id === originalAuthorId) {
     return true;
@@ -1002,6 +1007,41 @@ function cosineSimilarity(vecA, vecB) {
   }
 }
 
+// Função para gerar tradução
+async function gerarTraducao(texto) {
+  const messages = [];
+  
+  messages.push({
+    role: 'system', 
+    content: 'You are a translation engine. If the message is in Portuguese, translate it to English. If the message is in any other language, translate it to Portuguese. Output ONLY the translation, no preamble.'
+  });
+
+  messages.push({
+    role: 'user',
+    content: texto,
+  });
+
+  try {
+    const response = await withRetries(
+      () => openai.chat.completions.create({
+        model: getModel(),
+        messages,
+        temperature: 0.3, // Temperatura baixa para tradução mais fiel
+        max_tokens: config.settings.maxTokens,
+      }),
+      '[CHAT][traducao]'
+    );
+
+    const content = response?.choices?.[0]?.message?.content;
+    if (!content) throw new Error('A API não retornou conteúdo na resposta.');
+    
+    return content.trim();
+  } catch (error) {
+    console.error('[ERRO] Não consegui gerar tradução pela API:', error.message);
+    throw error;
+  }
+}
+
 const buscarMemoriasUsuarioSemanticas = buscarMemoriasUsuarioSemanitcas;
 
 module.exports = {
@@ -1010,6 +1050,7 @@ module.exports = {
   gerarParabensCargoViaAPI,
   gerarMensagemBemVindoViaAPI,
   gerarComentarioViaAPI,
+  gerarTraducao,
   gerarEmbedding,
   cosineSimilarity,
   // Funções de busca semântica

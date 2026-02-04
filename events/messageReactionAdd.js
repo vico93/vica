@@ -136,6 +136,41 @@ module.exports = {
         }
       }
 
+      // Verificar tradução 🌐
+      const translationEmoji = database.getTranslationEmoji(guildId);
+      // Verifica se o emoji corresponde (pode ser ID ou nome/unicode)
+      const isTranslationReaction = translationEmoji && (reaction.emoji.id === translationEmoji || reaction.emoji.name === translationEmoji);
+
+      if (isTranslationReaction) {
+        console.log(`[VICA][TRANSLATE] Tradução solicitada por ${user.tag}`);
+        
+        const textToTranslate = message.content;
+        
+        if (textToTranslate) {
+           await message.channel.sendTyping();
+           try {
+             const traducao = await oai.gerarTraducao(textToTranslate);
+             // Envia a tradução com o prefixo para ser ignorado pelo contexto
+             const replyContent = `🔄 Tradução:\n\n${traducao}`;
+             
+             const chunks = splitText(replyContent);
+             await message.reply({ content: chunks[0], failIfNotExists: false });
+             for (let i = 1; i < chunks.length; i++) {
+               await message.channel.send(chunks[i]);
+             }
+           } catch (tErr) {
+             console.error('[VICA][TRANSLATE] Erro na tradução:', tErr);
+           }
+           
+           // Remove reação
+           try {
+             await reaction.users.remove(user.id);
+           } catch {
+             /* ignora */
+           }
+        }
+      }
+
       // Verificar criação de thread na reação 🧵
       if (reaction.emoji.name === '🧵' && database.isThreadReactionEnabled(guildId) && !message.hasThread) {
         try {

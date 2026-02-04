@@ -259,6 +259,20 @@ db.pragma('synchronous = NORMAL');    // commits mais rápidos
     console.error('[DB] Erro durante migração da coluna webhook_token:', e.message);
   }
 
+  // Migração para adicionar coluna translation_emoji na tabela guild_settings
+  try {
+    const settingsCols = db.prepare('PRAGMA table_info(guild_settings)').all();
+    const hasTranslationEmoji = settingsCols.some(c => c.name === 'translation_emoji');
+
+    if (settingsCols.length > 0 && !hasTranslationEmoji) {
+      console.warn('[DB] Migrando tabela guild_settings -> adicionando coluna translation_emoji.');
+      db.exec('ALTER TABLE guild_settings ADD COLUMN translation_emoji TEXT');
+      console.log('[DB] Adicionada coluna translation_emoji à tabela guild_settings');
+    }
+  } catch (e) {
+    console.error('[DB] Erro durante migração da coluna translation_emoji:', e.message);
+  }
+
   db.exec(`
 CREATE TABLE IF NOT EXISTS mensagens (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -317,7 +331,8 @@ CREATE TABLE IF NOT EXISTS guild_settings (
   thread_reaction_enabled INTEGER DEFAULT 0,
   news_channel_id TEXT,
   webhook_id TEXT,
-  webhook_token TEXT
+  webhook_token TEXT,
+  translation_emoji TEXT
 );
 
 -- TABELA DE MEMÓRIAS DE USUÁRIO (por guild) --
@@ -592,7 +607,14 @@ const stmts = {
                           VALUES (?, ?, ?)
                           ON CONFLICT(guild_id) DO UPDATE SET
                             webhook_id = excluded.webhook_id,
-                            webhook_token = excluded.webhook_token`)
+                            webhook_token = excluded.webhook_token`),
+
+ /* --- TRANSLATION --- */
+ translationGet: db.prepare('SELECT translation_emoji FROM guild_settings WHERE guild_id = ?'),
+ translationSet: db.prepare(`INSERT INTO guild_settings (guild_id, translation_emoji)
+                          VALUES (?, ?)
+                          ON CONFLICT(guild_id) DO UPDATE SET
+                            translation_emoji = excluded.translation_emoji`)
 };
 
 /* ----------------------------------------------------------
@@ -919,6 +941,15 @@ module.exports = {
  },
  setWebhook: (guildId, webhookId, webhookToken = null) => {
    return stmts.webhookSet.run(guildId, webhookId, webhookToken).changes;
+ },
+
+ /* --- TRANSLATION --- */
+ getTranslationEmoji: (guildId) => {
+   const row = stmts.translationGet.get(guildId);
+   return row ? row.translation_emoji : null;
+ },
+ setTranslationEmoji: (guildId, emojiId) => {
+   return stmts.translationSet.run(guildId, emojiId).changes;
  },
 
 // helper para graceful shutdown
