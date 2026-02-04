@@ -298,14 +298,14 @@ async function gerarParabensCargoViaAPI(guildId, userId, promptUsuario, roleName
         temperature: 0.8,
         max_tokens: 100, // Resposta curta e objetiva para parabéns
       }),
-      '[CHAT][role_congrats]'
-    );
-
     const choice = response?.choices?.[0];
     const message = choice?.message;
     let content = message?.content || '';
 
-    if (!content) throw new Error('A API não retornou conteúdo na resposta.');
+    if (!content) {
+      console.error('[ROLE-CONGRATS][DEBUG] API Response missing content. Choice:', JSON.stringify(choice, null, 2));
+      throw new Error('A API não retornou conteúdo na resposta.');
+    }
 
     // Processa tags [salvar_memoria] usando tagParser com contexto (guildId)
     const parsedTags = tagParser.parseTags(content, { guildId });
