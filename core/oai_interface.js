@@ -296,7 +296,7 @@ async function gerarParabensCargoViaAPI(guildId, userId, promptUsuario, roleName
         model: getModel(),
         messages,
         temperature: 0.8,
-        max_tokens: 100, // Resposta curta e objetiva para parabéns
+        max_tokens: config.settings.maxTokens,
       }),
       '[CHAT][role_congrats]'
     );
