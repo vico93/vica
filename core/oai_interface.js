@@ -298,6 +298,9 @@ async function gerarParabensCargoViaAPI(guildId, userId, promptUsuario, roleName
         temperature: 0.8,
         max_tokens: 100, // Resposta curta e objetiva para parabéns
       }),
+      '[CHAT][role_congrats]'
+    );
+
     const choice = response?.choices?.[0];
     const message = choice?.message;
     let content = message?.content || '';
