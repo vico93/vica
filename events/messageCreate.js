@@ -184,7 +184,30 @@ module.exports = {
 
       if (message.attachments.size) {
         const att = message.attachments.first();
-        if (att.contentType?.startsWith('image/')) imageUrl = att.url;
+        if (att.contentType?.startsWith('image/')) {
+          imageUrl = att.url;
+        } else if (att.contentType?.startsWith('audio/') || att.contentType === 'video/ogg' || att.name.endsWith('.ogg') || att.name.endsWith('.mp3') || att.name.endsWith('.wav')) {
+          // Detecta áudio (incluindo notas de voz do Discord que podem ser audio/ogg ou video/ogg)
+          try {
+            await message.channel.sendTyping();
+            console.log(`[VICA][AUDIO] Transcrevendo áudio de ${message.author.tag}...`);
+            const transcricao = await oai.transcreverAudio(att.url);
+
+            if (transcricao) {
+              prompt = (prompt ? prompt + '\n' : '') + `[audio] ${transcricao}`;
+              await message.reply({
+                content: `🎤 **Transcrição do áudio:**\n> ${transcricao}`,
+                failIfNotExists: false
+              });
+            }
+          } catch (audioErr) {
+            console.error('[VICA][AUDIO] Falha ao processar áudio:', audioErr);
+            await message.reply({
+              content: '🔇 Não consegui ouvir seu áudio direito. Verifique se é um formato válido ou se estou com cera no ouvido (erro interno).',
+              failIfNotExists: false
+            });
+          }
+        }
       }
 
       if (imageUrl) {

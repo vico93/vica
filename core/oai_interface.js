@@ -8,6 +8,10 @@
 const OpenAI = require('openai');
 const path = require('path');
 const fs = require('fs');
+const https = require('https');
+const { exec } = require('child_process');
+const https = require('https');
+const { exec } = require('child_process');
 const config = require('../config.json');
 const database = require('../core/database');
 const tagParser = require('../core/tagParser');
@@ -803,11 +807,80 @@ RULES:
   }
 }
 
+// Função para transcrever áudio
+async function transcreverAudio(audioUrl) {
+  const tmpDir = path.join(__dirname, '..', 'tmp');
+  if (!fs.existsSync(tmpDir)) {
+    fs.mkdirSync(tmpDir, { recursive: true });
+  }
+
+  const timestamp = Date.now();
+  const inputFile = path.join(tmpDir, `audio_${timestamp}_input`);
+  const outputFile = path.join(tmpDir, `audio_${timestamp}.mp3`);
+
+  try {
+    // 1. Download do arquivo
+    console.log(`[AUDIO] Baixando áudio de ${audioUrl}...`);
+    await new Promise((resolve, reject) => {
+      const file = fs.createWriteStream(inputFile);
+      https.get(audioUrl, (response) => {
+        response.pipe(file);
+        file.on('finish', () => {
+          file.close(resolve);
+        });
+      }).on('error', (err) => {
+        fs.unlink(inputFile, () => { });
+        reject(err);
+      });
+    });
+
+    // 2. Conversão com ffmpeg
+    console.log('[AUDIO] Convertendo para MP3...');
+    await new Promise((resolve, reject) => {
+      // Usa 'ffmpeg' assumindo que está no PATH ou o caminho absoluto se necessário
+      const ffmpegPath = config.ffmpeg_path || 'ffmpeg';
+      const command = `"${ffmpegPath}" -i "${inputFile}" "${outputFile}"`;
+
+      exec(command, (error, stdout, stderr) => {
+        if (error) {
+          console.error(`[AUDIO][FFMPEG] Erro: ${error.message}`);
+          return reject(error);
+        }
+        resolve();
+      });
+    });
+
+    // 3. Transcrição via API
+    console.log('[AUDIO] Enviando para transcrição...');
+    const model = config.requesty?.transcriptions_model || 'openai/whisper-1';
+
+    const transcription = await withRetries(
+      () => openai.audio.transcriptions.create({
+        file: fs.createReadStream(outputFile),
+        model: model,
+      }),
+      '[AUDIO][transcription]'
+    );
+
+    console.log(`[AUDIO] Transcrição concluída: "${transcription.text.substring(0, 50)}..."`);
+    return transcription.text;
+
+  } catch (error) {
+    console.error('[AUDIO] Falha no processo de transcrição:', error);
+    throw error;
+  } finally {
+    // Limpeza de arquivos temporários
+    if (fs.existsSync(inputFile)) fs.unlinkSync(inputFile);
+    if (fs.existsSync(outputFile)) fs.unlinkSync(outputFile);
+  }
+}
+
 module.exports = {
   gerarPerguntaViaAPI,
   gerarRespostaContextual,
   gerarParabensCargoViaAPI,
   gerarMensagemBemVindoViaAPI,
   gerarComentarioViaAPI,
-  gerarTraducao
+  gerarTraducao,
+  transcreverAudio
 };
