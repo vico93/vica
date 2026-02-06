@@ -14,7 +14,7 @@
   4. Remover a reação do usuário para evitar spam (opcional).
 */
 
-const oai      = require('../core/oai_interface');
+const oai = require('../core/oai_interface');
 const database = require('../core/database');
 
 /* ----------------------------------------------------------
@@ -76,8 +76,8 @@ module.exports = {
 
       if (message.author.bot && !message.webhookId) return;
 
-      const guildId  = message.guild.id;
-      const canalId  = message.channel.id;
+      const guildId = message.guild.id;
+      const canalId = message.channel.id;
       const usuarioId = message.author.id;
 
       // Respeita blacklist
@@ -92,7 +92,12 @@ module.exports = {
 
       if (message.attachments.size) {
         const att = message.attachments.first();
-        if (att.contentType?.startsWith('image/')) imageUrl = att.url;
+        if (att.contentType?.startsWith('image/')) {
+          imageUrl = att.url;
+        } else if (att.contentType?.startsWith('audio/') || att.contentType === 'video/ogg' || att.name.endsWith('.ogg') || att.name.endsWith('.mp3') || att.name.endsWith('.wav')) {
+          // Adiciona hint de áudio ao prompt
+          prompt = (prompt ? prompt + '\n' : '') + `[Attachment: type=audio, url=${att.url}]`;
+        }
       }
 
       if (imageUrl) {
@@ -143,31 +148,31 @@ module.exports = {
 
       if (isTranslationReaction) {
         console.log(`[VICA][TRANSLATE] Tradução solicitada por ${user.tag}`);
-        
+
         const textToTranslate = message.content;
-        
+
         if (textToTranslate) {
-           await message.channel.sendTyping();
-           try {
-             const traducao = await oai.gerarTraducao(textToTranslate);
-             // Envia a tradução com o prefixo para ser ignorado pelo contexto
-             const replyContent = `🔄 Tradução:\n\n${traducao}`;
-             
-             const chunks = splitText(replyContent);
-             await message.reply({ content: chunks[0], failIfNotExists: false });
-             for (let i = 1; i < chunks.length; i++) {
-               await message.channel.send(chunks[i]);
-             }
-           } catch (tErr) {
-             console.error('[VICA][TRANSLATE] Erro na tradução:', tErr);
-           }
-           
-           // Remove reação
-           try {
-             await reaction.users.remove(user.id);
-           } catch {
-             /* ignora */
-           }
+          await message.channel.sendTyping();
+          try {
+            const traducao = await oai.gerarTraducao(textToTranslate);
+            // Envia a tradução com o prefixo para ser ignorado pelo contexto
+            const replyContent = `🔄 Tradução:\n\n${traducao}`;
+
+            const chunks = splitText(replyContent);
+            await message.reply({ content: chunks[0], failIfNotExists: false });
+            for (let i = 1; i < chunks.length; i++) {
+              await message.channel.send(chunks[i]);
+            }
+          } catch (tErr) {
+            console.error('[VICA][TRANSLATE] Erro na tradução:', tErr);
+          }
+
+          // Remove reação
+          try {
+            await reaction.users.remove(user.id);
+          } catch {
+            /* ignora */
+          }
         }
       }
 

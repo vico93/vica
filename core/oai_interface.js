@@ -806,110 +806,6 @@ RULES:
   }
 }
 
-// Função para transcrever áudio
-async function transcreverAudio(audioUrl) {
-  const tmpDir = path.join(__dirname, '..', 'tmp');
-  if (!fs.existsSync(tmpDir)) {
-    fs.mkdirSync(tmpDir, { recursive: true });
-  }
-
-  const timestamp = Date.now();
-  const inputFile = path.join(tmpDir, `audio_${timestamp}_input`);
-  const outputFile = path.join(tmpDir, `audio_${timestamp}.mp3`);
-
-  try {
-    // 1. Download do arquivo
-    console.log(`[AUDIO] Baixando áudio de ${audioUrl}...`);
-    await new Promise((resolve, reject) => {
-      const file = fs.createWriteStream(inputFile);
-      https.get(audioUrl, (response) => {
-        response.pipe(file);
-        file.on('finish', () => {
-          file.close(resolve);
-        });
-      }).on('error', (err) => {
-        fs.unlink(inputFile, () => { });
-        reject(err);
-      });
-    });
-
-    // 2. Conversão com ffmpeg
-    console.log('[AUDIO] Convertendo para MP3...');
-    await new Promise((resolve, reject) => {
-      // Usa 'ffmpeg' assumindo que está no PATH ou o caminho absoluto se necessário
-      const ffmpegPath = config.ffmpeg_path || 'ffmpeg';
-      const command = `"${ffmpegPath}" -i "${inputFile}" "${outputFile}"`;
-
-      exec(command, (error, stdout, stderr) => {
-        if (error) {
-          console.error(`[AUDIO][FFMPEG] Erro: ${error.message}`);
-          console.error(`[AUDIO][FFMPEG] Stderr: ${stderr}`);
-          return reject(error);
-        }
-        if (stderr) console.log(`[AUDIO][FFMPEG] Log: ${stderr}`);
-        resolve();
-      });
-    });
-
-    // 3. Transcrição via API
-    console.log('[AUDIO] Enviando para transcrição...');
-
-    // Debug: Check file size
-    const stats = fs.statSync(outputFile);
-    console.log(`[AUDIO] Tamanho do arquivo MP3: ${stats.size} bytes`);
-
-    if (stats.size === 0) {
-      throw new Error('Arquivo de áudio convertido está vazio (0 bytes). Falha no ffmpeg?');
-    }
-
-    let model = config.requesty?.transcriptions_model;
-
-    // Fix for Base URL: requesty base_url often includes /responses or /chat/completions suffix
-    // We need the root for audio/transcriptions
-    let audioClient = openai;
-    if (config.requesty?.base_url) {
-      let rootUrl = config.requesty.base_url;
-      let needsNewClient = false;
-
-      if (rootUrl.includes('/responses') || rootUrl.includes('/chat/completions')) {
-        rootUrl = rootUrl.replace(/\/responses\/?$/, '').replace(/\/chat\/completions\/?$/, '');
-        needsNewClient = true;
-      }
-
-      if (needsNewClient) {
-        console.log(`[AUDIO] Ajustando Base URL para áudio: ${rootUrl}`);
-        audioClient = new OpenAI({
-          apiKey: config.requesty.api_key,
-          baseURL: rootUrl,
-          defaultHeaders: { "X-Title": "Vica" }
-        });
-      }
-    }
-
-    console.log(`[AUDIO] Usando Base URL: ${audioClient.baseURL}`);
-    console.log(`[AUDIO] Usando Modelo de Transcrição: ${model}`);
-
-    const transcription = await withRetries(
-      () => audioClient.audio.transcriptions.create({
-        file: fs.createReadStream(outputFile),
-        model: model,
-      }),
-      '[AUDIO][transcription]'
-    );
-
-    console.log(`[AUDIO] Transcrição concluída: "${transcription.text.substring(0, 50)}..."`);
-    return transcription.text;
-
-  } catch (error) {
-    console.error('[AUDIO] Falha no processo de transcrição:', error);
-    throw error;
-  } finally {
-    // Limpeza de arquivos temporários
-    if (fs.existsSync(inputFile)) fs.unlinkSync(inputFile);
-    if (fs.existsSync(outputFile)) fs.unlinkSync(outputFile);
-  }
-}
-
 module.exports = {
   gerarPerguntaViaAPI,
   gerarRespostaContextual,
@@ -917,5 +813,5 @@ module.exports = {
   gerarMensagemBemVindoViaAPI,
   gerarComentarioViaAPI,
   gerarTraducao,
-  transcreverAudio
+  withRetries
 };
