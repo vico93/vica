@@ -10,8 +10,7 @@ const path = require('path');
 const fs = require('fs');
 const https = require('https');
 const { exec } = require('child_process');
-const https = require('https');
-const { exec } = require('child_process');
+
 const config = require('../config.json');
 const database = require('../core/database');
 const tagParser = require('../core/tagParser');
