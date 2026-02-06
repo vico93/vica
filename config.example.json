@@ -4,7 +4,7 @@
     "clientId": "SEU_CLIENT_ID"
   },
   "requesty": {
-    "base_url": "https://router.requesty.ai/v1/responses",
+    "base_url": "https://api.openai.com/v1",
     "api_key": "SEU_REQUESTY_API_KEY",
     "model": "openai/gpt-5-mini:flex",
     "model_vision": "openai/gpt-4o",

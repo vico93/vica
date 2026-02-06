@@ -24,6 +24,7 @@ Thumbs.db
 # Ferramentas de depuração
 .vscode/
 tmp/
+*.bak
 
 # Environment variables
 .env
