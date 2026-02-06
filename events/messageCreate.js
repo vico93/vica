@@ -184,29 +184,19 @@ module.exports = {
 
       if (message.attachments.size) {
         const att = message.attachments.first();
+        // Debug Log
+        console.log(`[VICA][DEBUG] Attachment found:`, {
+          contentType: att.contentType,
+          name: att.name,
+          url: att.url
+        });
+
         if (att.contentType?.startsWith('image/')) {
           imageUrl = att.url;
         } else if (att.contentType?.startsWith('audio/') || att.contentType === 'video/ogg' || att.name.endsWith('.ogg') || att.name.endsWith('.mp3') || att.name.endsWith('.wav')) {
-          // Detecta áudio (incluindo notas de voz do Discord que podem ser audio/ogg ou video/ogg)
-          try {
-            await message.channel.sendTyping();
-            console.log(`[VICA][AUDIO] Transcrevendo áudio de ${message.author.tag}...`);
-            const transcricao = await oai.transcreverAudio(att.url);
-
-            if (transcricao) {
-              prompt = (prompt ? prompt + '\n' : '') + `[audio] ${transcricao}`;
-              await message.reply({
-                content: `🎤 **Transcrição do áudio:**\n> ${transcricao}`,
-                failIfNotExists: false
-              });
-            }
-          } catch (audioErr) {
-            console.error('[VICA][AUDIO] Falha ao processar áudio:', audioErr);
-            await message.reply({
-              content: '🔇 Não consegui ouvir seu áudio direito. Verifique se é um formato válido ou se estou com cera no ouvido (erro interno).',
-              failIfNotExists: false
-            });
-          }
+          // Apenas notifica o prompt sobre o arquivo de áudio disponível
+          // A IA decidirá se deve chamar a tool 'audio_transcription'
+          prompt = (prompt ? prompt + '\n' : '') + `[Attachment: type=audio, url=${att.url}]`;
         }
       }
 

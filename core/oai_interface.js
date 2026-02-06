@@ -843,8 +843,10 @@ async function transcreverAudio(audioUrl) {
       exec(command, (error, stdout, stderr) => {
         if (error) {
           console.error(`[AUDIO][FFMPEG] Erro: ${error.message}`);
+          console.error(`[AUDIO][FFMPEG] Stderr: ${stderr}`);
           return reject(error);
         }
+        if (stderr) console.log(`[AUDIO][FFMPEG] Log: ${stderr}`);
         resolve();
       });
     });
