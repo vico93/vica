@@ -853,10 +853,44 @@ async function transcreverAudio(audioUrl) {
 
     // 3. Transcrição via API
     console.log('[AUDIO] Enviando para transcrição...');
-    const model = config.requesty?.transcriptions_model || 'openai/whisper-1';
+
+    // Debug: Check file size
+    const stats = fs.statSync(outputFile);
+    console.log(`[AUDIO] Tamanho do arquivo MP3: ${stats.size} bytes`);
+
+    if (stats.size === 0) {
+      throw new Error('Arquivo de áudio convertido está vazio (0 bytes). Falha no ffmpeg?');
+    }
+
+    let model = config.requesty?.transcriptions_model;
+
+    // Fix for Base URL: requesty base_url often includes /responses or /chat/completions suffix
+    // We need the root for audio/transcriptions
+    let audioClient = openai;
+    if (config.requesty?.base_url) {
+      let rootUrl = config.requesty.base_url;
+      let needsNewClient = false;
+
+      if (rootUrl.includes('/responses') || rootUrl.includes('/chat/completions')) {
+        rootUrl = rootUrl.replace(/\/responses\/?$/, '').replace(/\/chat\/completions\/?$/, '');
+        needsNewClient = true;
+      }
+
+      if (needsNewClient) {
+        console.log(`[AUDIO] Ajustando Base URL para áudio: ${rootUrl}`);
+        audioClient = new OpenAI({
+          apiKey: config.requesty.api_key,
+          baseURL: rootUrl,
+          defaultHeaders: { "X-Title": "Vica" }
+        });
+      }
+    }
+
+    console.log(`[AUDIO] Usando Base URL: ${audioClient.baseURL}`);
+    console.log(`[AUDIO] Usando Modelo de Transcrição: ${model}`);
 
     const transcription = await withRetries(
-      () => openai.audio.transcriptions.create({
+      () => audioClient.audio.transcriptions.create({
         file: fs.createReadStream(outputFile),
         model: model,
       }),
