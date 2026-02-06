@@ -178,15 +178,25 @@ function getRetryConfig() {
 }
 
 /* --- Helper para obter modelo a ser usado --- */
-function getModel() {
-  // Prioriza Requesty
-  if (config.requesty?.model) {
-    return config.requesty.model;
+function getModel(useVision = false) {
+  // Configurações de prioridade
+  const requestyModel = config.requesty?.model;
+  const requestyVision = config.requesty?.model_vision;
+  const legacyModel = config.openai?.model;
+
+  // Lógica para Requesty
+  if (config.requesty) {
+    if (useVision && requestyVision && requestyVision !== requestyModel) {
+      return requestyVision;
+    }
+    return requestyModel || legacyModel;
   }
-  // Fallback para configuração legada
-  if (config.openai?.model) {
-    return config.openai.model;
+
+  // Fallback para legado
+  if (config.openai) {
+    return legacyModel;
   }
+
   throw new Error('Nenhum modelo configurado. Configure config.requesty.model ou config.openai.model');
 }
 
@@ -553,7 +563,7 @@ async function gerarRespostaContextual(guildId, canalId, usuarioId, botUserId, m
 
     // Prepara os parâmetros da requisição
     const requestParams = {
-      model: getModel(),
+      model: getModel(!!imageUrl),
       messages,
       temperature: 0.8,
       max_tokens: config.settings.maxTokens,

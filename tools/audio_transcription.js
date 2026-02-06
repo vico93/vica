@@ -104,7 +104,7 @@ async function execute(args, context) {
 
         console.log(`[AUDIO] Transcrição concluída: "${transcription.text.substring(0, 50)}..."`);
 
-        return `📝 **Transcrição:** "${transcription.text}"`;
+        return `[voice_message]${transcription.text}[/voice_message]`;
 
     } catch (error) {
         console.error('[TOOLS][TRANSCRIPTION] Erro:', error);
