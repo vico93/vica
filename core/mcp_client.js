@@ -60,7 +60,9 @@ async function startServer(config) {
         transport: config.transport,
         config: config,
         initialized: false,
-        capabilities: null
+        capabilities: null,
+        pendingRequests: new Map(),
+        buffer: ''
     };
 
     try {
@@ -74,6 +76,40 @@ async function startServer(config) {
             });
 
             server.process.stdout.setEncoding('utf8');
+
+            // Handle stdout data with buffering
+            server.process.stdout.on('data', (chunk) => {
+                server.buffer += chunk;
+                const lines = server.buffer.split('\n');
+                server.buffer = lines.pop(); // Keep the last partial line
+
+                for (const line of lines) {
+                    if (!line.trim()) continue;
+
+                    try {
+                        const message = JSON.parse(line);
+                        
+                        // Handle responses to requests
+                        if (message.id !== undefined && (message.result !== undefined || message.error !== undefined)) {
+                            const pending = server.pendingRequests.get(message.id);
+                            if (pending) {
+                                server.pendingRequests.delete(message.id);
+                                if (message.error) {
+                                    pending.reject(new Error(message.error.message));
+                                } else {
+                                    pending.resolve(message);
+                                }
+                            }
+                        } else if (message.method && message.method.startsWith('notifications/')) {
+                            // Handle notifications (optional: emit event)
+                            // console.log(`[MCP_CLIENT][INFO] Notification from ${config.name}: ${message.method}`);
+                        }
+                    } catch (error) {
+                        // Ignore non-JSON lines (likely logs/uvx output)
+                        // console.debug(`[MCP_CLIENT][DEBUG] Non-JSON output from ${config.name}:`, line);
+                    }
+                }
+            });
 
             // Handle process errors
             server.process.on('error', (error) => {
@@ -372,40 +408,13 @@ function sendJsonRpcNotification(server, notification) {
 function handleStdioRequest(server, request) {
     return new Promise((resolve, reject) => {
         try {
+            // Store the pending request
+            server.pendingRequests.set(request.id, { resolve, reject });
+
             const data = JSON.stringify(request) + '\n';
             server.process.stdin.write(data);
-
-            // Set up response handler
-            const responseHandler = (chunk) => {
-                try {
-                    const lines = chunk.toString().split('\n').filter((line) => line.trim());
-
-                    for (const line of lines) {
-                        const response = JSON.parse(line);
-
-                        // Check if this is the response to our request
-                        if (response.id === request.id) {
-                            server.process.stdout.off('data', responseHandler);
-                            resolve(response);
-                            return;
-                        }
-                    }
-                } catch (error) {
-                    console.error(`[MCP_CLIENT][ERROR] Failed to parse response:`, error);
-                }
-            };
-
-            server.process.stdout.once('data', responseHandler);
-
-            // Set up error handler
-            const errorHandler = (error) => {
-                server.process.stdout.off('data', responseHandler);
-                reject(error);
-            };
-
-            server.process.stdout.once('error', errorHandler);
-
         } catch (error) {
+            server.pendingRequests.delete(request.id);
             reject(error);
         }
     });
