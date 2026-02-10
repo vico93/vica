@@ -120,6 +120,26 @@ function getModel(useVision = false) {
   return model;
 }
 
+/* --- Helper para converter URL de imagem para base64 --- */
+async function fetchImageAsBase64(url) {
+  try {
+    const response = await fetch(url);
+    if (!response.ok) {
+      console.warn(`[OAI][IMG] Falha ao baixar imagem: HTTP ${response.status}`);
+      return null;
+    }
+    const contentType = response.headers.get('content-type') || 'image/png';
+    // Usa apenas o MIME principal (ex: image/png), sem parâmetros extras
+    const mime = contentType.split(';')[0].trim();
+    const buffer = Buffer.from(await response.arrayBuffer());
+    const base64 = buffer.toString('base64');
+    return `data:${mime};base64,${base64}`;
+  } catch (err) {
+    console.warn(`[OAI][IMG] Erro ao converter imagem para base64: ${err.message}`);
+    return null;
+  }
+}
+
 /* --- Helper de Retry --- */
 async function withRetries(fn, label = 'OAI_CALL') {
   const { maxRetries, baseDelay } = getRetryConfig();
@@ -360,9 +380,22 @@ async function gerarRespostaContextual(guildId, canalId, usuarioId, botUserId, m
   }
 
   // Mensagem atual
-  let userContent = imageUrl ?
-    [{ type: 'text', text: mensagemUsuario }, { type: 'image_url', image_url: { url: imageUrl } }] :
-    mensagemUsuario;
+  let userContent;
+  if (imageUrl) {
+    const base64Url = await fetchImageAsBase64(imageUrl);
+    if (base64Url) {
+      userContent = [
+        { type: 'text', text: mensagemUsuario },
+        { type: 'image_url', image_url: { url: base64Url } }
+      ];
+    } else {
+      console.warn('[OAI] Falha ao converter imagem para base64, enviando sem imagem.');
+      userContent = mensagemUsuario;
+      imageUrl = null;
+    }
+  } else {
+    userContent = mensagemUsuario;
+  }
   messages.push({ role: 'user', content: userContent });
 
   // Ferramentas
