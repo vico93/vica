@@ -12,6 +12,21 @@ const config = require('../config.json');
  * @param {string} model - Modelo a ser utilizado (opcional, usa o padrão do config).
  * @returns {Promise<number>} - Promessa que resolve com o total de tokens.
  */
+/**
+ * Remove conteúdo de imagem das mensagens para o tokenizer.
+ * Substitui image_url por um placeholder de texto curto.
+ */
+function sanitizeMessages(messages) {
+    return messages.map(msg => {
+        if (!Array.isArray(msg.content)) return msg;
+        // Filtra image_url e mantém apenas partes de texto
+        const textParts = msg.content.filter(part => part.type !== 'image_url');
+        // Adiciona placeholder para indicar que havia imagem
+        textParts.push({ type: 'text', text: '[image]' });
+        return { ...msg, content: textParts };
+    });
+}
+
 async function countTokens(messages, tools = [], model = null) {
     const endpoint = `${config.llm.base_url}/tokenizer`;
     const selectedModel = model || config.llm.model;
@@ -19,7 +34,7 @@ async function countTokens(messages, tools = [], model = null) {
     // Prepara o payload conforme especificação OpenAPI
     const payload = {
         model: selectedModel,
-        messages: messages,
+        messages: sanitizeMessages(messages),
     };
 
     if (tools && tools.length > 0) {
