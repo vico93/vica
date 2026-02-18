@@ -52,7 +52,8 @@ function shouldIncludeMessageInContext(message, originalAuthorId, botUserId) {
   if (message.reference) return true;
 
   const messageAge = Date.now() - message.createdTimestamp;
-  const maxAge = 30 * 60 * 1000; // 30 minutos
+  const maxAgeMinutes = config.settings.historyMaxAge || 30;
+  const maxAge = maxAgeMinutes * 60 * 1000;
 
   if (messageAge < maxAge) {
     return message.content && message.content.length > 10;
@@ -317,12 +318,18 @@ async function gerarRespostaContextual(guildId, canalId, usuarioId, botUserId, m
   }
 
   // Histórico
+  const historyMaxAgeMs = (config.settings.historyMaxAge || 0) * 60 * 1000; // 0 = sem limite de idade
   let historicoTextos = [];
   if (originalAuthorId && channel?.messages?.fetch) {
     try {
       const recentMessages = await channel.messages.fetch({ limit: 20 });
       const relevant = [];
+      const now = Date.now();
       for (const [_, msg] of recentMessages) {
+        // Se historyMaxAge está configurado, ignorar mensagens mais antigas
+        if (historyMaxAgeMs > 0 && (now - msg.createdTimestamp) > historyMaxAgeMs) {
+          continue;
+        }
         if (shouldIncludeMessageInContext(msg, originalAuthorId, botUserId)) {
           relevant.push({
             content: msg.content,
@@ -344,7 +351,12 @@ async function gerarRespostaContextual(guildId, canalId, usuarioId, botUserId, m
         const fetched = await Promise.all(historicoIds.map(async id => {
           try { return await channel.messages.fetch(id); } catch { return null; }
         }));
-        historicoTextos = fetched.filter(Boolean).map(m => ({
+        const now = Date.now();
+        historicoTextos = fetched.filter(m => {
+          if (!m) return false;
+          if (historyMaxAgeMs > 0 && (now - m.createdTimestamp) > historyMaxAgeMs) return false;
+          return true;
+        }).map(m => ({
           content: m.content,
           authorId: m.author.id,
           username: m.author.username,
@@ -363,7 +375,12 @@ async function gerarRespostaContextual(guildId, canalId, usuarioId, botUserId, m
         const fetched = await Promise.all(historicoIds.map(async id => {
           try { return await channel.messages.fetch(id); } catch { return null; }
         }));
-        historicoTextos = fetched.filter(m => m?.content).map(m => ({
+        const now = Date.now();
+        historicoTextos = fetched.filter(m => {
+          if (!m?.content) return false;
+          if (historyMaxAgeMs > 0 && (now - m.createdTimestamp) > historyMaxAgeMs) return false;
+          return true;
+        }).map(m => ({
           content: m.content,
           authorId: m.author.id,
           username: m.author.username,
