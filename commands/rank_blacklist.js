@@ -1,6 +1,6 @@
 /*
 ** caminho: commands/rank_blacklist.js
-** últimaMod: 2025-10-09 17:33
+** últimaMod: 2026-02-24 20:05
 ** autor: Vico
 ** colaboração: Roo Sonic (xai/grok-code-fast-1)
 */
@@ -28,7 +28,7 @@ module.exports = {
         .addChannelOption(option =>
           option.setName('channel')
             .setDescription('Canal a adicionar à blacklist')
-            .addChannelTypes(ChannelType.GuildText)
+            .addChannelTypes(ChannelType.GuildText, ChannelType.GuildVoice, ChannelType.GuildStageVoice)
             .setRequired(true)))
 
     /*
@@ -49,7 +49,7 @@ module.exports = {
         .addChannelOption(option =>
           option.setName('channel')
             .setDescription('Canal a remover da blacklist')
-            .addChannelTypes(ChannelType.GuildText)
+            .addChannelTypes(ChannelType.GuildText, ChannelType.GuildVoice, ChannelType.GuildStageVoice)
             .setRequired(true)))
 
     /*

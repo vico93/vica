@@ -1,6 +1,6 @@
 /*
 ** caminho: core/database.js
-** últimaMod: 2025-10-04 02:52
+** últimaMod: 2026-02-24 20:05
 ** autor: Vico
 ** colaboração: GPT-4o, GLM 4.5 Air, Grok Code (Fast) e Claude
 */
@@ -416,16 +416,21 @@ const stmts = {
   /* --- XP do usuário --- */
   xpGet:        db.prepare('SELECT * FROM rank_xp WHERE guild_id=? AND usuario_id=?'),
   xpUpsert:     db.prepare(`INSERT INTO rank_xp (guild_id, usuario_id, xp, nivel, ultima_mensagem_timestamp)
-                            VALUES (?, ?, ?, ?, ?)
-                            ON CONFLICT(guild_id, usuario_id) DO UPDATE
-                              SET xp = xp + excluded.xp,
-                                  nivel = excluded.nivel,
-                                  total_mensagens = total_mensagens + 1,
-                                  ultima_mensagem_timestamp = excluded.ultima_mensagem_timestamp`),
+                             VALUES (?, ?, ?, ?, ?)
+                             ON CONFLICT(guild_id, usuario_id) DO UPDATE
+                               SET xp = xp + excluded.xp,
+                                   nivel = excluded.nivel,
+                                   total_mensagens = total_mensagens + 1,
+                                   ultima_mensagem_timestamp = excluded.ultima_mensagem_timestamp`),
+  xpUpsertVoice: db.prepare(`INSERT INTO rank_xp (guild_id, usuario_id, xp, nivel)
+                             VALUES (?, ?, ?, ?)
+                             ON CONFLICT(guild_id, usuario_id) DO UPDATE
+                               SET xp = xp + excluded.xp,
+                                   nivel = excluded.nivel`),
   xpSet:        db.prepare(`INSERT INTO rank_xp (guild_id, usuario_id, xp, nivel)
-                            VALUES (?, ?, ?, ?)
-                            ON CONFLICT(guild_id, usuario_id) DO UPDATE
-                              SET xp=excluded.xp, nivel=excluded.nivel`),
+                             VALUES (?, ?, ?, ?)
+                             ON CONFLICT(guild_id, usuario_id) DO UPDATE
+                               SET xp=excluded.xp, nivel=excluded.nivel`),
   xpResetGuild: db.prepare('DELETE FROM rank_xp WHERE guild_id=?'),
   xpDelUser:    db.prepare('DELETE FROM rank_xp WHERE guild_id=? AND usuario_id=?'),
   rankTop:      db.prepare('SELECT usuario_id, xp, nivel FROM rank_xp WHERE guild_id=? ORDER BY xp DESC LIMIT ?'),
@@ -655,6 +660,19 @@ module.exports = {
     const newXp = (row?.xp || 0) + xpAdd;
     const newLv = Math.floor(newXp / 1000);
     stmts.xpUpsert.run(g, u, xpAdd, newLv, ts);
+    return { levelUp: newLv > oldLv, novoNivel: newLv };
+  },
+  atualizarUsuarioXPVoz: (g, u, xpAdd) => {
+    const row = stmts.xpGet.get(g, u);
+    const oldLv = row?.nivel || 0;
+
+    if (oldLv >= 100) {
+      return { levelUp: false, novoNivel: oldLv };
+    }
+
+    const newXp = (row?.xp || 0) + xpAdd;
+    const newLv = Math.floor(newXp / 1000);
+    stmts.xpUpsertVoice.run(g, u, xpAdd, newLv);
     return { levelUp: newLv > oldLv, novoNivel: newLv };
   },
   definirXP: (g, u, xp) => {

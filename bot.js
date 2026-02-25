@@ -1,6 +1,6 @@
 /*
 **  caminho: bot.js
-**  últimaMod: 2025-09-23 09:21
+**  últimaMod: 2026-02-24 20:05
 **  autor: Vico
 **  colaboração: ChatGPT, Gemini, Kimi AI, Roo Sonic (xai/grok-code-fast-1)
 */
@@ -18,6 +18,7 @@ const { Client, GatewayIntentBits, Collection, Partials, Events } = require('dis
 const config   = require('./config.json');
 const database = require('./core/database');
 const toolLoader = require('./core/tool_loader');
+const voiceXp = require('./core/voice_xp');
 
 // ----------------------------------------------------------
 // Cliente Discord
@@ -29,7 +30,8 @@ const client = new Client({
     GatewayIntentBits.MessageContent,
     GatewayIntentBits.GuildMessageReactions,
     GatewayIntentBits.GuildMembers,
-    GatewayIntentBits.GuildModeration
+    GatewayIntentBits.GuildModeration,
+    GatewayIntentBits.GuildVoiceStates
   ],
   partials: [Partials.Message, Partials.Channel, Partials.Reaction, Partials.GuildMember]
 });
@@ -87,6 +89,12 @@ client.once(Events.ClientReady, async () => {
         console.error('[BOT][ERROR] Falha ao iniciar MCP servers:', error);
         // Bot continues to work even if MCP servers fail to start
     }
+
+    try {
+        voiceXp.startVoiceXpService(client, database);
+    } catch (error) {
+        console.error('[BOT][ERROR] Falha ao iniciar serviço de XP por voz:', error);
+    }
 });
 
 // ----------------------------------------------------------
@@ -109,6 +117,12 @@ async function gracefulShutdown() {
         console.log('[BOT][INFO] MCP servers parados com sucesso');
     } catch (error) {
         console.error('[BOT][ERROR] Erro ao parar MCP servers:', error);
+    }
+
+    try {
+        voiceXp.stopVoiceXpService();
+    } catch (error) {
+        console.error('[BOT][ERROR] Erro ao parar serviço de XP por voz:', error);
     }
     
     database.close();
