@@ -1,8 +1,8 @@
 /*
 ** caminho: events/messageCreate.js
-** últimaMod: 2025-09-23 10:41
+** últimaMod: 2026-02-25 10:15
 ** autor: Vico
-** colaboração: Grok Code (Fast)
+** colaboração: Grok Code (Fast), ChatGPT (GPT-5)
 */
 
 /*
@@ -30,6 +30,44 @@ const COOLDOWN_MS = 5_000;
 // Remove caracteres repetidos para evitar spam
 function removerRepetidos(str) {
   return str.toLowerCase().replace(/(.)\1+/g, '$1');
+}
+
+function isImageAttachment(attachment) {
+  if (!attachment) return false;
+  if (attachment.contentType?.startsWith('image/')) return true;
+
+  const fileName = (attachment.name || '').toLowerCase();
+  return fileName.endsWith('.png') ||
+    fileName.endsWith('.jpg') ||
+    fileName.endsWith('.jpeg') ||
+    fileName.endsWith('.webp') ||
+    fileName.endsWith('.gif') ||
+    fileName.endsWith('.bmp');
+}
+
+function isAudioAttachment(attachment) {
+  if (!attachment) return false;
+  if (attachment.contentType?.startsWith('audio/')) return true;
+  if (attachment.contentType === 'video/ogg') return true;
+
+  const fileName = (attachment.name || '').toLowerCase();
+  return fileName.endsWith('.ogg') ||
+    fileName.endsWith('.mp3') ||
+    fileName.endsWith('.wav') ||
+    fileName.endsWith('.m4a') ||
+    fileName.endsWith('.aac') ||
+    fileName.endsWith('.flac') ||
+    fileName.endsWith('.opus');
+}
+
+function getFirstAttachmentByPredicate(message, predicate) {
+  if (!message?.attachments?.size) return null;
+
+  for (const attachment of message.attachments.values()) {
+    if (predicate(attachment)) return attachment;
+  }
+
+  return null;
 }
 
 /* ----------------------------------------------------------
@@ -150,11 +188,12 @@ module.exports = {
     const botId = client.user.id;
     const mencionadoDireto = message.mentions.has(botId);
     let respondeuBot = false;
+    let repliedMsg = null;
 
     if (message.reference?.messageId) {
       try {
-        const replied = await message.channel.messages.fetch(message.reference.messageId);
-        respondeuBot = replied.author.id === botId;
+        repliedMsg = await message.channel.messages.fetch(message.reference.messageId);
+        respondeuBot = repliedMsg.author.id === botId;
       } catch {
         // ignora erro de fetch
       }
@@ -167,12 +206,17 @@ module.exports = {
 
       // Buscar contexto da mensagem respondida se for resposta ao bot
       let repliedContext = '';
-      if (respondeuBot) {
-        try {
-          const repliedMsg = await message.channel.messages.fetch(message.reference.messageId);
-          repliedContext = `Contexto da pergunta anterior do bot: "${repliedMsg.content}"\n`;
-        } catch (err) {
-          console.warn('[VICA][CHATBOT] Falha ao buscar mensagem respondida para contexto:', err.message);
+      let repliedBotImageUrl = null;
+      if (respondeuBot && repliedMsg) {
+        const repliedText = (repliedMsg.content || '').trim();
+        repliedContext = repliedText
+          ? `Contexto da pergunta anterior do bot: "${repliedText}"\n`
+          : 'Contexto da pergunta anterior do bot: [mensagem sem texto]\n';
+
+        const repliedImageAttachment = getFirstAttachmentByPredicate(repliedMsg, isImageAttachment);
+        if (repliedImageAttachment?.url) {
+          repliedBotImageUrl = repliedImageAttachment.url;
+          repliedContext += 'A mensagem anterior do bot contem uma imagem anexada. Use essa imagem como contexto visual.\n';
         }
       }
 
@@ -182,26 +226,26 @@ module.exports = {
       let prompt = repliedContext + parsedContent.cleanedMessage.replace(/<@!?\d+>/g, '').trim();
       let imageUrl = null;
 
-      if (message.attachments.size) {
-        const att = message.attachments.first();
-        // Debug Log
-        console.log(`[VICA][DEBUG] Attachment found:`, {
-          contentType: att.contentType,
-          name: att.name,
-          url: att.url
-        });
+      const userImageAttachment = getFirstAttachmentByPredicate(message, isImageAttachment);
+      const userAudioAttachment = getFirstAttachmentByPredicate(message, isAudioAttachment);
 
-        if (att.contentType?.startsWith('image/')) {
-          imageUrl = att.url;
-        } else if (att.contentType?.startsWith('audio/') || att.contentType === 'video/ogg' || att.name.endsWith('.ogg') || att.name.endsWith('.mp3') || att.name.endsWith('.wav')) {
-          // Apenas notifica o prompt sobre o arquivo de áudio disponível
-          // A IA decidirá se deve chamar a tool 'audio_transcription'
-          prompt = (prompt ? prompt + '\n' : '') + `[Attachment: type=audio, url=${att.url}]`;
-        }
+      let imageTag = null;
+      if (userImageAttachment?.url) {
+        imageUrl = userImageAttachment.url;
+        imageTag = '[imagem]';
+      } else if (repliedBotImageUrl) {
+        imageUrl = repliedBotImageUrl;
+        imageTag = '[imagem_gerada]';
       }
 
-      if (imageUrl) {
-        prompt = prompt ? '[imagem] ' + prompt : '[imagem]';
+      if (userAudioAttachment?.url) {
+        // Apenas notifica o prompt sobre o arquivo de áudio disponível
+        // A IA decidirá se deve chamar a tool 'audio_transcription'
+        prompt = (prompt ? prompt + '\n' : '') + `[Attachment: type=audio, url=${userAudioAttachment.url}]`;
+      }
+
+      if (imageTag) {
+        prompt = prompt ? `${imageTag} ${prompt}` : imageTag;
       }
 
       // Adicionar contexto do usuário para o prompt

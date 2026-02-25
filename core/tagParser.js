@@ -5,7 +5,7 @@
 ** colaboração: Gemini, ChatGPT, Roo Sonic, Kimi, Roo Sonic (xai/grok-code-fast-1)
 
 // Módulo de parser de tags especiais
-// Responsável por analisar mensagens com tags específicas como [imagem], [meta]...[/meta] e [memory]...[/memory] (case-insensitive)
+// Responsável por analisar mensagens com tags específicas como [imagem], [imagem_gerada], [meta]...[/meta] e [memory]...[/memory] (case-insensitive)
 
 /* --- Funções de Validação --- */
 
@@ -95,11 +95,11 @@ function parseTags(message, context = {}) {
     let text = message;
 
     // Flag para imagem
-    const hasImage = /\[imagem\]/.test(message);
+    const hasImage = /\[(imagem|imagem_gerada)\]/i.test(message);
 
     // Remover tag [imagem] do texto
     if (hasImage) {
-        text = text.replace(/\[imagem\]/g, '');
+        text = text.replace(/\[(imagem|imagem_gerada)\]/gi, '');
     }
 
     // Extrair conteúdo da tag [meta]...[/meta]
