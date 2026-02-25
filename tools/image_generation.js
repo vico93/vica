@@ -1,11 +1,12 @@
 /*
 ** caminho: tools/image_generation.js
-** últimaMod: 2026-02-25 00:00
+** últimaMod: 2026-02-25 00:25
 ** autor: Vico
 ** colaboração: ChatGPT (GPT-5)
 */
 
 const OpenAI = require('openai');
+const fetch = require('node-fetch');
 const config = require('../config.json');
 
 function getFileExtension(outputFormat) {
@@ -16,6 +17,63 @@ function getFileExtension(outputFormat) {
         return 'webp';
     }
     return 'png';
+}
+
+function getFileExtensionFromContentType(contentType, fallback = 'png') {
+    if (!contentType || typeof contentType !== 'string') {
+        return fallback;
+    }
+
+    const normalized = contentType.toLowerCase();
+    if (normalized.includes('image/jpeg') || normalized.includes('image/jpg')) {
+        return 'jpg';
+    }
+    if (normalized.includes('image/webp')) {
+        return 'webp';
+    }
+    if (normalized.includes('image/png')) {
+        return 'png';
+    }
+
+    return fallback;
+}
+
+function getFileExtensionFromUrl(imageUrl, fallback = 'png') {
+    if (!imageUrl || typeof imageUrl !== 'string') {
+        return fallback;
+    }
+
+    const normalized = imageUrl.toLowerCase();
+    if (normalized.includes('.jpeg') || normalized.includes('.jpg')) {
+        return 'jpg';
+    }
+    if (normalized.includes('.webp')) {
+        return 'webp';
+    }
+    if (normalized.includes('.png')) {
+        return 'png';
+    }
+
+    return fallback;
+}
+
+async function downloadImageFromUrl(imageUrl) {
+    const response = await fetch(imageUrl);
+    if (!response.ok) {
+        throw new Error(`Falha ao baixar imagem da URL (HTTP ${response.status}).`);
+    }
+
+    const imageBuffer = await response.buffer();
+    const contentType = response.headers.get('content-type') || '';
+
+    if (!imageBuffer || imageBuffer.length === 0) {
+        throw new Error('Download da imagem retornou arquivo vazio.');
+    }
+
+    return {
+        imageBuffer,
+        contentType,
+    };
 }
 
 async function execute(args, context) {
@@ -59,11 +117,7 @@ async function execute(args, context) {
             throw new Error('A API nao retornou dados de imagem.');
         }
 
-        if (image.url) {
-            return `Imagem gerada com sucesso: ${image.url}`;
-        }
-
-        if (!image.b64_json) {
+        if (!image.b64_json && !image.url) {
             throw new Error('A API nao retornou URL nem b64_json para a imagem.');
         }
 
@@ -72,24 +126,32 @@ async function execute(args, context) {
             return 'Imagem gerada com sucesso, mas o canal nao estava disponivel para envio automatico.';
         }
 
-        const outputFormat = response?.output_format || 'png';
-        const fileExtension = getFileExtension(outputFormat);
-        const imageBuffer = Buffer.from(image.b64_json, 'base64');
+        let imageBuffer;
+        let fileExtension = 'png';
+
+        if (image.b64_json) {
+            const outputFormat = response?.output_format || 'png';
+            fileExtension = getFileExtension(outputFormat);
+            imageBuffer = Buffer.from(image.b64_json, 'base64');
+        } else {
+            const downloadedImage = await downloadImageFromUrl(image.url);
+            fileExtension = getFileExtensionFromContentType(
+                downloadedImage.contentType,
+                getFileExtensionFromUrl(image.url, 'png')
+            );
+            imageBuffer = downloadedImage.imageBuffer;
+        }
+
         const fileName = `imagem_${Date.now()}.${fileExtension}`;
 
-        const sentMessage = await channel.send({
+        await channel.send({
             files: [{
                 attachment: imageBuffer,
                 name: fileName,
             }],
         });
 
-        const attachmentUrl = sentMessage.attachments.first()?.url;
-        if (attachmentUrl) {
-            return `Imagem gerada com sucesso: ${attachmentUrl}`;
-        }
-
-        return 'Imagem gerada e enviada no canal com sucesso.';
+        return 'Imagem gerada e anexada no canal com sucesso. Agora responda ao usuario com um comentario curto, sem incluir links.';
     } catch (error) {
         console.error('[TOOLS][IMAGE][ERROR]', error);
         throw new Error(`Falha na geracao de imagem: ${error.message}`);
