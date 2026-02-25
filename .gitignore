@@ -20,6 +20,7 @@ Thumbs.db
 /config.json
 /data/
 /.github/instructions
+/opencode.json
 
 # Ferramentas de depuração
 .vscode/
