@@ -8,6 +8,7 @@
     "api_key": "SEU_OPENAI_LIKE_API_KEY",
     "model": "openai/gpt-5-mini:flex",
     "model_vision": "openai/gpt-4o",
+    "model_image_gen": "gpt-image-1",
     "transcriptions_model": "openai/whisper-1",
     "retries": 3,
     "initial_delay_ms": 1000,
