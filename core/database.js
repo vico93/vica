@@ -385,6 +385,34 @@ CREATE TABLE IF NOT EXISTS reaction_emojis (
   reaction_emoji_id TEXT NOT NULL,
   UNIQUE(guild_id, reaction_emoji_id)
 );
+
+-- TABELAS DE MODERACAO (WARNS E LISTA DE PROTECAO) --
+CREATE TABLE IF NOT EXISTS warn_counts (
+  guild_id TEXT NOT NULL,
+  user_id TEXT NOT NULL,
+  warn_count INTEGER NOT NULL DEFAULT 0,
+  updated_at INTEGER NOT NULL,
+  PRIMARY KEY (guild_id, user_id)
+);
+
+CREATE TABLE IF NOT EXISTS warn_config (
+  guild_id TEXT PRIMARY KEY,
+  warn_limit INTEGER NOT NULL DEFAULT 3,
+  action TEXT NOT NULL DEFAULT 'timeout',
+  timeout_minutes INTEGER NOT NULL DEFAULT 30
+);
+
+CREATE TABLE IF NOT EXISTS moderation_protected_users (
+  guild_id TEXT NOT NULL,
+  user_id TEXT NOT NULL,
+  PRIMARY KEY (guild_id, user_id)
+);
+
+CREATE TABLE IF NOT EXISTS moderation_protected_roles (
+  guild_id TEXT NOT NULL,
+  role_id TEXT NOT NULL,
+  PRIMARY KEY (guild_id, role_id)
+);
 `);
 })();
 
@@ -606,18 +634,57 @@ const stmts = {
                                   VALUES (?, ?)
                                   ON CONFLICT(guild_id) DO UPDATE SET news_channel_id = excluded.news_channel_id`),
 
- /* --- WEBHOOK --- */
- webhookGet: db.prepare('SELECT webhook_id, webhook_token FROM guild_settings WHERE guild_id = ?'),
- webhookSet: db.prepare(`INSERT INTO guild_settings (guild_id, webhook_id, webhook_token)
-                          VALUES (?, ?, ?)
-                          ON CONFLICT(guild_id) DO UPDATE SET
-                            webhook_id = excluded.webhook_id,
-                            webhook_token = excluded.webhook_token`),
+  /* --- WEBHOOK --- */
+  webhookGet: db.prepare('SELECT webhook_id, webhook_token FROM guild_settings WHERE guild_id = ?'),
+  webhookSet: db.prepare(`INSERT INTO guild_settings (guild_id, webhook_id, webhook_token)
+                           VALUES (?, ?, ?)
+                           ON CONFLICT(guild_id) DO UPDATE SET
+                             webhook_id = excluded.webhook_id,
+                             webhook_token = excluded.webhook_token`),
 
- /* --- TRANSLATION --- */
- translationGet: db.prepare('SELECT translation_emoji FROM guild_settings WHERE guild_id = ?'),
- translationSet: db.prepare(`INSERT INTO guild_settings (guild_id, translation_emoji)
-                          VALUES (?, ?)
+  /* --- MODERACAO: WARNS --- */
+  warnGetCount: db.prepare('SELECT warn_count FROM warn_counts WHERE guild_id = ? AND user_id = ?'),
+  warnIncrement: db.prepare(`INSERT INTO warn_counts (guild_id, user_id, warn_count, updated_at)
+                             VALUES (?, ?, 1, ?)
+                             ON CONFLICT(guild_id, user_id) DO UPDATE SET
+                               warn_count = warn_count + 1,
+                               updated_at = excluded.updated_at`),
+  warnSetCount: db.prepare(`INSERT INTO warn_counts (guild_id, user_id, warn_count, updated_at)
+                            VALUES (?, ?, ?, ?)
+                            ON CONFLICT(guild_id, user_id) DO UPDATE SET
+                              warn_count = excluded.warn_count,
+                              updated_at = excluded.updated_at`),
+  warnDeleteCount: db.prepare('DELETE FROM warn_counts WHERE guild_id = ? AND user_id = ?'),
+
+  warnConfigGet: db.prepare('SELECT warn_limit, action, timeout_minutes FROM warn_config WHERE guild_id = ?'),
+  warnConfigSetLimit: db.prepare(`INSERT INTO warn_config (guild_id, warn_limit, action, timeout_minutes)
+                                  VALUES (?, ?, 'timeout', 30)
+                                  ON CONFLICT(guild_id) DO UPDATE SET
+                                    warn_limit = excluded.warn_limit`),
+  warnConfigSetAction: db.prepare(`INSERT INTO warn_config (guild_id, warn_limit, action, timeout_minutes)
+                                   VALUES (?, 3, ?, 30)
+                                   ON CONFLICT(guild_id) DO UPDATE SET
+                                     action = excluded.action`),
+  warnConfigSetTimeout: db.prepare(`INSERT INTO warn_config (guild_id, warn_limit, action, timeout_minutes)
+                                    VALUES (?, 3, 'timeout', ?)
+                                    ON CONFLICT(guild_id) DO UPDATE SET
+                                      timeout_minutes = excluded.timeout_minutes`),
+
+  /* --- MODERACAO: LISTAS DE PROTECAO --- */
+  protectedUserExists: db.prepare('SELECT 1 FROM moderation_protected_users WHERE guild_id = ? AND user_id = ? LIMIT 1'),
+  protectedUserAdd: db.prepare('INSERT OR IGNORE INTO moderation_protected_users (guild_id, user_id) VALUES (?, ?)'),
+  protectedUserDelete: db.prepare('DELETE FROM moderation_protected_users WHERE guild_id = ? AND user_id = ?'),
+  protectedUserList: db.prepare('SELECT user_id FROM moderation_protected_users WHERE guild_id = ? ORDER BY user_id ASC'),
+
+  protectedRoleExists: db.prepare('SELECT 1 FROM moderation_protected_roles WHERE guild_id = ? AND role_id = ? LIMIT 1'),
+  protectedRoleAdd: db.prepare('INSERT OR IGNORE INTO moderation_protected_roles (guild_id, role_id) VALUES (?, ?)'),
+  protectedRoleDelete: db.prepare('DELETE FROM moderation_protected_roles WHERE guild_id = ? AND role_id = ?'),
+  protectedRoleList: db.prepare('SELECT role_id FROM moderation_protected_roles WHERE guild_id = ? ORDER BY role_id ASC'),
+
+  /* --- TRANSLATION --- */
+  translationGet: db.prepare('SELECT translation_emoji FROM guild_settings WHERE guild_id = ?'),
+  translationSet: db.prepare(`INSERT INTO guild_settings (guild_id, translation_emoji)
+                           VALUES (?, ?)
                           ON CONFLICT(guild_id) DO UPDATE SET
                             translation_emoji = excluded.translation_emoji`)
 };
@@ -957,14 +1024,90 @@ module.exports = {
      token: row.webhook_token || null
    };
  },
- setWebhook: (guildId, webhookId, webhookToken = null) => {
-   return stmts.webhookSet.run(guildId, webhookId, webhookToken).changes;
- },
+  setWebhook: (guildId, webhookId, webhookToken = null) => {
+    return stmts.webhookSet.run(guildId, webhookId, webhookToken).changes;
+  },
 
- /* --- TRANSLATION --- */
- getTranslationEmoji: (guildId) => {
-   const row = stmts.translationGet.get(guildId);
-   return row ? row.translation_emoji : null;
+  /* --- MODERACAO: WARNS --- */
+  getWarnCount: (guildId, userId) => {
+    const row = stmts.warnGetCount.get(guildId, userId);
+    return row ? row.warn_count : 0;
+  },
+  incrementWarnCount: (guildId, userId) => {
+    const now = Date.now();
+    stmts.warnIncrement.run(guildId, userId, now);
+    const row = stmts.warnGetCount.get(guildId, userId);
+    return row ? row.warn_count : 0;
+  },
+  setWarnCount: (guildId, userId, count) => {
+    const now = Date.now();
+    const safeCount = Number.isInteger(count) && count > 0 ? count : 0;
+
+    if (safeCount === 0) {
+      return stmts.warnDeleteCount.run(guildId, userId).changes;
+    }
+
+    return stmts.warnSetCount.run(guildId, userId, safeCount, now).changes;
+  },
+  clearWarnCount: (guildId, userId) => {
+    return stmts.warnDeleteCount.run(guildId, userId).changes;
+  },
+  getWarnConfig: (guildId) => {
+    const row = stmts.warnConfigGet.get(guildId);
+    if (!row) {
+      return {
+        warnLimit: 3,
+        action: 'timeout',
+        timeoutMinutes: 30
+      };
+    }
+
+    return {
+      warnLimit: row.warn_limit,
+      action: row.action,
+      timeoutMinutes: row.timeout_minutes
+    };
+  },
+  setWarnLimit: (guildId, warnLimit) => {
+    return stmts.warnConfigSetLimit.run(guildId, warnLimit).changes;
+  },
+  setWarnAction: (guildId, action) => {
+    return stmts.warnConfigSetAction.run(guildId, action).changes;
+  },
+  setWarnTimeoutMinutes: (guildId, timeoutMinutes) => {
+    return stmts.warnConfigSetTimeout.run(guildId, timeoutMinutes).changes;
+  },
+
+  /* --- MODERACAO: LISTAS DE PROTECAO --- */
+  isProtectedUser: (guildId, userId) => {
+    return !!stmts.protectedUserExists.get(guildId, userId);
+  },
+  addProtectedUser: (guildId, userId) => {
+    return stmts.protectedUserAdd.run(guildId, userId).changes;
+  },
+  removeProtectedUser: (guildId, userId) => {
+    return stmts.protectedUserDelete.run(guildId, userId).changes;
+  },
+  listProtectedUsers: (guildId) => {
+    return stmts.protectedUserList.all(guildId).map(row => row.user_id);
+  },
+  isProtectedRole: (guildId, roleId) => {
+    return !!stmts.protectedRoleExists.get(guildId, roleId);
+  },
+  addProtectedRole: (guildId, roleId) => {
+    return stmts.protectedRoleAdd.run(guildId, roleId).changes;
+  },
+  removeProtectedRole: (guildId, roleId) => {
+    return stmts.protectedRoleDelete.run(guildId, roleId).changes;
+  },
+  listProtectedRoles: (guildId) => {
+    return stmts.protectedRoleList.all(guildId).map(row => row.role_id);
+  },
+
+  /* --- TRANSLATION --- */
+  getTranslationEmoji: (guildId) => {
+    const row = stmts.translationGet.get(guildId);
+    return row ? row.translation_emoji : null;
  },
  setTranslationEmoji: (guildId, emojiId) => {
    return stmts.translationSet.run(guildId, emojiId).changes;
