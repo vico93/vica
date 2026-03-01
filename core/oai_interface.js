@@ -98,6 +98,45 @@ function getToolLeakFallbackMessage(hasImageContext = false) {
   return 'Bah, buguei aqui e quase vazei um comando interno 😵‍💫. Manda de novo que eu respondo normal.';
 }
 
+const MAX_TOOL_RESULT_CHARS = (() => {
+  const configuredValue = config.settings?.maxToolResultChars;
+  if (!Number.isInteger(configuredValue)) {
+    return 4000;
+  }
+
+  return Math.max(500, Math.min(configuredValue, 20000));
+})();
+
+function getToolTurnLimit() {
+  const configuredValue = config.settings?.maxToolTurns;
+  if (!Number.isInteger(configuredValue)) {
+    return 5;
+  }
+
+  return Math.max(1, Math.min(configuredValue, 10));
+}
+
+function truncateToolResultForContext(toolResult) {
+  if (typeof toolResult !== 'string') {
+    return '';
+  }
+
+  if (toolResult.length <= MAX_TOOL_RESULT_CHARS) {
+    return toolResult;
+  }
+
+  const omittedChars = toolResult.length - MAX_TOOL_RESULT_CHARS;
+  return `${toolResult.slice(0, MAX_TOOL_RESULT_CHARS)}\n[tool_result_truncated:${omittedChars}]`;
+}
+
+function getEmptyResponseFallbackMessage() {
+  return 'Bah, dei uma travada enquanto montava a resposta 😵‍💫. Tenta de novo em seguida.';
+}
+
+function getEmptyCommentFallbackMessage() {
+  return 'Bah, fiquei sem comentário dessa vez 😅. Se quiser, tenta de novo daqui a pouquinho.';
+}
+
 // Carrega o system prompt
 async function carregarSystemPrompt() {
   const filePath = path.join(__dirname, '..', 'data', 'system_prompt.txt');
@@ -480,8 +519,9 @@ async function gerarRespostaContextual(guildId, canalId, usuarioId, botUserId, m
     let message = response?.choices?.[0]?.message;
     let toolCalls = message?.tool_calls;
 
+    const toolTurnLimit = getToolTurnLimit();
     let turns = 0;
-    while (toolCalls?.length > 0 && turns < 5) {
+    while (toolCalls?.length > 0 && turns < toolTurnLimit) {
       turns++;
       messages.push({ role: 'assistant', tool_calls: toolCalls });
       const context = {
@@ -495,12 +535,22 @@ async function gerarRespostaContextual(guildId, canalId, usuarioId, botUserId, m
       const toolResults = await toolLoader.executeToolCalls(toolCalls, context);
 
       for (const res of toolResults) {
-        messages.push({ role: 'tool', tool_call_id: res.tool_call_id, content: res.result });
+        const normalizedToolResult = truncateToolResultForContext(res.result);
+        messages.push({
+          role: 'tool',
+          tool_call_id: res.tool_call_id,
+          content: normalizedToolResult || JSON.stringify({ success: false, error: 'Resultado de ferramenta vazio' })
+        });
       }
 
       response = await withRetries(() => openai.chat.completions.create(requestParams), `[CHAT][TURN_${turns}]`);
       message = response?.choices?.[0]?.message;
       toolCalls = message?.tool_calls;
+    }
+
+    const hasPendingToolCalls = Array.isArray(toolCalls) && toolCalls.length > 0;
+    if (hasPendingToolCalls) {
+      console.warn(`[OAI][TOOLS][WARN] Limite de turnos de ferramentas atingido (${toolTurnLimit}). Finalizando com fallback seguro.`);
     }
 
     let content = message?.content || '';
@@ -520,7 +570,20 @@ async function gerarRespostaContextual(guildId, canalId, usuarioId, botUserId, m
       return getToolLeakFallbackMessage(!!imageUrl);
     }
 
-    return parsedTags.cleanedMessage || (toolCalls ? '' : 'Erro: Resposta vazia.');
+    const cleanedMessage = typeof parsedTags.cleanedMessage === 'string'
+      ? parsedTags.cleanedMessage.trim()
+      : '';
+
+    if (cleanedMessage) {
+      return cleanedMessage;
+    }
+
+    if (hasPendingToolCalls) {
+      return getEmptyResponseFallbackMessage();
+    }
+
+    console.warn('[OAI][WARN] Resposta vazia após processamento de tags. Retornando fallback.');
+    return getEmptyResponseFallbackMessage();
   } catch (error) {
     console.error('[ERRO] Falha na geração de resposta:', error.message);
     throw error;
@@ -558,17 +621,27 @@ async function gerarComentarioViaAPI(conversationText) {
     let message = response?.choices?.[0]?.message;
     let toolCalls = message?.tool_calls;
 
+    const toolTurnLimit = getToolTurnLimit();
     let turns = 0;
-    while (toolCalls?.length > 0 && turns < 5) {
+    while (toolCalls?.length > 0 && turns < toolTurnLimit) {
       turns++;
       messages.push({ role: 'assistant', tool_calls: toolCalls });
       const toolResults = await toolLoader.executeToolCalls(toolCalls);
       for (const res of toolResults) {
-        messages.push({ role: 'tool', tool_call_id: res.tool_call_id, content: res.result });
+        const normalizedToolResult = truncateToolResultForContext(res.result);
+        messages.push({
+          role: 'tool',
+          tool_call_id: res.tool_call_id,
+          content: normalizedToolResult || JSON.stringify({ success: false, error: 'Resultado de ferramenta vazio' })
+        });
       }
       response = await withRetries(() => openai.chat.completions.create(requestParams), `[CHAT][comentario_TURN_${turns}]`);
       message = response?.choices?.[0]?.message;
       toolCalls = message?.tool_calls;
+    }
+
+    if (Array.isArray(toolCalls) && toolCalls.length > 0) {
+      console.warn(`[OAI][TOOLS][WARN] Limite de turnos de ferramentas atingido no comentário (${toolTurnLimit}).`);
     }
 
     const content = message?.content || '';
@@ -579,7 +652,11 @@ async function gerarComentarioViaAPI(conversationText) {
       return 'Bah, buguei tentando comentar isso 😵‍💫. Manda de novo que eu tento sem quebrar.';
     }
 
-    return parsedTags.cleanedMessage;
+    const cleanedMessage = typeof parsedTags.cleanedMessage === 'string'
+      ? parsedTags.cleanedMessage.trim()
+      : '';
+
+    return cleanedMessage || getEmptyCommentFallbackMessage();
   } catch (error) {
     console.error('[ERRO] Não consegui gerar comentário pela API:', error.message);
     throw error;

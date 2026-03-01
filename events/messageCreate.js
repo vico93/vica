@@ -1,6 +1,6 @@
 /*
 ** caminho: events/messageCreate.js
-** últimaMod: 2026-02-25 10:15
+** últimaMod: 2026-03-01 03:55
 ** autor: Vico
 ** colaboração: Grok Code (Fast), ChatGPT (GPT-5)
 */
@@ -82,23 +82,28 @@ function calcularXP(textoLimpo) {
 
 // Divide texto em chunks de até 2000 caracteres, preservando palavras
 function splitText(text, maxLength = 2000) {
-  if (!text || text.length <= maxLength) return [text || ''];
+  if (typeof text !== 'string') return [];
+
+  const normalizedText = text.trim();
+  if (!normalizedText) return [];
+  if (normalizedText.length <= maxLength) return [normalizedText];
+
   const chunks = [];
   let start = 0;
-  while (start < text.length) {
-    let end = Math.min(start + maxLength, text.length);
-    if (end === text.length) {
-      chunks.push(text.slice(start));
+  while (start < normalizedText.length) {
+    let end = Math.min(start + maxLength, normalizedText.length);
+    if (end === normalizedText.length) {
+      chunks.push(normalizedText.slice(start));
       break;
     }
     // Encontra o último espaço antes do limite
-    const lastSpace = text.lastIndexOf(' ', end);
+    const lastSpace = normalizedText.lastIndexOf(' ', end);
     if (lastSpace > start) {
-      chunks.push(text.slice(start, lastSpace));
+      chunks.push(normalizedText.slice(start, lastSpace));
       start = lastSpace + 1;
     } else {
       // Sem espaço, corta forçadamente
-      chunks.push(text.slice(start, end));
+      chunks.push(normalizedText.slice(start, end));
       start = end;
     }
   }
@@ -260,7 +265,16 @@ module.exports = {
         guildId, canalId, usuarioId, message.client.user.id, prompt, imageUrl, message.channel, message.id, usuarioId
       );
 
-      const chunks = splitText(resposta);
+      const chunks = splitText(resposta).filter(chunk => typeof chunk === 'string' && chunk.trim().length > 0);
+      if (chunks.length === 0) {
+        console.warn('[VICA][CHATBOT][WARN] IA retornou resposta vazia após sanitização. Enviando fallback.');
+        await message.reply({
+          content: 'Bah, dei uma travada e não consegui montar a resposta 😵‍💫. Tenta de novo em seguida.',
+          failIfNotExists: false
+        });
+        return;
+      }
+
       if (chunks.length > 1) {
         console.log('[VICA][CHATBOT][INFO] Response length > 2000, splitting into ' + chunks.length + ' chunks');
       }

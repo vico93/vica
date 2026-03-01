@@ -1,6 +1,6 @@
 /*
 ** caminho: tools/web_reader.js
-** últimaMod: 2026-02-28 08:41
+** últimaMod: 2026-03-01 03:55
 ** autor: Vico
 ** colaboração: ChatGPT (GPT-5)
 */
@@ -102,7 +102,7 @@ async function execute(args, context) {
 
     const endpoint = `${baseUrl}/reader`;
     const payload = buildPayload(args, validatedUrl);
-    const maxContentLength = clampInteger(args?.max_content_length, 12000, 500, 50000);
+    const maxContentLength = clampInteger(args?.max_content_length, 5000, 500, 50000);
 
     console.log(`[TOOLS][WEB_READER][INFO] Lendo URL: ${validatedUrl}`);
 
