@@ -1,6 +1,6 @@
 /*
 ** caminho: core/oai_interface.js
-** últimaMod: 2026-02-06
+** últimaMod: 2026-03-01
 ** autor: Vico
 ** colaboração: Gemini, ChatGPT, Grok Code (Fast), GPT-5
 */
@@ -70,6 +70,32 @@ function sanitizeFato(fato) {
     .replace(/\t/g, ' ')
     .trim()
     .substring(0, 200);
+}
+
+function looksLikeLeakedToolCall(text) {
+  if (typeof text !== 'string') return false;
+
+  const normalized = text.trim();
+  if (!normalized) return false;
+
+  // Common leaked MCP/XML payload shape seen with some vision model responses.
+  if (/<\/?\s*(arg_key|arg_value|tool_call)\s*>/i.test(normalized)) {
+    return true;
+  }
+
+  const hasKnownMemoryTool = /\b(create_entities|create_relations|add_observations|delete_observations|open_nodes|search_nodes)\b/i.test(normalized);
+  const hasPayloadHints = /\b(arg_key|arg_value|entities|observations|relations)\b/i.test(normalized);
+  const hasCodeFence = /```(?:html|xml|json)?[\s\S]*```/i.test(normalized);
+
+  return hasKnownMemoryTool && hasPayloadHints && hasCodeFence;
+}
+
+function getToolLeakFallbackMessage(hasImageContext = false) {
+  if (hasImageContext) {
+    return 'Bah, buguei aqui ao processar a imagem 😵‍💫. Reenvia a mensagem (ou só o texto) que eu respondo certinho.';
+  }
+
+  return 'Bah, buguei aqui e quase vazei um comando interno 😵‍💫. Manda de novo que eu respondo normal.';
 }
 
 // Carrega o system prompt
@@ -421,6 +447,13 @@ async function gerarRespostaContextual(guildId, canalId, usuarioId, botUserId, m
     tools = await toolLoader.getOpenAITools();
   }
 
+  // Some vision models may emit tool payload as plain text instead of structured tool_calls.
+  const disableToolsOnVision = config.settings?.disableToolsOnVision !== false;
+  if (imageUrl && disableToolsOnVision && tools.length > 0) {
+    console.warn('[OAI][TOOLS][WARN] Ferramentas desativadas para mensagem com imagem (proteção contra vazamento de tool call textual).');
+    tools = [];
+  }
+
   // --- TOKENIZER CHECK ---
   const budget = config.settings.budgetTokenLimit || config.settings.maxTokens || 3000;
 
@@ -451,7 +484,14 @@ async function gerarRespostaContextual(guildId, canalId, usuarioId, botUserId, m
     while (toolCalls?.length > 0 && turns < 5) {
       turns++;
       messages.push({ role: 'assistant', tool_calls: toolCalls });
-      const context = { guildId, channel, client: channel?.client || channel?.guild?.client };
+      const context = {
+        source: 'chat',
+        guildId,
+        userId: usuarioId,
+        botUserId,
+        channel,
+        client: channel?.client || channel?.guild?.client
+      };
       const toolResults = await toolLoader.executeToolCalls(toolCalls, context);
 
       for (const res of toolResults) {
@@ -469,6 +509,17 @@ async function gerarRespostaContextual(guildId, canalId, usuarioId, botUserId, m
     }
 
     const parsedTags = tagParser.parseTags(content, { guildId });
+
+    if (looksLikeLeakedToolCall(content) || looksLikeLeakedToolCall(parsedTags.cleanedMessage)) {
+      console.error('[OAI][SAFETY] Resposta bloqueada por conter payload interno de ferramenta.', {
+        guildId,
+        canalId,
+        usuarioId,
+        imageContext: !!imageUrl
+      });
+      return getToolLeakFallbackMessage(!!imageUrl);
+    }
+
     return parsedTags.cleanedMessage || (toolCalls ? '' : 'Erro: Resposta vazia.');
   } catch (error) {
     console.error('[ERRO] Falha na geração de resposta:', error.message);
@@ -522,6 +573,12 @@ async function gerarComentarioViaAPI(conversationText) {
 
     const content = message?.content || '';
     const parsedTags = tagParser.parseTags(content, { guildId: null });
+
+    if (looksLikeLeakedToolCall(content) || looksLikeLeakedToolCall(parsedTags.cleanedMessage)) {
+      console.error('[OAI][SAFETY] Comentário bloqueado por conter payload interno de ferramenta.');
+      return 'Bah, buguei tentando comentar isso 😵‍💫. Manda de novo que eu tento sem quebrar.';
+    }
+
     return parsedTags.cleanedMessage;
   } catch (error) {
     console.error('[ERRO] Não consegui gerar comentário pela API:', error.message);

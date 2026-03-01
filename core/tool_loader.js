@@ -1,12 +1,13 @@
 /*
 ** caminho: core/tool_loader.js
-** últimaMod: 2026-02-01
+** últimaMod: 2026-03-01
 ** autor: Vico
 ** colaboração: Roo
 */
 
 const fs = require('fs');
 const path = require('path');
+const config = require('../config.json');
 const mcpClient = require('./mcp_client');
 
 // Cache para ferramentas carregadas
@@ -212,6 +213,310 @@ async function getTool(toolName) {
   return null;
 }
 
+function isValidDiscordId(id) {
+  return typeof id === 'string' && /^\d{17,19}$/.test(id);
+}
+
+function normalizeString(value) {
+  if (typeof value !== 'string') {
+    return '';
+  }
+
+  return value.trim();
+}
+
+function normalizeStringArray(values, maxItems = 30, maxLength = 280) {
+  if (!Array.isArray(values)) {
+    return [];
+  }
+
+  const normalized = [];
+  for (const value of values) {
+    if (typeof value !== 'string') {
+      continue;
+    }
+
+    const trimmed = value.trim();
+    if (!trimmed) {
+      continue;
+    }
+
+    normalized.push(trimmed.slice(0, maxLength));
+    if (normalized.length >= maxItems) {
+      break;
+    }
+  }
+
+  return normalized;
+}
+
+function isMemoryStrictModeEnabled() {
+  return config.settings?.memoryStrictMode !== false;
+}
+
+function getAllowedContextEntityIds(context = {}) {
+  const ids = new Set();
+
+  const userId = normalizeString(String(context.userId || ''));
+  const guildId = normalizeString(String(context.guildId || ''));
+
+  if (isValidDiscordId(userId)) {
+    ids.add(userId);
+  }
+
+  if (isValidDiscordId(guildId)) {
+    ids.add(guildId);
+  }
+
+  return ids;
+}
+
+function sanitizeMemoryToolArgs(toolName, args, context = {}) {
+  const safeArgs = args && typeof args === 'object' ? args : {};
+  const allowedEntityTypes = new Set(['user', 'guild']);
+  const allowedContextIds = getAllowedContextEntityIds(context);
+  const enforceContextScope = context?.source === 'chat' && allowedContextIds.size > 0;
+
+  const isScopedEntityAllowed = (id) => {
+    if (!isValidDiscordId(id)) {
+      return false;
+    }
+
+    if (enforceContextScope && !allowedContextIds.has(id)) {
+      return false;
+    }
+
+    return true;
+  };
+
+  if (toolName === 'create_entities') {
+    const entities = Array.isArray(safeArgs.entities) ? safeArgs.entities : [];
+    const filtered = [];
+
+    for (const entity of entities) {
+      const name = normalizeString(entity?.name);
+      const entityType = normalizeString(entity?.entityType).toLowerCase();
+
+      if (!isScopedEntityAllowed(name)) {
+        continue;
+      }
+
+      if (!allowedEntityTypes.has(entityType)) {
+        continue;
+      }
+
+      const observations = normalizeStringArray(entity?.observations, 30, 280);
+      filtered.push({
+        name,
+        entityType,
+        observations
+      });
+    }
+
+    if (filtered.length === 0) {
+      return {
+        allowed: false,
+        reason: 'Nenhuma entidade valida para memoria (apenas user/guild com ID do Discord).'
+      };
+    }
+
+    return {
+      allowed: true,
+      args: { entities: filtered }
+    };
+  }
+
+  if (toolName === 'add_observations') {
+    const observations = Array.isArray(safeArgs.observations) ? safeArgs.observations : [];
+    const filtered = [];
+
+    for (const item of observations) {
+      const entityName = normalizeString(item?.entityName);
+      if (!isScopedEntityAllowed(entityName)) {
+        continue;
+      }
+
+      const contents = normalizeStringArray(item?.contents, 30, 280);
+      if (contents.length === 0) {
+        continue;
+      }
+
+      filtered.push({
+        entityName,
+        contents
+      });
+    }
+
+    if (filtered.length === 0) {
+      return {
+        allowed: false,
+        reason: 'Nenhuma observacao valida para memoria (escopo restrito a user/guild).'
+      };
+    }
+
+    return {
+      allowed: true,
+      args: { observations: filtered }
+    };
+  }
+
+  if (toolName === 'create_relations' || toolName === 'delete_relations') {
+    const relations = Array.isArray(safeArgs.relations) ? safeArgs.relations : [];
+    const filtered = [];
+
+    const scopedUserId = isValidDiscordId(normalizeString(String(context.userId || ''))) ? String(context.userId) : null;
+    const scopedGuildId = isValidDiscordId(normalizeString(String(context.guildId || ''))) ? String(context.guildId) : null;
+
+    for (const relation of relations) {
+      const from = normalizeString(relation?.from);
+      const to = normalizeString(relation?.to);
+      const relationType = normalizeString(relation?.relationType).toLowerCase();
+
+      if (relationType !== 'member_of') {
+        continue;
+      }
+
+      if (!isScopedEntityAllowed(from) || !isScopedEntityAllowed(to)) {
+        continue;
+      }
+
+      if (enforceContextScope && scopedUserId && scopedGuildId) {
+        if (!(from === scopedUserId && to === scopedGuildId)) {
+          continue;
+        }
+      }
+
+      filtered.push({
+        from,
+        to,
+        relationType: 'member_of'
+      });
+    }
+
+    if (filtered.length === 0) {
+      return {
+        allowed: false,
+        reason: 'Nenhuma relacao valida para memoria (apenas member_of user->guild).'
+      };
+    }
+
+    return {
+      allowed: true,
+      args: { relations: filtered }
+    };
+  }
+
+  if (toolName === 'delete_observations') {
+    const deletions = Array.isArray(safeArgs.deletions) ? safeArgs.deletions : [];
+    const filtered = [];
+
+    for (const deletion of deletions) {
+      const entityName = normalizeString(deletion?.entityName);
+      if (!isScopedEntityAllowed(entityName)) {
+        continue;
+      }
+
+      const observations = normalizeStringArray(deletion?.observations, 30, 280);
+      if (observations.length === 0) {
+        continue;
+      }
+
+      filtered.push({
+        entityName,
+        observations
+      });
+    }
+
+    if (filtered.length === 0) {
+      return {
+        allowed: false,
+        reason: 'Nenhuma delecao de observacao valida para memoria.'
+      };
+    }
+
+    return {
+      allowed: true,
+      args: { deletions: filtered }
+    };
+  }
+
+  if (toolName === 'delete_entities') {
+    const entityNames = normalizeStringArray(
+      Array.isArray(safeArgs.entityNames)
+        ? safeArgs.entityNames
+        : (Array.isArray(safeArgs.names) ? safeArgs.names : []),
+      50,
+      30
+    ).filter(isScopedEntityAllowed);
+
+    if (entityNames.length === 0) {
+      return {
+        allowed: false,
+        reason: 'Nenhuma entidade valida para remocao.'
+      };
+    }
+
+    return {
+      allowed: true,
+      args: { entityNames }
+    };
+  }
+
+  if (toolName === 'open_nodes') {
+    const requestedNames = normalizeStringArray(
+      Array.isArray(safeArgs.names) ? safeArgs.names : [],
+      50,
+      30
+    );
+
+    let names = requestedNames.filter(isScopedEntityAllowed);
+
+    if (names.length === 0 && enforceContextScope) {
+      names = Array.from(allowedContextIds);
+    }
+
+    if (names.length === 0) {
+      return {
+        allowed: false,
+        reason: 'Nenhum node valido para leitura.'
+      };
+    }
+
+    return {
+      allowed: true,
+      args: { names }
+    };
+  }
+
+  if (toolName === 'read_graph' && enforceContextScope) {
+    return {
+      allowed: false,
+      reason: 'read_graph bloqueado no modo estrito de memoria durante conversa.'
+    };
+  }
+
+  if (toolName === 'search_nodes') {
+    const query = normalizeString(safeArgs.query).slice(0, 300);
+
+    if (!query) {
+      return {
+        allowed: false,
+        reason: 'Query invalida para search_nodes.'
+      };
+    }
+
+    return {
+      allowed: true,
+      args: { query }
+    };
+  }
+
+  return {
+    allowed: true,
+    args: safeArgs
+  };
+}
+
 /**
  * Executa uma ferramenta específica
  * @param {string} toolName - Nome da ferramenta
@@ -233,7 +538,7 @@ async function executeTool(toolName, args, context = {}) {
 
   // Check if it's an MCP tool
   if (tool._mcpServer) {
-    return await executeMCPTool(toolName, args, tool._mcpServer);
+    return await executeMCPTool(toolName, args, tool._mcpServer, context);
   }
 
   // Check if it's a custom tool with handler
@@ -285,7 +590,7 @@ async function executeTool(toolName, args, context = {}) {
  * @param {string} serverName - Name of the MCP server
  * @returns {Promise<Object>} Result of the tool execution
  */
-async function executeMCPTool(toolName, args, serverName) {
+async function executeMCPTool(toolName, args, serverName, context = {}) {
   const server = mcpServers.get(serverName);
 
   if (!server) {
@@ -298,8 +603,25 @@ async function executeMCPTool(toolName, args, serverName) {
   }
 
   try {
+    let effectiveArgs = args;
+
+    if (serverName === 'memory' && isMemoryStrictModeEnabled()) {
+      const sanitization = sanitizeMemoryToolArgs(toolName, args, context);
+
+      if (!sanitization.allowed) {
+        const error = `Tool '${toolName}' bloqueada pelo modo estrito de memoria: ${sanitization.reason}`;
+        console.warn(`[TOOL_LOADER][WARN] ${error}`);
+        return {
+          success: false,
+          error: error
+        };
+      }
+
+      effectiveArgs = sanitization.args;
+    }
+
     // Call the MCP tool
-    const result = await mcpClient.callTool(server, toolName, args);
+    const result = await mcpClient.callTool(server, toolName, effectiveArgs);
 
     // Return consistent format
     return {

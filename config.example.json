@@ -18,7 +18,9 @@
     "historyLimit": 6,
     "historyMaxAge": 60,
     "budgetTokenLimit": 3000,
-    "rate_limit_ms": 5000
+    "rate_limit_ms": 5000,
+    "disableToolsOnVision": true,
+    "memoryStrictMode": true
   },
   "tools": {
     "enabled": true,
