@@ -1,12 +1,18 @@
 /*
 ** caminho: commands/trigger.js
-** últimaMod: 2026-03-01 03:55
+** últimaMod: 2026-03-02 19:05
 ** autor: Vico
-** colaboração: Roo Sonic (xai/grok-code-fast-1)
+** colaboração: Roo Sonic (xai/grok-code-fast-1), OpenAI Codex
 */
 
 const { SlashCommandBuilder, PermissionsBitField, MessageFlags } = require('discord.js');
 const oai_interface = require('../core/oai_interface');
+const {
+  isUnknownInteraction,
+  safeDeferReply,
+  safeEditReply,
+  safeReply
+} = require('../core/discord_interaction');
 
 function splitText(text, maxLength = 2000) {
   if (typeof text !== 'string') return [];
@@ -50,11 +56,11 @@ module.exports = {
     .setDefaultMemberPermissions(PermissionsBitField.Flags.ManageGuild),
 
   async execute(interaction) {
-    await interaction.deferReply({ flags: [MessageFlags.Ephemeral] });
-
     const prompt = interaction.options.getString('prompt');
 
     try {
+      await safeDeferReply(interaction, { flags: MessageFlags.Ephemeral });
+
       const prefixedPrompt = '[trigger] ' + prompt;
 
       const response = await oai_interface.gerarRespostaContextual(
@@ -80,10 +86,26 @@ module.exports = {
         }
       }
 
-      await interaction.editReply({ content: 'Trigger enviado com sucesso.', flags: [MessageFlags.Ephemeral] });
+      await safeEditReply(interaction, { content: 'Trigger enviado com sucesso.' });
     } catch (error) {
       console.error('[TRIGGER][ERROR] Erro ao processar trigger:', error);
-      await interaction.editReply({ content: 'Erro ao processar o trigger.', flags: [MessageFlags.Ephemeral] });
+
+      if (isUnknownInteraction(error)) {
+        console.warn('[TRIGGER][WARN] Interação expirou antes da resposta final (code 10062).');
+        return;
+      }
+
+      const payload = { content: 'Erro ao processar o trigger.' };
+
+      try {
+        if (interaction.deferred || interaction.replied) {
+          await safeEditReply(interaction, payload);
+        } else {
+          await safeReply(interaction, { ...payload, flags: MessageFlags.Ephemeral });
+        }
+      } catch (replyError) {
+        console.error('[TRIGGER][ERROR] Falha ao enviar mensagem de erro:', replyError);
+      }
     }
   }
 };

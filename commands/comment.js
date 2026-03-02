@@ -1,8 +1,8 @@
 /*
 ** caminho: commands/comment.js
-** últimaMod: 2025-08-27 00:52
+** últimaMod: 2026-03-02 19:05
 ** autor: Vico
-** colaboração: Roo Sonic
+** colaboração: Roo Sonic, OpenAI Codex
 */
 
 /*
@@ -18,6 +18,12 @@ const {
 const database = require('../core/database');
 const oaiInterface = require('../core/oai_interface');
 const config = require('../config.json');
+const {
+  isUnknownInteraction,
+  safeDeferReply,
+  safeEditReply,
+  safeReply
+} = require('../core/discord_interaction');
 
 module.exports = {
   data: new SlashCommandBuilder()
@@ -37,10 +43,6 @@ module.exports = {
   async execute(interaction) {
     console.log('[COMMENT][START] Comando iniciado com parâmetros from/to');
 
-    // Acknowledge the interaction immediately to prevent timeout
-    await interaction.deferReply();
-    console.log('[COMMENT][DEFER] Interação reconhecida, processando em segundo plano');
-
     const from = interaction.options.getInteger('from');
     const to = interaction.options.getInteger('to');
     const channel = interaction.channel;
@@ -48,19 +50,22 @@ module.exports = {
 
     console.log(`[COMMENT][PARAMS] from=${from}, to=${to}, channel=${channel?.id}, guild=${guild?.id}`);
 
-    /* --- VALIDAÇÃO DE PARÂMETROS --- */
-    if (to < from) {
-      console.log('[COMMENT][VALIDATION] Parâmetros inválidos: to < from');
-      return interaction.editReply({
-        content: '❌ O valor de `to` deve ser maior ou igual a `from`.'
-      });
-    }
-
-    const limit = to - from + 1;
-    const offset = from - 1;
-    console.log(`[COMMENT][CALC] limit=${limit}, offset=${offset}`);
-
     try {
+      await safeDeferReply(interaction);
+      console.log('[COMMENT][DEFER] Interação reconhecida, processando em segundo plano');
+
+      /* --- VALIDAÇÃO DE PARÂMETROS --- */
+      if (to < from) {
+        console.log('[COMMENT][VALIDATION] Parâmetros inválidos: to < from');
+        return safeEditReply(interaction, {
+          content: '❌ O valor de `to` deve ser maior ou igual a `from`.'
+        });
+      }
+
+      const limit = to - from + 1;
+      const offset = from - 1;
+      console.log(`[COMMENT][CALC] limit=${limit}, offset=${offset}`);
+
       /* --- BUSCAR HISTÓRICO DE MENSAGENS POR INTERVALO --- */
       console.log('[COMMENT][DB] Buscando histórico no banco de dados...');
       const messageHistory = database.buscarHistoricoCanalRange(guild.id, channel.id, limit, offset);
@@ -68,7 +73,7 @@ module.exports = {
 
       if (messageHistory.length === 0) {
         console.log('[COMMENT][DB] Nenhum histórico encontrado');
-        return interaction.editReply({
+        return safeEditReply(interaction, {
           content: '❌ Não há mensagens suficientes no histórico deste canal.'
         });
       }
@@ -103,7 +108,7 @@ module.exports = {
 
       if (messages.length === 0) {
         console.log('[COMMENT][FETCH] Nenhuma mensagem válida encontrada');
-        return interaction.editReply({
+        return safeEditReply(interaction, {
           content: '❌ Não há mensagens de usuários no histórico (apenas bots).'
         });
       }
@@ -134,7 +139,7 @@ module.exports = {
 
       if (conversationText.length > maxChars) {
         console.log('[COMMENT][LIMIT] Texto muito longo, rejeitando');
-        return interaction.editReply({
+        return safeEditReply(interaction, {
           content: `❌ Conversa muito longa (${conversationText.length} caracteres, máximo ${maxChars}). Reduza o número de mensagens.`
         });
       }
@@ -148,17 +153,32 @@ module.exports = {
 
       /* --- RESPONDER NO CANAL --- */
       console.log('[COMMENT][REPLY] Enviando resposta...');
-      await interaction.editReply(comment);
+      await safeEditReply(interaction, comment);
       console.log('[COMMENT][SUCCESS] Comando executado com sucesso');
 
     } catch (error) {
+      if (isUnknownInteraction(error)) {
+        console.warn('[COMMENT][WARN] Interação expirou antes da resposta final (code 10062).');
+        return;
+      }
+
       console.error('[COMMENT][ERROR] Erro ao executar comando:', error);
       console.error('[COMMENT][ERROR] Stack trace:', error.stack);
 
       console.log('[COMMENT][ERROR] Enviando resposta de erro...');
-      await interaction.editReply({
+      const payload = {
         content: '❌ Ocorreu um erro ao gerar o comentário. Tente novamente.'
-      });
+      };
+
+      try {
+        if (interaction.deferred || interaction.replied) {
+          await safeEditReply(interaction, payload);
+        } else {
+          await safeReply(interaction, { ...payload, flags: MessageFlags.Ephemeral });
+        }
+      } catch (replyError) {
+        console.error('[COMMENT][ERROR] Falha ao enviar mensagem de erro:', replyError);
+      }
     }
   },
 };

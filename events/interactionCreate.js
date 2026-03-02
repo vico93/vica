@@ -1,8 +1,8 @@
 /*
 ** caminho: events/interactionCreate.js
-** últimaMod: 2025-10-03 22:07
+** últimaMod: 2026-03-02 19:05
 ** autor: Vico
-** colaboração: Grok Code (Fast)
+** colaboração: Grok Code (Fast), OpenAI Codex
 */
 
 /*
@@ -17,6 +17,11 @@
 
 const { MessageFlags } = require('discord.js');
 const database = require('../core/database');
+const {
+  isUnknownInteraction,
+  safeFollowUp,
+  safeReply
+} = require('../core/discord_interaction');
 
 module.exports = {
   name: 'interactionCreate',
@@ -33,17 +38,27 @@ module.exports = {
       try {
         await command.execute(interaction);
       } catch (error) {
+        if (isUnknownInteraction(error)) {
+          console.warn(`[VICA][CMD][WARN] Interação expirada ao executar "${interaction.commandName}" (code 10062).`);
+          return;
+        }
+
         console.error(`[VICA][CMD] Erro ao executar "${interaction.commandName}":`, error);
 
-        const payload = { content: 'Ocorreu um erro ao executar este comando! 😢', flags: [MessageFlags.Ephemeral] };
+        const payload = { content: 'Ocorreu um erro ao executar este comando! 😢', flags: MessageFlags.Ephemeral };
 
         try {
           if (interaction.replied || interaction.deferred) {
-            await interaction.followUp(payload);
+            await safeFollowUp(interaction, payload);
           } else {
-            await interaction.reply(payload);
+            await safeReply(interaction, payload);
           }
         } catch (replyError) {
+          if (isUnknownInteraction(replyError)) {
+            console.warn(`[VICA][CMD][WARN] Não foi possível enviar erro para "${interaction.commandName}" porque a interação expirou.`);
+            return;
+          }
+
           console.error('[VICA][CMD] Falha crítica ao enviar mensagem de erro:', replyError);
         }
       }
@@ -87,17 +102,27 @@ module.exports = {
           });
         }
       } catch (error) {
+        if (isUnknownInteraction(error)) {
+          console.warn(`[VICA][MODAL][WARN] Interação modal expirada "${interaction.customId}" (code 10062).`);
+          return;
+        }
+
         console.error(`[VICA][MODAL] Erro ao processar modal "${interaction.customId}":`, error);
 
-        const payload = { content: 'Ocorreu um erro ao processar a interação! 😢', flags: [MessageFlags.Ephemeral] };
+        const payload = { content: 'Ocorreu um erro ao processar a interação! 😢', flags: MessageFlags.Ephemeral };
 
         try {
           if (interaction.replied || interaction.deferred) {
-            await interaction.followUp(payload);
+            await safeFollowUp(interaction, payload);
           } else {
-            await interaction.reply(payload);
+            await safeReply(interaction, payload);
           }
         } catch (replyError) {
+          if (isUnknownInteraction(replyError)) {
+            console.warn(`[VICA][MODAL][WARN] Não foi possível enviar erro para modal "${interaction.customId}" porque a interação expirou.`);
+            return;
+          }
+
           console.error('[VICA][MODAL] Falha crítica ao enviar mensagem de erro:', replyError);
         }
       }
@@ -145,15 +170,25 @@ module.exports = {
         // não fazemos nada aqui para permitir que coletores específicos (nos arquivos de comando)
         // processem a interação.
       } catch (error) {
+        if (isUnknownInteraction(error)) {
+          console.warn(`[VICA][BUTTON][WARN] Interação de botão expirada "${interaction.customId}" (code 10062).`);
+          return;
+        }
+
         console.error(`[VICA][BUTTON] Erro ao processar botão "${interaction.customId}":`, error);
-        const payload = { content: 'Ocorreu um erro ao processar a interação! 😢', flags: [MessageFlags.Ephemeral] };
+        const payload = { content: 'Ocorreu um erro ao processar a interação! 😢', flags: MessageFlags.Ephemeral };
         try {
           if (interaction.replied || interaction.deferred) {
-            await interaction.followUp(payload);
+            await safeFollowUp(interaction, payload);
           } else {
-            await interaction.reply(payload);
+            await safeReply(interaction, payload);
           }
         } catch (replyError) {
+          if (isUnknownInteraction(replyError)) {
+            console.warn(`[VICA][BUTTON][WARN] Não foi possível enviar erro para botão "${interaction.customId}" porque a interação expirou.`);
+            return;
+          }
+
           console.error('[VICA][BUTTON] Falha crítica ao enviar mensagem de erro:', replyError);
         }
       }
