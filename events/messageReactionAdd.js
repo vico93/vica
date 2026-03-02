@@ -52,6 +52,38 @@ function splitText(text, maxLength = 2000) {
   return chunks;
 }
 
+async function getOpenThreadForMessage(message) {
+  if (!message?.hasThread) return null;
+
+  if (message.thread && !message.thread.archived) {
+    return message.thread;
+  }
+
+  try {
+    if (message.channel?.threads?.fetch) {
+      const fetchedThread = await message.channel.threads.fetch(message.id);
+      if (fetchedThread && !fetchedThread.archived) {
+        return fetchedThread;
+      }
+    }
+  } catch {
+    // ignore and fallback below
+  }
+
+  try {
+    if (message.guild?.channels?.fetch) {
+      const fallbackThread = await message.guild.channels.fetch(message.id);
+      if (fallbackThread?.isThread?.() && !fallbackThread.archived) {
+        return fallbackThread;
+      }
+    }
+  } catch {
+    // ignore fallback errors
+  }
+
+  return null;
+}
+
 module.exports = {
   name: 'messageReactionAdd',
   async execute(reaction, user) {
@@ -84,6 +116,10 @@ module.exports = {
       const guildId = message.guild.id;
       const canalId = message.channel.id;
       const usuarioId = message.author.id;
+
+      const openThread = await getOpenThreadForMessage(message);
+      const responseChannel = openThread || message.channel;
+      const responseChannelId = responseChannel.id;
 
       // Respeita blacklist
       if (database.chatbotCanalNaBlacklist(guildId, canalId)) return;
@@ -123,28 +159,36 @@ module.exports = {
       if (reactionEmojis.some(emoji => emoji.reaction_emoji_id === reaction.emoji.id)) {
         console.log(`[VICA][REACTION] Gatilho por ${user.tag} na msg de ${message.author.tag}`);
 
-        await message.channel.sendTyping();
+        await responseChannel.sendTyping();
 
         const resposta = await oai.gerarRespostaContextual(
-          guildId, canalId, usuarioId, message.client.user.id, prompt, imageUrl, message.channel, message.id, usuarioId
+          guildId, responseChannelId, usuarioId, message.client.user.id, prompt, imageUrl, responseChannel, message.id, usuarioId
         );
 
         const chunks = splitText(resposta).filter(chunk => typeof chunk === 'string' && chunk.trim().length > 0);
         if (chunks.length === 0) {
           console.warn('[VICA][REACTION][WARN] IA retornou resposta vazia após sanitização. Enviando fallback.');
-          await message.reply({
-            content: 'Bah, dei uma travada e não consegui montar a resposta 😵‍💫. Tenta de novo em seguida.',
-            failIfNotExists: false
-          });
+          if (responseChannel.id === message.channel.id) {
+            await message.reply({
+              content: 'Bah, dei uma travada e não consegui montar a resposta 😵‍💫. Tenta de novo em seguida.',
+              failIfNotExists: false
+            });
+          } else {
+            await responseChannel.send('Bah, dei uma travada e não consegui montar a resposta 😵‍💫. Tenta de novo em seguida.');
+          }
           return;
         }
 
         if (chunks.length > 1) {
           console.log('[VICA][REACTION][INFO] Response length > 2000, splitting into ' + chunks.length + ' chunks');
         }
-        await message.reply({ content: chunks[0], failIfNotExists: false });
+        if (responseChannel.id === message.channel.id) {
+          await message.reply({ content: chunks[0], failIfNotExists: false });
+        } else {
+          await responseChannel.send(chunks[0]);
+        }
         for (let i = 1; i < chunks.length; i++) {
-          await message.channel.send(chunks[i]);
+          await responseChannel.send(chunks[i]);
         }
 
         // Remove reação para evitar spam

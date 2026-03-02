@@ -70,6 +70,38 @@ function getFirstAttachmentByPredicate(message, predicate) {
   return null;
 }
 
+async function getOpenThreadForMessage(message) {
+  if (!message?.hasThread) return null;
+
+  if (message.thread && !message.thread.archived) {
+    return message.thread;
+  }
+
+  try {
+    if (message.channel?.threads?.fetch) {
+      const fetchedThread = await message.channel.threads.fetch(message.id);
+      if (fetchedThread && !fetchedThread.archived) {
+        return fetchedThread;
+      }
+    }
+  } catch {
+    // ignore and fallback below
+  }
+
+  try {
+    if (message.guild?.channels?.fetch) {
+      const fallbackThread = await message.guild.channels.fetch(message.id);
+      if (fallbackThread?.isThread?.() && !fallbackThread.archived) {
+        return fallbackThread;
+      }
+    }
+  } catch {
+    // ignore fallback errors
+  }
+
+  return null;
+}
+
 /* ----------------------------------------------------------
     Calcula XP baseado no texto limpo
  ---------------------------------------------------------- */
@@ -206,8 +238,17 @@ module.exports = {
 
     if (!mencionadoDireto && !respondeuBot) return;
 
+    let responseChannel = message.channel;
+    if (repliedMsg && !message.channel.isThread?.()) {
+      const openThread = await getOpenThreadForMessage(repliedMsg);
+      if (openThread) {
+        responseChannel = openThread;
+      }
+    }
+    const responseChannelId = responseChannel.id;
+
     try {
-      await message.channel.sendTyping();
+      await responseChannel.sendTyping();
 
       // Buscar contexto da mensagem respondida se for resposta ao bot
       let repliedContext = '';
@@ -262,32 +303,44 @@ module.exports = {
       if (!prompt) return;
 
       const resposta = await oai.gerarRespostaContextual(
-        guildId, canalId, usuarioId, message.client.user.id, prompt, imageUrl, message.channel, message.id, usuarioId
+        guildId, responseChannelId, usuarioId, message.client.user.id, prompt, imageUrl, responseChannel, message.id, usuarioId
       );
 
       const chunks = splitText(resposta).filter(chunk => typeof chunk === 'string' && chunk.trim().length > 0);
       if (chunks.length === 0) {
         console.warn('[VICA][CHATBOT][WARN] IA retornou resposta vazia após sanitização. Enviando fallback.');
-        await message.reply({
-          content: 'Bah, dei uma travada e não consegui montar a resposta 😵‍💫. Tenta de novo em seguida.',
-          failIfNotExists: false
-        });
+        if (responseChannel.id === message.channel.id) {
+          await message.reply({
+            content: 'Bah, dei uma travada e não consegui montar a resposta 😵‍💫. Tenta de novo em seguida.',
+            failIfNotExists: false
+          });
+        } else {
+          await responseChannel.send('Bah, dei uma travada e não consegui montar a resposta 😵‍💫. Tenta de novo em seguida.');
+        }
         return;
       }
 
       if (chunks.length > 1) {
         console.log('[VICA][CHATBOT][INFO] Response length > 2000, splitting into ' + chunks.length + ' chunks');
       }
-      await message.reply({ content: chunks[0], failIfNotExists: false });
+      if (responseChannel.id === message.channel.id) {
+        await message.reply({ content: chunks[0], failIfNotExists: false });
+      } else {
+        await responseChannel.send(chunks[0]);
+      }
       for (let i = 1; i < chunks.length; i++) {
-        await message.channel.send(chunks[i]);
+        await responseChannel.send(chunks[i]);
       }
     } catch (err) {
       console.error('[VICA][CHATBOT] Falha ao responder:', err);
-      await message.reply({
-        content: 'Deu um tilt aqui nos meus circuitos, não consegui processar sua mensagem. 😢',
-        failIfNotExists: false
-      });
+      if (responseChannel.id === message.channel.id) {
+        await message.reply({
+          content: 'Deu um tilt aqui nos meus circuitos, não consegui processar sua mensagem. 😢',
+          failIfNotExists: false
+        });
+      } else {
+        await responseChannel.send('Deu um tilt aqui nos meus circuitos, não consegui processar sua mensagem. 😢');
+      }
     }
   }
 };
