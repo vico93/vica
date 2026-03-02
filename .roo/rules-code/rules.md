@@ -6,6 +6,15 @@ If there are modified files by yourself or other personas, it's needed to commit
 
 Afterwards, to connect with the Raspberry Pi you need to use SSH. The bot is stored in a specific directory on the server. `git` is present in the system as well, and you can check its logs using `journalctl`.
 
+## Vibe Check Reflection Policy
+
+When the `vibe_check` tool is available, it must be used for reflection before major actions.
+
+1. Call `vibe_check` after planning and before significant code/config changes.
+2. Pass the full user request and relevant context (current plan, assumptions, and risks).
+3. After fixing an identified mistake, optionally record the resolved issue with `vibe_learn`.
+4. If `vibe_check` is temporarily unavailable, continue with explicit self-review and log the limitation.
+
 ---
 
 ## Project Overview (January 2026)

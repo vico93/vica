@@ -448,6 +448,15 @@ This will:
 4. **Monitor server health**: Check logs for MCP server errors
 5. **Handle failures gracefully**: Implement fallback logic when MCP tools fail
 
+### Vibe Check Reflection Policy
+
+When the `vibe_check` tool is available, it must be used for reflection before major actions.
+
+1. Call `vibe_check` after planning and before significant code/config changes
+2. Pass the full user request and relevant context (current plan, assumptions, and risks)
+3. After fixing an identified mistake, optionally record the resolved issue with `vibe_learn`
+4. If `vibe_check` is temporarily unavailable, continue with explicit self-review and log the limitation
+
 ---
 
 ## Code Style Guidelines
