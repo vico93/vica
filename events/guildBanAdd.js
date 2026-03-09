@@ -91,7 +91,10 @@ module.exports = {
             bannedUser.id,
             userName,
             'ban',
-            messageConfig.message
+            messageConfig.message,
+            null,
+            null,
+            banReason
           );
           console.log('[GUILDBANADD][DEBUG] AI message generated successfully');
         } catch (error) {

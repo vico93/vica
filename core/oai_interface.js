@@ -313,7 +313,7 @@ async function gerarParabensCargoViaAPI(guildId, userId, promptUsuario, roleName
   }
 }
 
-async function gerarMensagemBemVindoViaAPI(guildId, userId, userName, messageType, prompt, roleName = null, roleMention = null) {
+async function gerarMensagemBemVindoViaAPI(guildId, userId, userName, messageType, prompt, roleName = null, roleMention = null, reason = null) {
   const messageTypeMapping = {
     'welcome': 'welcome', 'leave': 'leave', 'kick': 'kick', 'ban': 'ban', 'up_role': 'up_role'
   };
@@ -326,9 +326,19 @@ async function gerarMensagemBemVindoViaAPI(guildId, userId, userName, messageTyp
     messages.push({ role: 'system', content: systemPrompt });
   }
 
+  let promptContent = prompt
+    .replace(/\{@USER\}/g, `<@${userId}>`)
+    .replace(/\{USER\}/g, userName)
+    .replace(/\{ROLE\}/g, roleName || '')
+    .replace(/\{@ROLE\}/g, roleMention || '');
+
+  if (typeof reason === 'string') {
+    promptContent = promptContent.replace(/\{reason\}/g, reason);
+  }
+
   messages.push({
     role: 'user',
-    content: `[${tag}]` + prompt.replace(/\{@USER\}/g, `<@${userId}>`).replace(/\{USER\}/g, userName).replace(/\{ROLE\}/g, roleName || '').replace(/\{@ROLE\}/g, roleMention || ''),
+    content: `[${tag}]${promptContent}`,
   });
 
   try {

@@ -165,12 +165,16 @@ module.exports = {
         if (messageConfig.isPrompt) {
           console.log('[GUILDMEMBERREMOVE][DEBUG] Generating AI message...');
           try {
+            const moderationReason = messageType === 'kick' ? kickReason : messageType === 'ban' ? banReason : null;
             finalMessage = await oai_interface.gerarMensagemBemVindoViaAPI(
               member.guild.id,
               member.id,
               member.user.username,
               messageType,
-              messageConfig.message
+              messageConfig.message,
+              null,
+              null,
+              moderationReason
             );
             console.log('[GUILDMEMBERREMOVE][DEBUG] AI message generated successfully');
           } catch (error) {
