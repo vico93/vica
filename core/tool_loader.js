@@ -1,8 +1,8 @@
 /*
 ** caminho: core/tool_loader.js
-** últimaMod: 2026-03-01
+** últimaMod: 2026-03-09
 ** autor: Vico
-** colaboração: Roo
+** colaboração: Roo, ChatGPT (GPT-5)
 */
 
 const fs = require('fs');
@@ -223,6 +223,66 @@ function normalizeString(value) {
   }
 
   return value.trim();
+}
+
+function containsToolPayloadMarkup(value) {
+  if (typeof value !== 'string') {
+    return false;
+  }
+
+  return /<\/?\s*(arg_key|arg_value|tool_call)\s*>/i.test(value);
+}
+
+function sanitizeToolName(toolName) {
+  if (typeof toolName !== 'string') {
+    return '';
+  }
+
+  const trimmed = toolName.trim();
+  if (!trimmed) {
+    return '';
+  }
+
+  if (/^[a-zA-Z0-9_-]{1,80}$/.test(trimmed)) {
+    return trimmed;
+  }
+
+  const firstToken = trimmed.match(/[a-zA-Z][a-zA-Z0-9_-]{0,79}/);
+  return firstToken ? firstToken[0] : '';
+}
+
+function isMalformedToolName(rawToolName, normalizedToolName) {
+  if (typeof rawToolName !== 'string') {
+    return true;
+  }
+
+  const trimmed = rawToolName.trim();
+  if (!trimmed || !normalizedToolName) {
+    return true;
+  }
+
+  if (containsToolPayloadMarkup(trimmed)) {
+    return true;
+  }
+
+  return /[<>{}]/.test(trimmed);
+}
+
+function truncateForLog(value, maxLength = 140) {
+  if (typeof value !== 'string') {
+    return '[valor_invalido]';
+  }
+
+  const normalized = value.replace(/\s+/g, ' ').trim();
+  if (!normalized) {
+    return '[vazio]';
+  }
+
+  if (normalized.length <= maxLength) {
+    return normalized;
+  }
+
+  return `${normalized.slice(0, maxLength - 3)}...`;
 }
 
 function normalizeStringArray(values, maxItems = 30, maxLength = 280) {
@@ -525,10 +585,22 @@ function sanitizeMemoryToolArgs(toolName, args, context = {}) {
  * @returns {Promise<Object>} Resultado da execução da ferramenta
  */
 async function executeTool(toolName, args, context = {}) {
-  const tool = await getTool(toolName);
+  const normalizedToolName = sanitizeToolName(toolName);
+
+  if (isMalformedToolName(toolName, normalizedToolName)) {
+    const safeName = truncateForLog(toolName);
+    const error = `Nome de ferramenta invalido recebido do modelo: '${safeName}'`;
+    console.error(`[TOOL_LOADER][ERRO] ${error}`);
+    return {
+      success: false,
+      error: 'Nome de ferramenta invalido recebido do modelo.'
+    };
+  }
+
+  const tool = await getTool(normalizedToolName);
 
   if (!tool) {
-    const error = `Ferramenta '${toolName}' não encontrada`;
+    const error = `Ferramenta '${normalizedToolName}' não encontrada`;
     console.error(`[TOOL_LOADER][ERRO] ${error}`);
     return {
       success: false,
@@ -538,12 +610,12 @@ async function executeTool(toolName, args, context = {}) {
 
   // Check if it's an MCP tool
   if (tool._mcpServer) {
-    return await executeMCPTool(toolName, args, tool._mcpServer, context);
+    return await executeMCPTool(normalizedToolName, args, tool._mcpServer, context);
   }
 
   // Check if it's a custom tool with handler
   if (!tool.handler) {
-    const error = `Ferramenta '${toolName}' não possui handler definido`;
+    const error = `Ferramenta '${normalizedToolName}' não possui handler definido`;
     console.error(`[TOOL_LOADER][ERRO] ${error}`);
     return {
       success: false,
@@ -559,7 +631,7 @@ async function executeTool(toolName, args, context = {}) {
     const handler = require(handlerPath);
 
     if (typeof handler.execute !== 'function') {
-      const error = `Handler da ferramenta '${toolName}' não possui função execute`;
+      const error = `Handler da ferramenta '${normalizedToolName}' não possui função execute`;
       console.error(`[TOOL_LOADER][ERRO] ${error}`);
       return {
         success: false,
@@ -575,7 +647,7 @@ async function executeTool(toolName, args, context = {}) {
       result: result
     };
   } catch (error) {
-    console.error(`[TOOL_LOADER][ERRO] Erro ao executar ferramenta '${toolName}':`, error.message);
+    console.error(`[TOOL_LOADER][ERRO] Erro ao executar ferramenta '${normalizedToolName}':`, error.message);
     return {
       success: false,
       error: error.message
@@ -653,6 +725,7 @@ async function executeToolCalls(toolCalls, context = {}) {
 
   for (const toolCall of toolCalls) {
     const toolName = toolCall.function?.name;
+    const normalizedToolName = sanitizeToolName(toolName);
     const toolArgs = toolCall.function?.arguments;
 
     if (!toolName) {
@@ -660,11 +733,23 @@ async function executeToolCalls(toolCalls, context = {}) {
       continue;
     }
 
+    if (isMalformedToolName(toolName, normalizedToolName)) {
+      console.error(`[TOOL_LOADER][ERRO] Tool call com nome invalido recebido do modelo: '${truncateForLog(toolName)}'`);
+      results.push({
+        tool_call_id: toolCall.id,
+        result: JSON.stringify({
+          success: false,
+          error: 'Nome de ferramenta invalido recebido do modelo.'
+        })
+      });
+      continue;
+    }
+
     let parsedArgs = {};
     try {
       parsedArgs = typeof toolArgs === 'string' ? JSON.parse(toolArgs) : toolArgs;
     } catch (parseError) {
-      console.error(`[TOOL_LOADER][ERRO] Erro ao fazer parse dos argumentos da ferramenta '${toolName}':`, parseError.message);
+      console.error(`[TOOL_LOADER][ERRO] Erro ao fazer parse dos argumentos da ferramenta '${normalizedToolName}':`, parseError.message);
       results.push({
         tool_call_id: toolCall.id,
         result: JSON.stringify({
@@ -675,7 +760,7 @@ async function executeToolCalls(toolCalls, context = {}) {
       continue;
     }
 
-    const executionResult = await executeTool(toolName, parsedArgs, context);
+    const executionResult = await executeTool(normalizedToolName, parsedArgs, context);
 
     results.push({
       tool_call_id: toolCall.id,
