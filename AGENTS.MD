@@ -452,10 +452,15 @@ This will:
 
 When the `vibe_check` tool is available, it must be used for reflection before major actions.
 
-1. Call `vibe_check` after planning and before significant code/config changes
-2. Pass the full user request and relevant context (current plan, assumptions, and risks)
-3. After fixing an identified mistake, optionally record the resolved issue with `vibe_learn`
-4. If `vibe_check` is temporarily unavailable, continue with explicit self-review and log the limitation
+ALWAYS include the full user prompt in every `vibe_check` call to preserve context awareness.
+
+As an autonomous agent:
+1. Treat `vibe_check` as a high-priority collaborative pattern interrupt for course correction, not as optional output
+2. Use `vibe_check` at strategic points: after planning and before implementation, when complexity increases, and before significant system changes
+3. Always provide the current phase in the call (`planning`, `implementation`, or `review`) for context-appropriate feedback
+4. Adapt the approach based on `vibe_check` feedback unless it is clearly irrelevant; if ignored, document why
+5. Chain `vibe_check` with `vibe_learn` after resolving mistakes to record recurring patterns and successful corrections
+6. If `vibe_check` is temporarily unavailable, continue with explicit self-review and log the limitation
 
 ---
 
@@ -971,6 +976,6 @@ For questions or issues:
 
 ---
 
-**Last Updated**: 2026-02-01
+**Last Updated**: 2026-03-09
 **Maintained By**: Vico
 **Contributors**: AI assistants (Roo, Cursor, etc.)
