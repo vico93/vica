@@ -252,12 +252,22 @@ async function fetchImageAsBase64(url) {
   }
 }
 
-async function buildVisionToolHandoffSummary(mensagemUsuario, imageUrl) {
-  if (!imageUrl) {
+function normalizeVisionImageInput(imageUrl = null, imageDataUrl = null) {
+  if (typeof imageDataUrl === 'string' && imageDataUrl.startsWith('data:image/')) {
+    return imageDataUrl;
+  }
+
+  return imageUrl;
+}
+
+async function buildVisionToolHandoffSummary(mensagemUsuario, imageSource) {
+  if (!imageSource) {
     return '';
   }
 
-  const base64Url = await fetchImageAsBase64(imageUrl);
+  const base64Url = imageSource.startsWith('data:image/')
+    ? imageSource
+    : await fetchImageAsBase64(imageSource);
   if (!base64Url) {
     return '';
   }
@@ -520,7 +530,7 @@ async function gerarMensagemBemVindoViaAPI(guildId, userId, userName, messageTyp
   }
 }
 
-async function gerarRespostaContextual(guildId, canalId, usuarioId, botUserId, mensagemUsuario, imageUrl = null, channel = null, sourceMessageId = null, originalAuthorId = null) {
+async function gerarRespostaContextual(guildId, canalId, usuarioId, botUserId, mensagemUsuario, imageUrl = null, channel = null, sourceMessageId = null, originalAuthorId = null, imageDataUrl = null) {
   // Rate limiting
   const rateLimitMs = config.settings.rate_limit_ms || 5000;
   if (guildId && usuarioId) {
@@ -543,6 +553,7 @@ async function gerarRespostaContextual(guildId, canalId, usuarioId, botUserId, m
     channel,
     sourceMessageId,
     originalAuthorId,
+    imageDataUrl,
     {
       forceVisionToolHandoff: false,
       allowVisionToolRecovery: true
@@ -560,6 +571,7 @@ async function gerarRespostaContextualInternal(
   channel = null,
   sourceMessageId = null,
   originalAuthorId = null,
+  imageDataUrl = null,
   options = {}
 ) {
   const {
@@ -683,22 +695,25 @@ async function gerarRespostaContextualInternal(
     botUserId,
     mensagemUsuario,
     imageUrl,
+    imageDataUrl,
     channel,
     sourceMessageId,
     originalAuthorId
   };
 
+  const visionImageSource = normalizeVisionImageInput(imageUrl, imageDataUrl);
+
   const toolsEnabled = tools.length > 0;
   const useVisionToolHandoff = shouldUseVisionToolHandoff({
-    hasImageContext: !!imageUrl,
+    hasImageContext: !!visionImageSource,
     toolsEnabled,
     forceHandoff: forceVisionToolHandoff
   });
 
-  let activeImageUrl = imageUrl;
+  let activeImageUrl = visionImageSource;
   let usingVisionToolHandoff = false;
   if (useVisionToolHandoff) {
-    const visionHandoffSummary = await buildVisionToolHandoffSummary(mensagemUsuario, imageUrl);
+    const visionHandoffSummary = await buildVisionToolHandoffSummary(mensagemUsuario, visionImageSource);
     if (!visionHandoffSummary) {
       if (forceVisionToolHandoff) {
         console.warn('[OAI][VISION][WARN] Handoff visual falhou durante recuperacao automatica.');
@@ -719,7 +734,7 @@ async function gerarRespostaContextualInternal(
   }
 
   const canRecoverVisionToolFlow = shouldAttemptVisionToolRecovery({
-    hasImageContext: !!imageUrl,
+    hasImageContext: !!visionImageSource,
     toolsEnabled,
     disableToolsOnVision,
     usedVisionToolHandoff: usingVisionToolHandoff,
@@ -729,7 +744,9 @@ async function gerarRespostaContextualInternal(
   // Mensagem atual
   let userContent;
   if (activeImageUrl) {
-    const base64Url = await fetchImageAsBase64(activeImageUrl);
+    const base64Url = activeImageUrl.startsWith('data:image/')
+      ? activeImageUrl
+      : await fetchImageAsBase64(activeImageUrl);
     if (base64Url) {
       userContent = [
         { type: 'text', text: mensagemUsuario },
@@ -824,7 +841,7 @@ async function gerarRespostaContextualInternal(
         guildId,
         canalId,
         usuarioId,
-        imageContext: !!imageUrl
+        imageContext: !!visionImageSource
       });
       if (canRecoverVisionToolFlow) {
         return await retryContextualResponseViaVisionToolHandoff(
@@ -832,7 +849,7 @@ async function gerarRespostaContextualInternal(
           'Payload interno de ferramenta vazou na resposta do modelo com visao'
         );
       }
-      return getToolLeakFallbackMessage(!!imageUrl);
+      return getToolLeakFallbackMessage(!!visionImageSource);
     }
 
     const cleanedMessage = typeof parsedTags.cleanedMessage === 'string'

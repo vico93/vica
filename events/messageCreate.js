@@ -17,6 +17,7 @@
 const oai = require('../core/oai_interface');
 const database = require('../core/database');
 const tagParser = require('../core/tagParser');
+const { isVideoAttachment, extractFirstFrameFromVideo } = require('../helpers/video_frame');
 
 /* ----------------------------------------------------------
    Cooldown local em memória (guildId:userId -> timestamp)
@@ -271,14 +272,21 @@ module.exports = {
 
       let prompt = repliedContext + parsedContent.cleanedMessage.replace(/<@!?\d+>/g, '').trim();
       let imageUrl = null;
+      let imageDataUrl = null;
 
       const userImageAttachment = getFirstAttachmentByPredicate(message, isImageAttachment);
+      const userVideoAttachment = getFirstAttachmentByPredicate(message, isVideoAttachment);
       const userAudioAttachment = getFirstAttachmentByPredicate(message, isAudioAttachment);
 
       let imageTag = null;
       if (userImageAttachment?.url) {
         imageUrl = userImageAttachment.url;
         imageTag = '[imagem]';
+      } else if (userVideoAttachment?.url) {
+        imageDataUrl = await extractFirstFrameFromVideo(userVideoAttachment.url);
+        if (imageDataUrl) {
+          imageTag = '[imagem]';
+        }
       } else if (repliedBotImageUrl) {
         imageUrl = repliedBotImageUrl;
         imageTag = '[imagem_gerada]';
@@ -303,7 +311,7 @@ module.exports = {
       if (!prompt) return;
 
       const resposta = await oai.gerarRespostaContextual(
-        guildId, responseChannelId, usuarioId, message.client.user.id, prompt, imageUrl, responseChannel, message.id, usuarioId
+        guildId, responseChannelId, usuarioId, message.client.user.id, prompt, imageUrl, responseChannel, message.id, usuarioId, imageDataUrl
       );
 
       const chunks = splitText(resposta).filter(chunk => typeof chunk === 'string' && chunk.trim().length > 0);

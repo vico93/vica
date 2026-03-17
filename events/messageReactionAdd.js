@@ -16,6 +16,7 @@
 
 const oai = require('../core/oai_interface');
 const database = require('../core/database');
+const { isVideoAttachment, extractFirstFrameFromVideo } = require('../helpers/video_frame');
 
 /* ----------------------------------------------------------
     Helpers
@@ -130,18 +131,21 @@ module.exports = {
         : message.content;
 
       let imageUrl = null;
+      let imageDataUrl = null;
 
       if (message.attachments.size) {
         const att = message.attachments.first();
         if (att.contentType?.startsWith('image/')) {
           imageUrl = att.url;
+        } else if (isVideoAttachment(att)) {
+          imageDataUrl = await extractFirstFrameFromVideo(att.url);
         } else if (att.contentType?.startsWith('audio/') || att.contentType === 'video/ogg' || att.name.endsWith('.ogg') || att.name.endsWith('.mp3') || att.name.endsWith('.wav')) {
           // Adiciona hint de áudio ao prompt
           prompt = (prompt ? prompt + '\n' : '') + `[Attachment: type=audio, url=${att.url}]`;
         }
       }
 
-      if (imageUrl) {
+      if (imageUrl || imageDataUrl) {
         if (prompt) {
           prompt = '[imagem] ' + prompt;
         } else {
@@ -162,7 +166,7 @@ module.exports = {
         await responseChannel.sendTyping();
 
         const resposta = await oai.gerarRespostaContextual(
-          guildId, responseChannelId, usuarioId, message.client.user.id, prompt, imageUrl, responseChannel, message.id, usuarioId
+          guildId, responseChannelId, usuarioId, message.client.user.id, prompt, imageUrl, responseChannel, message.id, usuarioId, imageDataUrl
         );
 
         const chunks = splitText(resposta).filter(chunk => typeof chunk === 'string' && chunk.trim().length > 0);
