@@ -1,3 +1,11 @@
+/*
+** caminho: helpers/video_frame.js
+** últimaMod: 2026-03-17 18:51
+** autor: Vico
+** colaboração: GPT-5.4
+** modificações: Adição de suporte a múltiplos formatos de vídeo, melhorias na extração do frame usando ffmpeg, tratamento de erros mais robusto e limpeza de arquivos temporários. Conversão para CommonJS.
+*/
+
 const fs = require('fs');
 const path = require('path');
 const https = require('https');
