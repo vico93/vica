@@ -69,33 +69,14 @@ module.exports = {
     if (interaction.isModalSubmit()) {
 
       try {
-        // Routing baseado no padrão do customId
-        if (interaction.customId.startsWith('set_user_memory_modal_') ||
-            interaction.customId.includes('set_multiplier_modal_') ||
+        if (interaction.customId.includes('set_multiplier_modal_') ||
             interaction.customId.includes('set_role_upgrade_modal_') ||
-            interaction.customId.includes('edit_role_upgrade_modal_') ||
-            interaction.customId.includes('add_guild_memory_modal') ||
-            interaction.customId.includes('set_user_xp_modal_')) {
-
-          // Route to config command's modal handler
-          const configCommand = interaction.client.commands.get('config');
-          if (!configCommand) {
-            return interaction.reply({
-              content: '❌ Erro interno: handler de configuração não encontrado.',
-              flags: [MessageFlags.Ephemeral]
-            });
-          }
-
-          if (!configCommand.handleModalSubmit) {
-            return interaction.reply({
-              content: '❌ Erro interno: handler de modal não implementado.',
-              flags: [MessageFlags.Ephemeral]
-            });
-          }
-
-          await configCommand.handleModalSubmit(interaction);
+            interaction.customId.includes('edit_role_upgrade_modal_')) {
+          await interaction.reply({
+            content: '❌ Interação modal não reconhecida. Isso pode indicar uma versão desatualizada.',
+            flags: [MessageFlags.Ephemeral]
+          });
         } else {
-          // Modal não reconhecido
           await interaction.reply({
             content: '❌ Interação não reconhecida. Isso pode indicar uma versão desatualizada.',
             flags: [MessageFlags.Ephemeral]
