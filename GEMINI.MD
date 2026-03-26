@@ -54,14 +54,13 @@ Vica serves as an intelligent Discord assistant that can:
 | Transcriber | [`core/transcriber.js`](core/transcriber.js) | Handles audio/image transcription |
 | Audit Cache | [`core/auditCache.js`](core/auditCache.js) | Caches audit logs for performance |
 
-### Commands (18 Slash Commands)
+### Commands (19 Slash Commands)
 
 | Command | File | Purpose |
 |---------|------|---------|
 | `/canal_noticia` | [`commands/canal_noticia.js`](commands/canal_noticia.js) | Configure news channel |
 | `/chat_blacklist` | [`commands/chat_blacklist.js`](commands/chat_blacklist.js) | Manage chatbot blacklist |
 | `/comment` | [`commands/comment.js`](commands/comment.js) | Add comments to messages |
-| `/config` | [`commands/config.js`](commands/config.js) | Interactive configuration menu |
 | `/deslurkar` | [`commands/deslurkar.js`](commands/deslurkar.js) | Remove user from blacklist |
 | `/enex` | [`commands/enex.js`](commands/enex.js) | Enable/disable features |
 | `/gmemories` | [`commands/gmemories.js`](commands/gmemories.js) | Manage guild memories |
@@ -138,9 +137,8 @@ Vica serves as an intelligent Discord assistant that can:
 - Tag-based memory creation: `[salvar_memoria]`, `[meta]`, `[imagem]`
 - Cosine similarity for memory retrieval
 
-### 4. Interactive Configuration
-- `/config` command with modal-based input
-- Component collectors with timeouts
+### 4. Server Configuration Commands
+- Dedicated slash commands for server settings
 - Ephemeral responses for admin commands
 - Server-specific settings
 

@@ -38,7 +38,7 @@ When the `vibe_check` tool is available, it must be used for reflection before m
 - AI chatbot with conversation context (last 6 messages)
 - XP/ranking system with role multipliers
 - Long-term memory with semantic search (embeddings)
-- Interactive configuration via `/config` command
+- Dedicated slash commands for server configuration
 - Blacklist systems (chatbot, XP, users)
 - Multimodal support (images, audio transcription)
 - News system with OpenGraph metadata

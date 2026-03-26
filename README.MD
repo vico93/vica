@@ -89,7 +89,7 @@ node bot.js
 * **Chatbot com IA:** Responde a menções e replies utilizando modelos compatíveis com OpenAI, com suporte a contexto de conversação.
 * **Sistema de Níveis (XP):** Ganho de XP por mensagens, com ranking e mensagens de level up configuráveis.
 * **Memória de Longo Prazo:** Armazena fatos sobre usuários e o servidor para personalizar interações futuras (via embeddings e busca semântica).
-* **Configuração via Discord:** Painel interativo (`/config`) para gerenciar canais, mensagens de boas-vindas, e outras configurações sem reiniciar o bot.
+* **Configuração via Discord:** Comandos dedicados para gerenciar canais, mensagens de entrada/saída, memórias e outras configurações sem reiniciar o bot.
 * **Blacklists:** Comandos para impedir o chatbot (`/chat_blacklist`) ou o sistema de XP (`/rank_blacklist`) de funcionar em canais específicos.
 * **Multimodalidade:** Suporte a envio de imagens para análise pela IA.
 
