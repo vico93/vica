@@ -9,6 +9,17 @@ const { exec } = require('child_process');
 const OpenAI = require('openai');
 const config = require('../config.json');
 
+function getLLMConfig() {
+    return config.llm || config.requesty || config.openai;
+}
+
+function normalizeBaseUrl(baseUrl) {
+    return String(baseUrl || '')
+        .trim()
+        .replace(/\/(responses|chat\/completions)\/?$/, '')
+        .replace(/\/+$/, '');
+}
+
 /**
  * Handler for transcribing audio files.
  * 
@@ -78,19 +89,27 @@ async function execute(args, context) {
             throw new Error('Arquivo de áudio convertido está vazio (0 bytes). Falha no ffmpeg?');
         }
 
-        let model = config.requesty?.transcriptions_model;
-        let apiKey = config.requesty?.api_key;
-        let baseURL = config.requesty?.base_url;
+        const llmConfig = getLLMConfig();
+        const model = llmConfig?.transcriptions_model;
+        const apiKey = llmConfig?.api_key;
+        const baseURL = normalizeBaseUrl(llmConfig?.base_url);
+
+        if (!apiKey || !baseURL) {
+            throw new Error('Configuracao LLM invalida. Verifique base_url e api_key no config.json.');
+        }
+
+        if (!model) {
+            throw new Error('Configuracao LLM invalida. Verifique transcriptions_model no config.json.');
+        }
 
         // Configura cliente específico para o tool se necessário
-        const clientConfig = { apiKey };
-
-        if (baseURL) {
-            if (baseURL.includes('/responses') || baseURL.includes('/chat/completions')) {
-                baseURL = baseURL.replace(/\/responses\/?$/, '').replace(/\/chat\/completions\/?$/, '');
-            }
-            clientConfig.baseURL = baseURL;
-        }
+        const clientConfig = {
+            apiKey,
+            baseURL,
+            defaultHeaders: {
+                'X-Title': 'Vica',
+            },
+        };
 
         const openai = new OpenAI(clientConfig);
 
