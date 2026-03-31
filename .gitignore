@@ -21,6 +21,7 @@ Thumbs.db
 /data/
 /.github/instructions
 /opencode.json
+/.factory/
 
 # Ferramentas de depuração
 .vscode/
