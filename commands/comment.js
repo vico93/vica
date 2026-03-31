@@ -25,6 +25,36 @@ const {
   safeReply
 } = require('../core/discord_interaction');
 
+function splitText(text, maxLength = 2000) {
+  if (typeof text !== 'string') return [];
+
+  const normalizedText = text.trim();
+  if (!normalizedText) return [];
+  if (normalizedText.length <= maxLength) return [normalizedText];
+
+  const chunks = [];
+  let start = 0;
+
+  while (start < normalizedText.length) {
+    let end = Math.min(start + maxLength, normalizedText.length);
+    if (end === normalizedText.length) {
+      chunks.push(normalizedText.slice(start));
+      break;
+    }
+
+    const lastSpace = normalizedText.lastIndexOf(' ', end);
+    if (lastSpace > start) {
+      chunks.push(normalizedText.slice(start, lastSpace));
+      start = lastSpace + 1;
+    } else {
+      chunks.push(normalizedText.slice(start, end));
+      start = end;
+    }
+  }
+
+  return chunks;
+}
+
 module.exports = {
   data: new SlashCommandBuilder()
     .setName('comment')
@@ -51,7 +81,7 @@ module.exports = {
     console.log(`[COMMENT][PARAMS] from=${from}, to=${to}, channel=${channel?.id}, guild=${guild?.id}`);
 
     try {
-      await safeDeferReply(interaction);
+      await safeDeferReply(interaction, { flags: MessageFlags.Ephemeral });
       console.log('[COMMENT][DEFER] Interação reconhecida, processando em segundo plano');
 
       /* --- VALIDAÇÃO DE PARÂMETROS --- */
@@ -153,7 +183,18 @@ module.exports = {
 
       /* --- RESPONDER NO CANAL --- */
       console.log('[COMMENT][REPLY] Enviando resposta...');
-      await safeEditReply(interaction, comment);
+      const chunks = splitText(comment).filter(chunk => typeof chunk === 'string' && chunk.trim().length > 0);
+
+      if (chunks.length === 0) {
+        await interaction.channel.send('Bah, não consegui montar o comentário agora. Tenta de novo em seguida.');
+      } else {
+        await interaction.channel.send(chunks[0]);
+        for (let i = 1; i < chunks.length; i++) {
+          await interaction.channel.send(chunks[i]);
+        }
+      }
+
+      await safeEditReply(interaction, { content: 'Comentário enviado com sucesso.' });
       console.log('[COMMENT][SUCCESS] Comando executado com sucesso');
 
     } catch (error) {
@@ -167,7 +208,7 @@ module.exports = {
 
       console.log('[COMMENT][ERROR] Enviando resposta de erro...');
       const payload = {
-        content: '❌ Ocorreu um erro ao gerar o comentário. Tente novamente.'
+        content: 'Erro ao processar o comentário.'
       };
 
       try {
