@@ -13,9 +13,8 @@ function formatarData(data) {
         return 'Data de entrada indisponível';
     }
 
-    return new Intl.DateTimeFormat('pt-BR', {
-        timeZone: 'UTC'
-    }).format(data);
+    const unixTimestamp = Math.floor(data.getTime() / 1000);
+    return `<t:${unixTimestamp}:D>`;
 }
 
 function montarListaCargos(member) {
