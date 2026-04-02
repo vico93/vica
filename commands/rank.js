@@ -13,8 +13,14 @@
   - Nome do servidor vem no campo Author.
 */
 
-const { SlashCommandBuilder, EmbedBuilder } = require('discord.js');
+const { SlashCommandBuilder, EmbedBuilder, ChannelType } = require('discord.js');
 const database = require('../core/database');
+
+function formatarNomeTopico(date = new Date()) {
+  const dia = String(date.getDate()).padStart(2, '0');
+  const mes = String(date.getMonth() + 1).padStart(2, '0');
+  return `Rank ${dia}/${mes}`;
+}
 
 module.exports = {
   data: new SlashCommandBuilder()
@@ -24,10 +30,15 @@ module.exports = {
       opt.setName('mencionar')
          .setDescription('Menciona um cargo ou @everyone junto com o ranking')
          .setRequired(false))
+    .addBooleanOption(opt =>
+      opt.setName('cria_topico')
+         .setDescription('Cria um tópico na mensagem do ranking')
+         .setRequired(false))
     .setDMPermission(false),
 
   async execute(interaction) {
     const mencionar = interaction.options.getMentionable('mencionar');
+    const criaTopico = interaction.options.getBoolean('cria_topico') ?? false;
 
     await interaction.deferReply();
 
@@ -83,11 +94,35 @@ module.exports = {
           value: tambemText
         });
       }
-      await interaction.editReply({
+      const reply = await interaction.editReply({
         content: mencionar ? `${mencionar}` : '',
         embeds: [embed],
         allowedMentions: mencionar ? { parse: ['everyone', 'roles', 'users'] } : {}
      });
+
+      if (criaTopico) {
+        const targetChannel = reply.channel;
+        const canCreateThread =
+          targetChannel &&
+          typeof reply.startThread === 'function' &&
+          (
+            targetChannel.type === ChannelType.GuildText ||
+            targetChannel.type === ChannelType.GuildAnnouncement
+          );
+
+        if (canCreateThread) {
+          try {
+            await reply.startThread({
+              name: formatarNomeTopico(),
+              autoArchiveDuration: 1440
+            });
+          } catch (threadError) {
+            console.error('[VICA][RANK][WARN] Não foi possível criar tópico:', threadError);
+          }
+        } else {
+          console.warn('[VICA][RANK][WARN] Canal não suporta criação de tópico para o ranking.');
+        }
+      }
     } catch (err) {
       console.error('[VICA][RANK] Erro ao executar comando:', err);
       interaction.editReply({
