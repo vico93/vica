@@ -12,10 +12,16 @@
   - Agora respeita blacklist do chatbot (alternativa b).
 */
 
-const { SlashCommandBuilder, MessageFlags } = require('discord.js');
+const { SlashCommandBuilder, MessageFlags, ChannelType } = require('discord.js');
 const oai         = require('../core/oai_interface');
 const database    = require('../core/database');
 const { perguntas } = require('../core/static_data'); // já em memória
+
+function formatarNomeTopico(date = new Date()) {
+  const dia = String(date.getDate()).padStart(2, '0');
+  const mes = String(date.getMonth() + 1).padStart(2, '0');
+  return `Pergunta ${dia}/${mes}`;
+}
 
 module.exports = {
   data: new SlashCommandBuilder()
@@ -32,11 +38,16 @@ module.exports = {
     .addMentionableOption(opt =>
       opt.setName('mencionar')
          .setDescription('Mencione um usuário, cargo ou @everyone para direcionar a pergunta')
+         .setRequired(false))
+    .addBooleanOption(opt =>
+      opt.setName('cria_topico')
+         .setDescription('Cria um tópico na mensagem da pergunta')
          .setRequired(false)),
 
   async execute(interaction) {
     const mencionar = interaction.options.getMentionable('mencionar');
     const fonte     = interaction.options.getString('fonte');
+    const criaTopico = interaction.options.getBoolean('cria_topico') ?? false;
     const canalId   = interaction.channel.id;
     const guildId   = interaction.guild.id;
 
@@ -67,9 +78,33 @@ module.exports = {
     }
 
     await interaction.editReply({ content: 'Pergunta gerada com sucesso.', flags: [MessageFlags.Ephemeral] });
-    await interaction.channel.send({
-      content: `${mencionar ? `${mencionar} ` : ''}${pergunta}`,
+    const reply = await interaction.channel.send({
+      content: `${mencionar ? `${mencionar} ` : ''}${pergunta}${criaTopico ? '\n*Respondam no tópico abaixo! :point_down:*' : ''}`,
       allowedMentions: mencionar ? { parse: ['everyone', 'roles', 'users'] } : {}
     });
+
+    if (criaTopico) {
+      const targetChannel = reply.channel;
+      const canCreateThread =
+        targetChannel &&
+        typeof reply.startThread === 'function' &&
+        (
+          targetChannel.type === ChannelType.GuildText ||
+          targetChannel.type === ChannelType.GuildAnnouncement
+        );
+
+      if (canCreateThread) {
+        try {
+          await reply.startThread({
+            name: formatarNomeTopico(),
+            autoArchiveDuration: 1440
+          });
+        } catch (threadError) {
+          console.error('[VICA][PERGUNTAR][WARN] Não foi possível criar tópico:', threadError);
+        }
+      } else {
+        console.warn('[VICA][PERGUNTAR][WARN] Canal não suporta criação de tópico para a pergunta.');
+      }
+    }
   }
 };
