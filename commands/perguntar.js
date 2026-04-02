@@ -79,7 +79,7 @@ module.exports = {
 
     await interaction.editReply({ content: 'Pergunta gerada com sucesso.', flags: [MessageFlags.Ephemeral] });
     const reply = await interaction.channel.send({
-      content: `${mencionar ? `${mencionar} ` : ''}**${pergunta}**${criaTopico ? '\n*Respondam no tópico abaixo! :point_down:*' : ''}`,
+      content: `${mencionar ? `${mencionar} ` : ''}**${pergunta}**${criaTopico ? '\n*Respondam no tópico abaixo! :point_down::blush:*' : ''}`,
       allowedMentions: mencionar ? { parse: ['everyone', 'roles', 'users'] } : {}
     });
 
