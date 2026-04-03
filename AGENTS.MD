@@ -462,26 +462,12 @@ As an autonomous agent:
 5. Chain `vibe_check` with `vibe_learn` after resolving mistakes to record recurring patterns and successful corrections
 6. If `vibe_check` is temporarily unavailable, continue with explicit self-review and log the limitation
 
-### VSCODE (IDE) tool
-With the `vscode-mcp-server` set of tools, you can interact with the VS Code IDE to get extra insights about the codebase.
-
-WORKFLOW ESSENTIALS:
-1. Always start exploration with list_files_code on root directory (.) first
-2. CRITICAL: Run get_diagnostics_code after EVERY set of code changes before completing tasks
-3. For small edits (≤10 lines): use replace_lines_code with exact original content
-4. For large changes, new files, or uncertain content: use create_file_code with overwrite=true
-
-EXPLORATION STRATEGY:
-- Start: list_files_code with path='.' (never recursive on root)
-- Understand structure: read key files like package.json, README, main entry points
-- Find symbols: use search_symbols_code for functions/classes, get_document_symbols_code for file overviews
-- Before editing: read_file_code the target file to understand current content
-
-EDITING BEST PRACTICES:
-- Small modifications: replace_lines_code (requires exact original content match)
-- If replace_lines_code fails: read_file_code the target lines, then retry with correct content
-- Large changes: create_file_code with overwrite=true is more reliable
-- After any changes: get_diagnostics_code to check for errors
+### VS Code Symbol Tools for Context Efficiency
+Use VS Code symbol tools to reduce context consumption:
+- `get_document_symbols_code` for file structure overview instead of reading entire files
+- `search_symbols_code` to find symbols by name across the project
+- `get_symbol_definition_code` for type info and docs without full file context
+- Workflow: get outline → search symbols → get definitions → read implementation only when needed
 
 ---
 
