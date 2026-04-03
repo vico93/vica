@@ -1,11 +1,15 @@
 /*
 ** caminho: commands/rank_profile.js
-** últimaMod: 2026-04-02 09:55
+** últimaMod: 2026-04-03 09:25
 ** autor: Vico
 ** colaboração: Factory Droid
 */
 
-const { SlashCommandBuilder, EmbedBuilder } = require('discord.js');
+const {
+    SlashCommandBuilder,
+    EmbedBuilder,
+    InteractionContextType
+} = require('discord.js');
 const database = require('../core/database');
 
 function formatarData(data) {
@@ -36,7 +40,7 @@ module.exports = {
                 .setDescription('Membro para exibir no perfil de ranking')
                 .setRequired(false)
         )
-        .setDMPermission(false),
+        .setContexts(InteractionContextType.Guild),
 
     async execute(interaction) {
         await interaction.deferReply();
@@ -45,7 +49,35 @@ module.exports = {
             const targetUser = interaction.options.getUser('member') || interaction.user;
             const member = await interaction.guild.members.fetch(targetUser.id);
             const rankData = database.buscarUsuarioXP(interaction.guild.id, member.id) || { nivel: 0, xp: 0 };
+            const warnCount = database.getWarnCount(interaction.guild.id, member.id);
+            const warnConfig = database.getWarnConfig(interaction.guild.id);
             const displayName = member.displayName || member.user.globalName || member.user.username;
+            const fields = [
+                {
+                    name: 'Nível',
+                    value: String(rankData.nivel ?? 0),
+                    inline: true
+                },
+                {
+                    name: 'XP',
+                    value: String(rankData.xp ?? 0),
+                    inline: true
+                }
+            ];
+
+            if (warnCount > 0) {
+                fields.push({
+                    name: 'Avisos',
+                    value: `${warnCount}/${warnConfig.warnLimit}`,
+                    inline: true
+                });
+            }
+
+            fields.push({
+                name: 'Cargos',
+                value: montarListaCargos(member),
+                inline: false
+            });
 
             const embed = new EmbedBuilder()
                 .setAuthor({ name: 'Perfil no ranking' })
@@ -53,23 +85,7 @@ module.exports = {
                 .setURL(`https://discord.com/users/${member.id}`)
                 .setThumbnail(member.displayAvatarURL({ size: 512 }))
                 .setDescription(`No grupo desde: **${formatarData(member.joinedAt)}**`)
-                .addFields(
-                    {
-                        name: 'Nível',
-                        value: String(rankData.nivel ?? 0),
-                        inline: true
-                    },
-                    {
-                        name: 'XP',
-                        value: String(rankData.xp ?? 0),
-                        inline: true
-                    },
-                    {
-                        name: 'Cargos',
-                        value: montarListaCargos(member),
-                        inline: false
-                    }
-                )
+                .addFields(fields)
                 .setColor(0x23650b);
 
             await interaction.editReply({
