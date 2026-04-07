@@ -12,8 +12,8 @@ const config = require('../core/config');
 const MAX_CHUNK_DURATION_SECONDS = 25;
 const CHUNK_OVERLAP_SECONDS = 1;
 
-function getLLMConfig() {
-    return config.getModelConfig('transcriptions');
+function getLLMConfig(context = {}) {
+    return config.resolveToolModelConfig(context.toolDefinition, 'default');
 }
 
 function normalizeBaseUrl(baseUrl) {
@@ -148,8 +148,6 @@ function mergeChunkTranscriptions(transcriptions) {
  * @param {Object} context - Injected context
  */
 async function execute(args, context) {
-    void context;
-
     const { url } = args;
 
     if (!url) {
@@ -204,17 +202,22 @@ async function execute(args, context) {
             throw new Error('Arquivo de áudio convertido está vazio (0 bytes). Falha no ffmpeg?');
         }
 
-        const llmConfig = getLLMConfig();
+        const runtimeConfig = config.getToolRuntimeConfig(context?.toolDefinition);
+        const llmConfig = getLLMConfig(context);
         const model = llmConfig?.model;
         const apiKey = llmConfig?.api_key;
         const baseURL = normalizeBaseUrl(llmConfig?.base_url);
 
+        if (!runtimeConfig?.model) {
+            throw new Error('Configuracao da ferramenta invalida. Defina runtime.model em data/tools.json para audio_transcription.');
+        }
+
         if (!apiKey || !baseURL) {
-            throw new Error('Configuracao LLM invalida. Verifique [models.default] ou [models.transcriptions] em config.toml.');
+            throw new Error('Configuracao LLM invalida. Verifique runtime.base_url/runtime.api_key em data/tools.json ou [models.default] em config.toml.');
         }
 
         if (!model) {
-            throw new Error('Configuracao LLM invalida. Verifique model em [models.default] ou [models.transcriptions] no config.toml.');
+            throw new Error('Configuracao LLM invalida. Verifique runtime.model em data/tools.json para audio_transcription.');
         }
 
         // Configura cliente específico para o tool se necessário

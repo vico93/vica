@@ -21,12 +21,9 @@ api_key = "SUA_API_KEY"             # OPCIONAL
 # Modelo usado quando houver imagem/contexto visual
 model = "glm-5v-turbo"
 
-# Modelo de transcrição (opcional). Campos omitidos herdam de [models.default]
-[models.transcriptions]
-base_url = "https://example.com/v1" # OPCIONAL
-api_key = "SUA_API_KEY"             # OPCIONAL
-# Modelo usado para áudio/voz
-model = "glm-asr-2512"
+# Ferramentas com modelo próprio (ex: transcrição ou geração de imagem)
+# podem definir runtime.model em data/tools.json.
+# Se runtime.base_url ou runtime.api_key forem omitidos, usam [models.default].
 
 [ai_settings]
 # Envia o system prompt junto nas requisições de chat

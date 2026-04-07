@@ -123,6 +123,14 @@ function normalizeAITools(tools = {}) {
   };
 }
 
+function getToolRuntimeConfig(toolDefinition = {}) {
+  return normalizeModelSection(
+    toolDefinition?.runtime
+    || toolDefinition?.llm
+    || toolDefinition?.model_config
+  );
+}
+
 function getMergedModelMap(rawModels = {}) {
   const defaultModel = normalizeModelSection(rawModels.default);
 
@@ -189,6 +197,12 @@ function parseConfig() {
     config_file_path: CONFIG_FILE_PATH,
     getModelConfig(capability = 'default') {
       return models[capability] || models.default;
+    },
+    getToolRuntimeConfig(toolDefinition = {}) {
+      return getToolRuntimeConfig(toolDefinition);
+    },
+    resolveToolModelConfig(toolDefinition = {}, fallbackCapability = 'default') {
+      return mergeModelConfig(this.getModelConfig(fallbackCapability), getToolRuntimeConfig(toolDefinition));
     },
     hasModelOverride(capability) {
       return !!parsed.models?.[capability];

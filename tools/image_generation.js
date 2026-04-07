@@ -215,13 +215,19 @@ async function execute(args, context) {
         throw new Error('O parametro "prompt" excede o limite de 32000 caracteres.');
     }
 
-    const llmConfig = config.getModelConfig('imagegen');
+    const runtimeConfig = config.getToolRuntimeConfig(context?.toolDefinition);
+    const llmConfig = config.resolveToolModelConfig(context?.toolDefinition, 'default');
+
+    if (!runtimeConfig?.model) {
+        throw new Error('Configuracao da ferramenta invalida. Defina runtime.model em data/tools.json para image_generation.');
+    }
+
     if (!llmConfig?.base_url || !llmConfig?.api_key) {
-        throw new Error('Configuracao LLM invalida. Verifique [models.default] ou [models.imagegen] em config.toml.');
+        throw new Error('Configuracao LLM invalida. Verifique runtime.base_url/runtime.api_key em data/tools.json ou [models.default] em config.toml.');
     }
 
     if (!llmConfig?.model) {
-        throw new Error('Configuracao LLM invalida. Verifique model em [models.default] ou [models.imagegen] no config.toml.');
+        throw new Error('Configuracao LLM invalida. Verifique runtime.model em data/tools.json para image_generation.');
     }
 
     const openai = new OpenAI({

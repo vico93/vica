@@ -643,7 +643,10 @@ async function executeTool(toolName, args, context = {}) {
     }
 
     // Executa o handler
-    const result = await handler.execute(args, context);
+    const result = await handler.execute(args, {
+      ...context,
+      toolDefinition: tool
+    });
 
     return {
       success: true,
