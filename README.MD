@@ -2,7 +2,7 @@
 
 ## Sobre
 
-Vica é um bot para Discord que unifica funcionalidades de chatbot via API da OpenAI (modo IA) e comando de perguntas aleatórias de um banco local (modo banco). Desenvolvido em Node.js para rodar em Raspberry Pi.
+Vica é um bot para Discord que unifica funcionalidades de chatbot via API da OpenAI (modo IA) e comando de perguntas aleatórias de um banco local (modo banco). Desenvolvido em Node.js ~~para rodar em Raspberry Pi~~ (atualmente rodando em um VPS, gratidão @mojomast.
 
 ---
 
