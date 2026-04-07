@@ -42,7 +42,7 @@ This document provides comprehensive guidelines for AI agents (Roo, Cursor, etc.
 ```
 vica/
 ├── bot.js                 # Main entry point - bot initialization and event registration
-├── config.example.json    # Configuration template (copy to config.json for use)
+├── config.example.toml    # Configuration template (copy to config.toml for use)
 ├── deploy-commands.js     # Command deployment script for Discord API
 ├── delete-commands.js     # Command deletion script
 ├── commands/              # Slash commands (18 files)
@@ -847,7 +847,7 @@ sudo journalctl -u vica.service -f
 
 ### Updating Configuration
 
-1. Update `config.example.json` with new settings
+1. Update `config.example.toml` with new settings
 2. Document new configuration options
 3. Update code to use new configuration
 4. Test with various configurations
@@ -907,7 +907,7 @@ Provide user-friendly error messages in Portuguese:
 
 - **GEMINI.MD**: Comprehensive project documentation with detailed technical specifications
 - **README.MD**: User-facing documentation with installation and usage instructions
-- **config.example.json**: Configuration template with all available options
+- **config.example.toml**: Configuration template with all available options
 
 ### External Documentation
 

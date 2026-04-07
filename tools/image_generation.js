@@ -7,7 +7,7 @@
 
 const OpenAI = require('openai');
 const fetch = require('node-fetch');
-const config = require('../config.json');
+const config = require('../core/config');
 
 function getFileExtension(outputFormat) {
     if (outputFormat === 'jpeg') {
@@ -215,13 +215,13 @@ async function execute(args, context) {
         throw new Error('O parametro "prompt" excede o limite de 32000 caracteres.');
     }
 
-    const llmConfig = config.llm;
+    const llmConfig = config.getModelConfig('imagegen');
     if (!llmConfig?.base_url || !llmConfig?.api_key) {
-        throw new Error('Configuracao LLM invalida. Verifique base_url e api_key em config.json.');
+        throw new Error('Configuracao LLM invalida. Verifique [models.default] ou [models.imagegen] em config.toml.');
     }
 
-    if (!llmConfig?.model_image_gen) {
-        throw new Error('Configuracao LLM invalida. Verifique llm.model_image_gen em config.json.');
+    if (!llmConfig?.model) {
+        throw new Error('Configuracao LLM invalida. Verifique model em [models.default] ou [models.imagegen] no config.toml.');
     }
 
     const openai = new OpenAI({
@@ -232,10 +232,10 @@ async function execute(args, context) {
         },
     });
 
-    console.log(`[TOOLS][IMAGE][INFO] Gerando imagem com o modelo: ${llmConfig.model_image_gen}`);
+    console.log(`[TOOLS][IMAGE][INFO] Gerando imagem com o modelo: ${llmConfig.model}`);
 
     try {
-        const response = await generateImageWithFallback(openai, llmConfig.model_image_gen, prompt);
+        const response = await generateImageWithFallback(openai, llmConfig.model, prompt);
 
         const image = response?.data?.[0];
         if (!image) {

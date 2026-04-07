@@ -496,37 +496,43 @@ When processing a message:
 
 ## Configuration
 
-### config.json Structure
+### config.toml Structure
 
-```json
-{
-  "discord": {
-    "token": "YOUR_DISCORD_BOT_TOKEN",
-    "clientId": "YOUR_CLIENT_ID",
-    "guildId": "YOUR_GUILD_ID"
-  },
-  "requesty": {
-    "apiKey": "YOUR_REQUESTY_API_KEY",
-    "baseUrl": "https://api.requesty.ai/v1"
-  },
-  "openai": {
-    "apiKey": "YOUR_OPENAI_API_KEY",
-    "model": "gpt-4",
-    "embeddingModel": "text-embedding-ada-002"
-  },
-  "settings": {
-    "xpMin": 15,
-    "xpMax": 25,
-    "rateLimitSeconds": 5,
-    "contextMessages": 6,
-    "maxMessageLength": 2000
-  },
-  "tools": {
-    "enabled": true,
-    "tools": ["calculate", "get_current_time"]
-  }
-}
+```toml
+[discord]
+token = "YOUR_DISCORD_BOT_TOKEN"
+client_id = "YOUR_CLIENT_ID"
+
+[models.default]
+base_url = "https://your-openai-compatible-api/v1"
+api_key = "YOUR_API_KEY"
+model = "gpt-4o"
+
+[models.vision]
+base_url = "https://your-openai-compatible-api/v1"
+api_key = "YOUR_API_KEY"
+model = "gpt-4o"
+
+[models.transcriptions]
+base_url = "https://your-openai-compatible-api/v1"
+api_key = "YOUR_API_KEY"
+model = "whisper-1"
+
+[ai_settings]
+send_system_prompt = true
+retries = 3
+initial_delay_ms = 1000
+historyLimit = 6
+historyMaxAge = 60
+budgetTokenLimit = 3000
+rate_limit_ms = 5000
+
+[ai_tools]
+enabled = true
+tools_file = "data/tools.json"
 ```
+
+Capability-specific sections such as `[models.vision]` and `[models.transcriptions]` can omit fields and inherit missing values from `[models.default]`.
 
 ### Deployment
 
@@ -550,7 +556,7 @@ The bot is deployed on Raspberry Pi 3b+ using systemd:
 
 ### Environment Variables
 
-The bot uses `config.json` for configuration. Ensure sensitive data (API keys, tokens) are properly secured and not committed to version control.
+The bot uses `config.toml` for configuration. Ensure sensitive data (API keys, tokens) are properly secured and not committed to version control.
 
 ---
 
@@ -806,7 +812,7 @@ const response = await openai.chat.completions.create({
 ### Deployment Checklist
 
 Before deploying:
-1. Update `config.json` with production values
+1. Update `config.toml` with production values
 2. Test all critical commands
 3. Verify database migrations
 4. Check systemd service configuration
@@ -826,7 +832,7 @@ Before deploying:
 ```
 vica/
 ├── bot.js                          # Main bot entry point
-├── config.example.json             # Example configuration
+├── config.example.toml             # Example configuration
 ├── delete-commands.js              # Delete slash commands
 ├── deploy-commands.js              # Deploy slash commands
 ├── package.json                    # Node.js dependencies

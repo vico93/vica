@@ -17,7 +17,7 @@ const {
 } = require('discord.js');
 const database = require('../core/database');
 const oaiInterface = require('../core/oai_interface');
-const config = require('../config.json');
+const config = require('../core/config');
 const {
   isUnknownInteraction,
   safeDeferReply,

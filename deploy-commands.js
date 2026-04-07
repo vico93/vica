@@ -17,7 +17,7 @@ const { REST, Routes } = require('discord.js');
 const fs   = require('fs');
 const path = require('path');
 const args = require('minimist')(process.argv.slice(2));
-const config = require('./config.json');
+const config = require('./core/config');
 
 // ----------------------------------------------------------
 // Coleta comandos

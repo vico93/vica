@@ -365,7 +365,7 @@ await interaction.reply({
 - **AGENTS.MD**: Comprehensive guidelines for AI agents working on this project
 - **GEMINI.MD**: Detailed technical specifications and architecture
 - **README.MD**: User-facing documentation with installation and usage instructions
-- **config.example.json**: Configuration template with all available options
+- **config.example.toml**: Configuration template with all available options
 
 ### External Documentation
 

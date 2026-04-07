@@ -15,7 +15,7 @@
 const fs   = require('fs');
 const path = require('path');
 const { Client, GatewayIntentBits, Collection, Partials, Events } = require('discord.js');
-const config   = require('./config.json');
+const config   = require('./core/config');
 const database = require('./core/database');
 const toolLoader = require('./core/tool_loader');
 const voiceXp = require('./core/voice_xp');

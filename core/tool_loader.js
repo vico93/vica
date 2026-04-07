@@ -7,7 +7,7 @@
 
 const fs = require('fs');
 const path = require('path');
-const config = require('../config.json');
+const config = require('./config');
 const mcpClient = require('./mcp_client');
 
 // Cache para ferramentas carregadas
@@ -31,7 +31,10 @@ function loadToolsConfig() {
 
   // Determina o caminho do arquivo de configuração
   if (!toolsConfigPath) {
-    toolsConfigPath = path.join(__dirname, '..', 'data', 'tools.json');
+    const configuredPath = config.ai_tools?.tools_file || 'data/tools.json';
+    toolsConfigPath = path.isAbsolute(configuredPath)
+      ? configuredPath
+      : path.join(__dirname, '..', configuredPath);
   }
 
   try {

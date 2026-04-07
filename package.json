@@ -27,6 +27,7 @@
     "lru-cache": "^7.18.3",
     "minimist": "^1.2.8",
     "node-fetch": "^2.7.0",
-    "openai": "^5.8.2"
+    "openai": "^5.8.2",
+    "toml": "^4.1.1"
   }
 }

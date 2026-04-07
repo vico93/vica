@@ -30,29 +30,40 @@ cd vica
 npm install
 ```
 
-3. Crie o arquivo `config.json` na raiz do projeto com a estrutura:
+3. Crie o arquivo `config.toml` na raiz do projeto (você pode copiar `config.example.toml`) com uma estrutura como esta:
 
-```json
-{
-  "discord": {
-    "token": "SEU_DISCORD_BOT_TOKEN",
-    "clientId": "SEU_CLIENT_ID"
-  },
-  "openai": {
-    "base_url": "https://sua.api.openai.compativel/responses",
-    "api_key": "SUA_CHAVE_API",
-    "model": "gpt-4o",
-    "model_embeddings": "text-embedding-3-small",
-    "retries": 3,
-    "initial_delay_ms": 1000,
-    "sendSystemPrompt": true
-  },
-  "settings": {
-    "historyLimit": 6,
-    "maxTokens": 500,
-    "rate_limit_ms": 5000
-  }
-}
+```toml
+[discord]
+token = "SEU_DISCORD_BOT_TOKEN"
+client_id = "SEU_CLIENT_ID"
+
+[models.default]
+base_url = "https://sua.api.openai.compativel/v1"
+api_key = "SUA_CHAVE_API"
+model = "gpt-4o"
+
+[models.vision]
+base_url = "https://sua.api.openai.compativel/v1"
+api_key = "SUA_CHAVE_API"
+model = "gpt-4o"
+
+[models.transcriptions]
+base_url = "https://sua.api.openai.compativel/v1"
+api_key = "SUA_CHAVE_API"
+model = "whisper-1"
+
+[ai_settings]
+send_system_prompt = true
+retries = 3
+initial_delay_ms = 1000
+historyLimit = 6
+historyMaxAge = 60
+budgetTokenLimit = 3000
+rate_limit_ms = 5000
+
+[ai_tools]
+enabled = true
+tools_file = "data/tools.json"
 ```
 
 4. Adicione perguntas no arquivo `data/perguntas.txt` (uma por linha)
@@ -79,7 +90,7 @@ node bot.js
 * `data/` - banco de perguntas (`perguntas.txt`) e banco SQLite (`database.db`)
 * `events/` - listeners de eventos Discord
 * `utils/` - funções auxiliares
-* `config.json` - configurações do bot e API (não deve ser versionado)
+* `config.toml` - configurações do bot e API (não deve ser versionado)
 * `.gitignore` - arquivos e pastas ignorados pelo git
 
 ---

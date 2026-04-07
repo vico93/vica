@@ -9,35 +9,47 @@ const OpenAI = require('openai');
 const path = require('path');
 const fs = require('fs');
 
-const config = require('../config.json');
+const config = require('./config');
 const database = require('../core/database');
 const tagParser = require('../core/tagParser');
 const toolLoader = require('../core/tool_loader');
 const tokenizer = require('../core/tokenizer');
 
 const rateLimitMap = new Map();
+const openaiClients = new Map();
 
-// Helper para compatibilidade durante migração (requesty -> llm)
-function getLLMConfig() {
-  return config.llm || config.requesty || config.openai;
+function getAISettings() {
+  return config.ai_settings;
 }
 
-const llmConfig = getLLMConfig();
+function getModelConfig(capability = 'default') {
+  const modelConfig = config.getModelConfig(capability);
 
-if (!llmConfig?.base_url || !llmConfig?.api_key) {
-  throw new Error('Configuração de LLM inválida. Verifique config.json (seção "llm" ou "requesty")');
+  if (!modelConfig?.base_url || !modelConfig?.api_key || !modelConfig?.model) {
+    throw new Error(`Configuração de modelo inválida para '${capability}'. Verifique config.toml.`);
+  }
+
+  return modelConfig;
 }
 
-// Inicializa o cliente OpenAI
-const openai = new OpenAI({
-  apiKey: llmConfig.api_key,
-  baseURL: llmConfig.base_url,
-  defaultHeaders: {
-    "X-Title": "Vica",
-  },
-});
+function getOpenAIClient(capability = 'default') {
+  if (openaiClients.has(capability)) {
+    return openaiClients.get(capability);
+  }
 
-console.log('[OAI][INFO] Cliente LLM inicializado:', llmConfig.base_url);
+  const modelConfig = getModelConfig(capability);
+  const client = new OpenAI({
+    apiKey: modelConfig.api_key,
+    baseURL: modelConfig.base_url,
+    defaultHeaders: {
+      'X-Title': 'Vica',
+    },
+  });
+
+  openaiClients.set(capability, client);
+  console.log(`[OAI][INFO] Cliente '${capability}' inicializado: ${modelConfig.base_url}`);
+  return client;
+}
 
 /* --- Helper para detecção de thread de conversa --- */
 function shouldIncludeMessageInContext(message, originalAuthorId, botUserId) {
@@ -167,23 +179,21 @@ function getCurrentDatetimeString() {
 
 /* --- Helper para obter configuração de retry --- */
 function getRetryConfig() {
-  const cfg = getLLMConfig();
+  const settings = getAISettings();
   return {
-    maxRetries: Number.isInteger(cfg.retries) ? cfg.retries : 3,
-    baseDelay: Number.isInteger(cfg.initial_delay_ms) ? cfg.initial_delay_ms : 1000,
+    maxRetries: Number.isInteger(settings.retries) ? settings.retries : 3,
+    baseDelay: Number.isInteger(settings.initial_delay_ms) ? settings.initial_delay_ms : 1000,
   };
 }
 
 /* --- Helper para obter modelo a ser usado --- */
 function getModel(useVision = false) {
-  const cfg = getLLMConfig();
-  const model = cfg.model;
-  const visionModel = cfg.model_vision;
+  const capability = useVision ? 'vision' : 'default';
+  return getModelConfig(capability).model;
+}
 
-  if (useVision && visionModel && visionModel !== model) {
-    return visionModel;
-  }
-  return model;
+function shouldSendSystemPrompt() {
+  return getAISettings().send_system_prompt !== false;
 }
 
 function getVisionToolStrategy() {
@@ -327,8 +337,9 @@ Prompt visual sugerido:
   ];
 
   try {
+    const visionOpenAI = getOpenAIClient('vision');
     const response = await withRetries(
-      () => openai.chat.completions.create({
+      () => visionOpenAI.chat.completions.create({
         model: getModel(true),
         messages,
         temperature: 0.2,
@@ -406,9 +417,9 @@ async function withRetries(fn, label = 'OAI_CALL') {
 
 async function gerarPerguntaViaAPI(promptUsuario = null) {
   const messages = [];
-  const cfg = getLLMConfig();
+  const openai = getOpenAIClient('default');
 
-  if (cfg.sendSystemPrompt !== false) {
+  if (shouldSendSystemPrompt()) {
     const systemPrompt = await carregarSystemPrompt();
     messages.push({ role: 'system', content: systemPrompt });
   }
@@ -441,9 +452,9 @@ async function gerarPerguntaViaAPI(promptUsuario = null) {
 
 async function gerarParabensCargoViaAPI(guildId, userId, promptUsuario, roleName) {
   const messages = [];
-  const cfg = getLLMConfig();
+  const openai = getOpenAIClient('default');
 
-  if (cfg.sendSystemPrompt !== false) {
+  if (shouldSendSystemPrompt()) {
     const systemPrompt = await carregarSystemPrompt();
     messages.push({ role: 'system', content: systemPrompt });
   }
@@ -487,9 +498,9 @@ async function gerarMensagemBemVindoViaAPI(guildId, userId, userName, messageTyp
   };
   const tag = (messageType && messageTypeMapping[messageType.toLowerCase()]) || 'welcome';
   const messages = [];
-  const cfg = getLLMConfig();
+  const openai = getOpenAIClient('default');
 
-  if (cfg.sendSystemPrompt !== false) {
+  if (shouldSendSystemPrompt()) {
     const systemPrompt = await carregarSystemPrompt();
     messages.push({ role: 'system', content: systemPrompt });
   }
@@ -580,9 +591,8 @@ async function gerarRespostaContextualInternal(
   } = options;
 
   const messages = [];
-  const cfg = getLLMConfig();
 
-  if (cfg.sendSystemPrompt !== false) {
+  if (shouldSendSystemPrompt()) {
     let systemPrompt = await carregarSystemPrompt();
     try {
       const ranking = database.buscarRank(guildId, 5);
@@ -765,8 +775,10 @@ async function gerarRespostaContextualInternal(
   // --- TOKENIZER CHECK ---
   const budget = config.settings.budgetTokenLimit || config.settings.maxTokens || 3000;
 
-  const requestModel = getModel(!!activeImageUrl);
-  const estimatedTokens = await tokenizer.countTokens(messages, tools, requestModel);
+  const requestCapability = activeImageUrl ? 'vision' : 'default';
+  const requestModel = getModel(requestCapability === 'vision');
+  const requestClient = getOpenAIClient(requestCapability);
+  const estimatedTokens = await tokenizer.countTokens(messages, tools, requestModel, requestCapability);
 
   if (estimatedTokens > budget) {
     console.warn(`[TOKENIZER][BUDGET] ⚠️ Mensagem excede orçamento! Estimado: ${estimatedTokens}, Limite: ${budget}.`);
@@ -785,7 +797,7 @@ async function gerarRespostaContextualInternal(
     };
     if (tools.length > 0) requestParams.tools = tools;
 
-    let response = await withRetries(() => openai.chat.completions.create(requestParams), '[CHAT]');
+    let response = await withRetries(() => requestClient.chat.completions.create(requestParams), '[CHAT]');
     let message = response?.choices?.[0]?.message;
     let toolCalls = message?.tool_calls;
 
@@ -813,7 +825,7 @@ async function gerarRespostaContextualInternal(
         });
       }
 
-      response = await withRetries(() => openai.chat.completions.create(requestParams), `[CHAT][TURN_${turns}]`);
+      response = await withRetries(() => requestClient.chat.completions.create(requestParams), `[CHAT][TURN_${turns}]`);
       message = response?.choices?.[0]?.message;
       toolCalls = message?.tool_calls;
     }
@@ -886,8 +898,8 @@ async function gerarRespostaContextualInternal(
 
 async function gerarComentarioViaAPI(conversationText) {
   const messages = [];
-  const cfg = getLLMConfig();
-  if (cfg.sendSystemPrompt !== false) {
+  const openai = getOpenAIClient('default');
+  if (shouldSendSystemPrompt()) {
     const systemPrompt = await carregarSystemPrompt();
     messages.push({ role: 'system', content: systemPrompt });
   }
@@ -968,6 +980,7 @@ ${conversationText}
 }
 
 async function gerarTraducao(texto) {
+  const openai = getOpenAIClient('default');
   const messages = [
     {
       role: 'system', content: `You are a strict translation engine.

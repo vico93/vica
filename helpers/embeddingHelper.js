@@ -6,7 +6,6 @@
 ** modificações: Conversão para CommonJS, uso de oai_interface.gerarEmbedding, suporte memory-only para buscas por similaridade
 */
 
-const config = require('../config.json');
 const oai_interface = require('../core/oai_interface');
 
 /*

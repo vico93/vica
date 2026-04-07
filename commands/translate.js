@@ -17,7 +17,6 @@ const {
 } = require('discord.js');
 const database = require('../core/database');
 const oaiInterface = require('../core/oai_interface');
-const config = require('../config.json');
 
 module.exports = {
   data: new SlashCommandBuilder()

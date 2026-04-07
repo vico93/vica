@@ -43,9 +43,9 @@ When debugging the enhanced memory system:
 
 - **Enhanced Embedding System**: Check cache hit rates and API usage with `embeddingHelper.obterEstatisticasEmbedding()`
 - **Memory Analytics**: Monitor performance with `database.getMemoryAnalyticsStats(guildId)`
-- **Configuration Issues**: Verify `config.legacy.openai.*` vs `config.requesty.*` references
+- **Configuration Issues**: Verify `config.toml` and the resolved values loaded by `core/config.js`
 - **Database Schema**: Production uses `content` columns, development may use `fact` columns
-- **API Integration**: Check Requesty API keys and rate limits vs legacy MNN API fallback
+- **API Integration**: Check provider API keys, base URLs, model names, and rate limits in `config.toml`
 
 ### Performance Monitoring
 
@@ -87,14 +87,14 @@ console.log('Memory Analytics:', analytics);
 **Symptoms**: AI responses failing, timeouts, rate limit errors
 
 **Debug Steps**:
-1. Check API key configuration in `config.json`
+1. Check API key configuration in `config.toml`
 2. Verify API endpoint URLs are correct
 3. Check network connectivity to API servers
 4. Review retry logic in [`core/oai_interface.js`](core/oai_interface.js:1)
 5. Monitor rate limit usage
 
 **Common Fixes**:
-- Verify Requesty API key is valid and not expired
+- Verify the configured API key is valid and not expired
 - Check for correct model names in configuration
 - Adjust timeout values if needed
 - Implement exponential backoff for retries
@@ -104,7 +104,7 @@ console.log('Memory Analytics:', analytics);
 **Symptoms**: Commands not responding, permissions errors, rate limits
 
 **Debug Steps**:
-1. Check bot token in `config.json`
+1. Check bot token in `config.toml`
 2. Verify bot has required permissions in Discord server
 3. Check Discord API status for outages
 4. Review rate limit handling in code
@@ -384,7 +384,7 @@ async function testIntegration() {
 - **AGENTS.MD**: Comprehensive guidelines for AI agents working on this project
 - **GEMINI.MD**: Detailed technical specifications and architecture
 - **README.MD**: User-facing documentation with installation and usage instructions
-- **config.example.json**: Configuration template with all available options
+- **config.example.toml**: Configuration template with all available options
 
 ### External Documentation
 

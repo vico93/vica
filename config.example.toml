@@ -1,0 +1,57 @@
+# Configurações do bot no Discord
+[discord]
+# Token do bot no portal do Discord Developer
+token = "SEU_DISCORD_BOT_TOKEN"
+# Application ID / Client ID do bot; mantenha como string
+client_id = "SEU_CLIENT_ID"
+
+# Modelo padrão: usado para texto e como fallback das capacidades específicas
+[models.default]
+# Endpoint base compatível com OpenAI, normalmente terminando em /v1
+base_url = "https://example.com/v1"
+# Chave da API do provider padrão
+api_key = "SUA_API_KEY"
+# Modelo principal de chat/texto
+model = "glm-5"
+
+# Modelo de visão (opcional). Campos omitidos herdam de [models.default]
+[models.vision]
+base_url = "https://example.com/v1" # OPCIONAL
+api_key = "SUA_API_KEY"             # OPCIONAL
+# Modelo usado quando houver imagem/contexto visual
+model = "glm-5v-turbo"
+
+# Modelo de transcrição (opcional). Campos omitidos herdam de [models.default]
+[models.transcriptions]
+base_url = "https://example.com/v1" # OPCIONAL
+api_key = "SUA_API_KEY"             # OPCIONAL
+# Modelo usado para áudio/voz
+model = "glm-asr-2512"
+
+[ai_settings]
+# Envia o system prompt junto nas requisições de chat
+send_system_prompt = true
+# Quantidade máxima de retentativas para falhas transitórias
+retries = 3
+# Delay inicial entre retentativas, em milissegundos
+initial_delay_ms = 1000
+# Quantidade máxima de mensagens recentes usadas como contexto
+historyLimit = 8
+# Idade máxima do histórico em minutos (0 = sem limite)
+historyMaxAge = 480
+# Orçamento aproximado de tokens do prompt/contexto
+budgetTokenLimit = 6000
+# Intervalo mínimo por usuário entre respostas da IA, em ms
+rate_limit_ms = 5000
+# Se true, desativa tools quando houver imagem
+disableToolsOnVision = false
+# Estratégia de tools com visão: auto, direct ou handoff
+visionToolStrategy = "auto"
+# Restringe operações de memória ao escopo permitido
+memoryStrictMode = true
+
+[ai_tools]
+# Habilita ou desabilita o uso de tools/function calling
+enabled = true
+# Caminho do arquivo com a definição das tools e servidores MCP
+tools_file = "data/tools.json"

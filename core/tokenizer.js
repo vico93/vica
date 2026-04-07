@@ -3,7 +3,7 @@
 ** descrição: Módulo para interagir com o endpoint de tokenizer da Z.AI
 */
 
-const config = require('../config.json');
+const config = require('./config');
 
 /**
  * Calcula o número de tokens para uma lista de mensagens e ferramentas.
@@ -27,9 +27,10 @@ function sanitizeMessages(messages) {
     });
 }
 
-async function countTokens(messages, tools = [], model = null) {
-    const endpoint = `${config.llm.base_url}/tokenizer`;
-    const selectedModel = model || config.llm.model;
+async function countTokens(messages, tools = [], model = null, capability = 'default') {
+    const modelConfig = config.getModelConfig(capability);
+    const endpoint = `${modelConfig.base_url}/tokenizer`;
+    const selectedModel = model || modelConfig.model;
 
     // Prepara o payload conforme especificação OpenAPI
     const payload = {
@@ -46,7 +47,7 @@ async function countTokens(messages, tools = [], model = null) {
             method: "POST",
             headers: {
                 "Content-Type": "application/json",
-                "Authorization": `Bearer ${config.llm.api_key}`
+                "Authorization": `Bearer ${modelConfig.api_key}`
             },
             body: JSON.stringify(payload)
         });

@@ -16,7 +16,7 @@
 
 const { REST, Routes } = require('discord.js');
 const args   = require('minimist')(process.argv.slice(2));
-const config = require('./config.json');
+const config = require('./core/config');
 
 const rest = new REST({ version: '10' }).setToken(config.discord.token);
 

@@ -18,6 +18,7 @@ Thumbs.db
 
 # Dados sensíveis e arquivos de configuração local
 /config.json
+/config.toml
 /data/
 /.github/instructions
 /opencode.json

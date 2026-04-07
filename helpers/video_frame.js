@@ -11,7 +11,7 @@ const path = require('path');
 const https = require('https');
 const { execFile } = require('child_process');
 
-const config = require('../config.json');
+const config = require('../core/config');
 
 const VIDEO_EXTENSIONS = new Set(['.mp4', '.mov', '.webm', '.mkv', '.avi', '.m4v']);
 

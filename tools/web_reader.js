@@ -6,12 +6,12 @@
 */
 
 const fetch = require('node-fetch');
-const config = require('../config.json');
+const config = require('../core/config');
 
 const ALLOWED_RETURN_FORMATS = new Set(['markdown', 'text']);
 
 function getLLMConfig() {
-    return config.llm || config.requesty || config.openai;
+    return config.getModelConfig('default');
 }
 
 function normalizeBaseUrl(baseUrl) {
@@ -92,12 +92,12 @@ async function execute(args, context) {
 
     const llmConfig = getLLMConfig();
     if (!llmConfig?.api_key || !llmConfig?.base_url) {
-        throw new Error('Configuração LLM inválida. Verifique base_url e api_key no config.json.');
+        throw new Error('Configuração LLM inválida. Verifique [models.default] em config.toml.');
     }
 
     const baseUrl = normalizeBaseUrl(llmConfig.base_url);
     if (!baseUrl) {
-        throw new Error('Configuração LLM inválida. base_url vazio no config.json.');
+        throw new Error('Configuração LLM inválida. base_url vazio em config.toml.');
     }
 
     const endpoint = `${baseUrl}/reader`;

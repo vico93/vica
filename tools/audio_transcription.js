@@ -7,13 +7,13 @@ const path = require('path');
 const https = require('https');
 const { exec } = require('child_process');
 const OpenAI = require('openai');
-const config = require('../config.json');
+const config = require('../core/config');
 
 const MAX_CHUNK_DURATION_SECONDS = 25;
 const CHUNK_OVERLAP_SECONDS = 1;
 
 function getLLMConfig() {
-    return config.llm || config.requesty || config.openai;
+    return config.getModelConfig('transcriptions');
 }
 
 function normalizeBaseUrl(baseUrl) {
@@ -205,16 +205,16 @@ async function execute(args, context) {
         }
 
         const llmConfig = getLLMConfig();
-        const model = llmConfig?.transcriptions_model;
+        const model = llmConfig?.model;
         const apiKey = llmConfig?.api_key;
         const baseURL = normalizeBaseUrl(llmConfig?.base_url);
 
         if (!apiKey || !baseURL) {
-            throw new Error('Configuracao LLM invalida. Verifique base_url e api_key no config.json.');
+            throw new Error('Configuracao LLM invalida. Verifique [models.default] ou [models.transcriptions] em config.toml.');
         }
 
         if (!model) {
-            throw new Error('Configuracao LLM invalida. Verifique transcriptions_model no config.json.');
+            throw new Error('Configuracao LLM invalida. Verifique model em [models.default] ou [models.transcriptions] no config.toml.');
         }
 
         // Configura cliente específico para o tool se necessário
