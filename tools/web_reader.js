@@ -1,6 +1,6 @@
 /*
 ** caminho: tools/web_reader.js
-** últimaMod: 2026-03-01 03:55
+** últimaMod: 2026-04-08 15:12
 ** autor: Vico
 ** colaboração: ChatGPT (GPT-5)
 */
@@ -10,8 +10,8 @@ const config = require('../core/config');
 
 const ALLOWED_RETURN_FORMATS = new Set(['markdown', 'text']);
 
-function getLLMConfig() {
-    return config.getModelConfig('default');
+function getLLMConfig(context = {}) {
+    return config.resolveToolModelConfig(context?.toolDefinition, 'default');
 }
 
 function normalizeBaseUrl(baseUrl) {
@@ -72,8 +72,6 @@ function buildPayload(args, validatedUrl) {
 }
 
 async function execute(args, context) {
-    void context;
-
     const rawUrl = typeof args?.url === 'string' ? args.url.trim() : '';
     if (!rawUrl) {
         throw new Error('O parâmetro "url" é obrigatório.');
@@ -90,7 +88,7 @@ async function execute(args, context) {
         throw new Error('O parâmetro "url" é inválido.');
     }
 
-    const llmConfig = getLLMConfig();
+    const llmConfig = getLLMConfig(context);
     if (!llmConfig?.api_key || !llmConfig?.base_url) {
         throw new Error('Configuração LLM inválida. Verifique [models.default] em config.toml.');
     }
