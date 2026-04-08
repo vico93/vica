@@ -1,6 +1,6 @@
 /*
 **  caminho: events/messageReactionAdd.js
-**  últimaMod: 2026-03-01 03:55
+**  últimaMod: 2026-04-08 01:16
 **  autor: Vico
 ** colaboração: Copilot (gpt-4o), GLM 4.5 Air, Grok Code (Fast)
 */
@@ -16,6 +16,13 @@
 
 const oai = require('../core/oai_interface');
 const database = require('../core/database');
+const {
+  isImageAttachment,
+  isAudioAttachment,
+  isPdfAttachment,
+  getFirstAttachmentByPredicate,
+  buildAttachmentHint
+} = require('../helpers/message_attachments');
 const { isVideoAttachment, extractFirstFrameFromVideo } = require('../helpers/video_frame');
 
 /* ----------------------------------------------------------
@@ -133,16 +140,34 @@ module.exports = {
       let imageUrl = null;
       let imageDataUrl = null;
 
-      if (message.attachments.size) {
-        const att = message.attachments.first();
-        if (att.contentType?.startsWith('image/')) {
-          imageUrl = att.url;
-        } else if (isVideoAttachment(att)) {
-          imageDataUrl = await extractFirstFrameFromVideo(att.url);
-        } else if (att.contentType?.startsWith('audio/') || att.contentType === 'video/ogg' || att.name.endsWith('.ogg') || att.name.endsWith('.mp3') || att.name.endsWith('.wav')) {
-          // Adiciona hint de áudio ao prompt
-          prompt = (prompt ? prompt + '\n' : '') + `[Attachment: type=audio, url=${att.url}]`;
-        }
+      const imageAttachment = getFirstAttachmentByPredicate(message, isImageAttachment);
+      const videoAttachment = getFirstAttachmentByPredicate(message, isVideoAttachment);
+      const audioAttachment = getFirstAttachmentByPredicate(message, isAudioAttachment);
+      const pdfAttachment = getFirstAttachmentByPredicate(message, isPdfAttachment);
+
+      if (imageAttachment?.url) {
+        imageUrl = imageAttachment.url;
+      } else if (videoAttachment?.url) {
+        imageDataUrl = await extractFirstFrameFromVideo(videoAttachment.url);
+      }
+
+      if (audioAttachment?.url) {
+        prompt = (prompt ? prompt + '\n' : '') + buildAttachmentHint({
+          type: 'audio',
+          url: audioAttachment.url,
+          name: audioAttachment.name,
+          content_type: audioAttachment.contentType
+        });
+      }
+
+      if (pdfAttachment?.url) {
+        prompt = (prompt ? prompt + '\n' : '') + buildAttachmentHint({
+          type: 'pdf',
+          url: pdfAttachment.url,
+          name: pdfAttachment.name,
+          content_type: pdfAttachment.contentType,
+          size_bytes: pdfAttachment.size
+        });
       }
 
       if (imageUrl || imageDataUrl) {

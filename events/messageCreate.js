@@ -1,6 +1,6 @@
 /*
 ** caminho: events/messageCreate.js
-** últimaMod: 2026-03-01 03:55
+** últimaMod: 2026-04-08 01:15
 ** autor: Vico
 ** colaboração: Grok Code (Fast), ChatGPT (GPT-5)
 */
@@ -17,6 +17,13 @@
 const oai = require('../core/oai_interface');
 const database = require('../core/database');
 const tagParser = require('../core/tagParser');
+const {
+  isImageAttachment,
+  isAudioAttachment,
+  isPdfAttachment,
+  getFirstAttachmentByPredicate,
+  buildAttachmentHint
+} = require('../helpers/message_attachments');
 const { isVideoAttachment, extractFirstFrameFromVideo } = require('../helpers/video_frame');
 
 /* ----------------------------------------------------------
@@ -31,44 +38,6 @@ const COOLDOWN_MS = 5_000;
 // Remove caracteres repetidos para evitar spam
 function removerRepetidos(str) {
   return str.toLowerCase().replace(/(.)\1+/g, '$1');
-}
-
-function isImageAttachment(attachment) {
-  if (!attachment) return false;
-  if (attachment.contentType?.startsWith('image/')) return true;
-
-  const fileName = (attachment.name || '').toLowerCase();
-  return fileName.endsWith('.png') ||
-    fileName.endsWith('.jpg') ||
-    fileName.endsWith('.jpeg') ||
-    fileName.endsWith('.webp') ||
-    fileName.endsWith('.gif') ||
-    fileName.endsWith('.bmp');
-}
-
-function isAudioAttachment(attachment) {
-  if (!attachment) return false;
-  if (attachment.contentType?.startsWith('audio/')) return true;
-  if (attachment.contentType === 'video/ogg') return true;
-
-  const fileName = (attachment.name || '').toLowerCase();
-  return fileName.endsWith('.ogg') ||
-    fileName.endsWith('.mp3') ||
-    fileName.endsWith('.wav') ||
-    fileName.endsWith('.m4a') ||
-    fileName.endsWith('.aac') ||
-    fileName.endsWith('.flac') ||
-    fileName.endsWith('.opus');
-}
-
-function getFirstAttachmentByPredicate(message, predicate) {
-  if (!message?.attachments?.size) return null;
-
-  for (const attachment of message.attachments.values()) {
-    if (predicate(attachment)) return attachment;
-  }
-
-  return null;
 }
 
 async function getOpenThreadForMessage(message) {
@@ -277,6 +246,7 @@ module.exports = {
       const userImageAttachment = getFirstAttachmentByPredicate(message, isImageAttachment);
       const userVideoAttachment = getFirstAttachmentByPredicate(message, isVideoAttachment);
       const userAudioAttachment = getFirstAttachmentByPredicate(message, isAudioAttachment);
+      const userPdfAttachment = getFirstAttachmentByPredicate(message, isPdfAttachment);
 
       let imageTag = null;
       if (userImageAttachment?.url) {
@@ -295,7 +265,22 @@ module.exports = {
       if (userAudioAttachment?.url) {
         // Apenas notifica o prompt sobre o arquivo de áudio disponível
         // A IA decidirá se deve chamar a tool 'audio_transcription'
-        prompt = (prompt ? prompt + '\n' : '') + `[Attachment: type=audio, url=${userAudioAttachment.url}]`;
+        prompt = (prompt ? prompt + '\n' : '') + buildAttachmentHint({
+          type: 'audio',
+          url: userAudioAttachment.url,
+          name: userAudioAttachment.name,
+          content_type: userAudioAttachment.contentType
+        });
+      }
+
+      if (userPdfAttachment?.url) {
+        prompt = (prompt ? prompt + '\n' : '') + buildAttachmentHint({
+          type: 'pdf',
+          url: userPdfAttachment.url,
+          name: userPdfAttachment.name,
+          content_type: userPdfAttachment.contentType,
+          size_bytes: userPdfAttachment.size
+        });
       }
 
       if (imageTag) {
