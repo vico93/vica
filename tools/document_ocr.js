@@ -1,10 +1,11 @@
 /*
 ** caminho: tools/document_ocr.js
-** últimaMod: 2026-04-08 01:10
+** últimaMod: 2026-04-08 01:55
 ** autor: Vico
 ** colaboração: GPT-5.4
 */
 
+const path = require('path');
 const fetch = require('node-fetch');
 const config = require('../core/config');
 
@@ -13,6 +14,8 @@ const ALLOWED_DISCORD_HOSTS = new Set([
   'media.discordapp.net',
 ]);
 const RETRYABLE_STATUS_CODES = new Set([429, 500, 502, 503, 504]);
+const MAX_IMAGE_BYTES = 10 * 1024 * 1024;
+const MAX_PDF_BYTES = 50 * 1024 * 1024;
 
 function getLLMConfig(context = {}) {
   return config.resolveToolModelConfig(context?.toolDefinition, 'default');
@@ -64,6 +67,80 @@ function validateAttachmentUrl(rawUrl) {
   return parsedUrl.toString();
 }
 
+function normalizeContentType(contentType) {
+  return String(contentType || '')
+    .trim()
+    .split(';')[0]
+    .toLowerCase();
+}
+
+function getExtensionFromUrl(fileUrl) {
+  try {
+    const parsedUrl = new URL(fileUrl);
+    return path.extname(parsedUrl.pathname).toLowerCase();
+  } catch {
+    return '';
+  }
+}
+
+function detectAttachmentFormat(fileUrl, contentType) {
+  const normalizedContentType = normalizeContentType(contentType);
+  const extension = getExtensionFromUrl(fileUrl);
+
+  if (normalizedContentType === 'application/pdf' || extension === '.pdf') {
+    return {
+      kind: 'pdf',
+      mimeType: 'application/pdf',
+      maxBytes: MAX_PDF_BYTES,
+    };
+  }
+
+  if (normalizedContentType === 'image/png' || extension === '.png') {
+    return {
+      kind: 'image',
+      mimeType: 'image/png',
+      maxBytes: MAX_IMAGE_BYTES,
+    };
+  }
+
+  if (
+    normalizedContentType === 'image/jpeg'
+    || normalizedContentType === 'image/jpg'
+    || extension === '.jpg'
+    || extension === '.jpeg'
+  ) {
+    return {
+      kind: 'image',
+      mimeType: 'image/jpeg',
+      maxBytes: MAX_IMAGE_BYTES,
+    };
+  }
+
+  throw new Error('O anexo informado não é um PDF/JPG/PNG suportado pelo OCR.');
+}
+
+function getContentLengthInBytes(response) {
+  const rawValue = response?.headers?.get('content-length');
+  const parsedValue = Number.parseInt(String(rawValue || ''), 10);
+  return Number.isFinite(parsedValue) && parsedValue > 0 ? parsedValue : null;
+}
+
+function formatBytes(bytes) {
+  if (!Number.isFinite(bytes) || bytes <= 0) {
+    return '0 B';
+  }
+
+  if (bytes >= 1024 * 1024) {
+    return `${(bytes / (1024 * 1024)).toFixed(2)} MB`;
+  }
+
+  if (bytes >= 1024) {
+    return `${(bytes / 1024).toFixed(2)} KB`;
+  }
+
+  return `${bytes} B`;
+}
+
 function getRetryConfig() {
   const settings = config.ai_settings || {};
   return {
@@ -111,7 +188,6 @@ function buildPayload(args, model, validatedUrl, context = {}) {
 
   const payload = {
     model,
-    file: validatedUrl,
     return_crop_images: args?.return_crop_images === true,
     need_layout_visualization: args?.need_layout_visualization === true,
     request_id: `vica_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
@@ -131,6 +207,30 @@ function buildPayload(args, model, validatedUrl, context = {}) {
   }
 
   return payload;
+}
+
+function buildOcrApiError(status, rawBody) {
+  let parsedMessage = '';
+  let parsedCode = '';
+
+  try {
+    const parsedBody = JSON.parse(rawBody);
+    parsedCode = String(parsedBody?.error?.code || parsedBody?.code || '').trim();
+    parsedMessage = String(parsedBody?.error?.message || parsedBody?.message || '').trim();
+  } catch {
+    // keep raw body fallback
+  }
+
+  const preview = rawBody.length > 500 ? `${rawBody.slice(0, 500)}...` : rawBody;
+  const message = `Falha no document_ocr (HTTP ${status}): ${preview}`;
+  const error = new Error(message);
+
+  error.status = status;
+  error.rawBody = rawBody;
+  error.ocrErrorCode = parsedCode;
+  error.ocrErrorMessage = parsedMessage;
+
+  return error;
 }
 
 function truncateText(text, maxLength) {
@@ -216,6 +316,81 @@ async function postWithRetries(url, options) {
   }
 }
 
+async function downloadAttachmentAsInlinePayload(validatedUrl) {
+  let response;
+
+  try {
+    response = await fetch(validatedUrl, {
+      headers: {
+        'Accept': 'application/pdf,image/png,image/jpeg,image/jpg,*/*',
+        'User-Agent': 'VicaBot/1.0',
+      },
+    });
+  } catch (error) {
+    throw new Error(`Falha ao baixar o anexo do Discord: ${error.message}`);
+  }
+
+  if (!response.ok) {
+    throw new Error(`Falha ao baixar o anexo do Discord (HTTP ${response.status}).`);
+  }
+
+  const format = detectAttachmentFormat(validatedUrl, response.headers.get('content-type'));
+  const announcedLength = getContentLengthInBytes(response);
+
+  if (announcedLength !== null && announcedLength > format.maxBytes) {
+    throw new Error(`O arquivo anexado excede o limite do OCR para ${format.kind === 'pdf' ? 'PDF' : 'imagem'} (${formatBytes(format.maxBytes)}).`);
+  }
+
+  const fileBuffer = await response.buffer();
+  if (!fileBuffer || fileBuffer.length === 0) {
+    throw new Error('O anexo baixado do Discord veio vazio.');
+  }
+
+  if (fileBuffer.length > format.maxBytes) {
+    throw new Error(`O arquivo anexado excede o limite do OCR para ${format.kind === 'pdf' ? 'PDF' : 'imagem'} (${formatBytes(format.maxBytes)}).`);
+  }
+
+  const base64 = fileBuffer.toString('base64');
+  if (!base64) {
+    throw new Error('Falha ao converter o anexo em base64 para o OCR.');
+  }
+
+  return {
+    ...format,
+    sizeBytes: fileBuffer.length,
+    dataUrl: `data:${format.mimeType};base64,${base64}`,
+  };
+}
+
+async function requestLayoutParsing(endpoint, apiKey, payload) {
+  let response;
+
+  try {
+    response = await postWithRetries(endpoint, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${apiKey}`,
+        'X-Title': 'Vica',
+      },
+      body: JSON.stringify(payload),
+    });
+  } catch (error) {
+    throw new Error(`Falha de rede ao chamar document_ocr: ${error.message}`);
+  }
+
+  const rawBody = await response.text();
+  if (!response.ok) {
+    throw buildOcrApiError(response.status, rawBody);
+  }
+
+  try {
+    return JSON.parse(rawBody);
+  } catch (_) {
+    throw new Error('Resposta inválida do document_ocr: JSON não reconhecido.');
+  }
+}
+
 async function execute(args, context) {
   const runtimeConfig = config.getToolRuntimeConfig(context?.toolDefinition);
   const llmConfig = getLLMConfig(context);
@@ -241,33 +416,13 @@ async function execute(args, context) {
 
   console.log(`[TOOLS][DOCUMENT_OCR][INFO] Iniciando OCR de documento: ${validatedUrl}`);
 
-  let response;
-  try {
-    response = await postWithRetries(endpoint, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${apiKey}`,
-        'X-Title': 'Vica',
-      },
-      body: JSON.stringify(payload),
-    });
-  } catch (error) {
-    throw new Error(`Falha de rede ao chamar document_ocr: ${error.message}`);
-  }
+  const inlineFile = await downloadAttachmentAsInlinePayload(validatedUrl);
+  console.log(`[TOOLS][DOCUMENT_OCR][INFO] Documento baixado do Discord (${inlineFile.kind}, ${formatBytes(inlineFile.sizeBytes)}).`);
 
-  const rawBody = await response.text();
-  if (!response.ok) {
-    const preview = rawBody.length > 500 ? `${rawBody.slice(0, 500)}...` : rawBody;
-    throw new Error(`Falha no document_ocr (HTTP ${response.status}): ${preview}`);
-  }
-
-  let data;
-  try {
-    data = JSON.parse(rawBody);
-  } catch (_) {
-    throw new Error('Resposta inválida do document_ocr: JSON não reconhecido.');
-  }
+  const data = await requestLayoutParsing(endpoint, apiKey, {
+    ...payload,
+    file: inlineFile.dataUrl,
+  });
 
   const fullMarkdown = typeof data?.md_results === 'string'
     ? data.md_results.trim()
