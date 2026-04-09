@@ -232,7 +232,7 @@ module.exports = {
         const repliedImageAttachment = getFirstAttachmentByPredicate(repliedMsg, isImageAttachment);
         if (repliedImageAttachment?.url) {
           repliedBotImageUrl = repliedImageAttachment.url;
-          repliedContext += 'A mensagem anterior do bot contem uma imagem anexada. Use essa imagem como contexto visual.\n';
+          repliedContext += 'A mensagem anterior do bot contem uma imagem anexada.\n';
         }
       }
 
@@ -252,14 +252,32 @@ module.exports = {
       if (userImageAttachment?.url) {
         imageUrl = userImageAttachment.url;
         imageTag = '[imagem]';
+        prompt = (prompt ? prompt + '\n' : '') + buildAttachmentHint({
+          type: 'image',
+          url: userImageAttachment.url,
+          name: userImageAttachment.name,
+          content_type: userImageAttachment.contentType,
+          size_bytes: userImageAttachment.size
+        });
       } else if (userVideoAttachment?.url) {
         imageDataUrl = await extractFirstFrameFromVideo(userVideoAttachment.url);
         if (imageDataUrl) {
           imageTag = '[imagem]';
+          prompt = (prompt ? prompt + '\n' : '') + buildAttachmentHint({
+            type: 'image',
+            attachment_id: 'video_frame',
+            name: `${userVideoAttachment.name || 'video'}.first-frame.png`,
+            source: 'video_first_frame'
+          });
         }
       } else if (repliedBotImageUrl) {
         imageUrl = repliedBotImageUrl;
         imageTag = '[imagem_gerada]';
+        prompt = (prompt ? prompt + '\n' : '') + buildAttachmentHint({
+          type: 'image',
+          url: repliedBotImageUrl,
+          source: 'replied_bot_image'
+        });
       }
 
       if (userAudioAttachment?.url) {

@@ -223,7 +223,7 @@ async function execute(args, context) {
     }
 
     if (!llmConfig?.base_url || !llmConfig?.api_key) {
-        throw new Error('Configuracao LLM invalida. Verifique runtime.base_url/runtime.api_key em data/tools.json ou [models.default] em config.toml.');
+        throw new Error('Configuracao LLM invalida. Verifique runtime.base_url/runtime.api_key em data/tools.json ou [ai_provider] em config.toml.');
     }
 
     if (!llmConfig?.model) {

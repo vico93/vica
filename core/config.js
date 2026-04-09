@@ -131,11 +131,19 @@ function getToolRuntimeConfig(toolDefinition = {}) {
   );
 }
 
-function getMergedModelMap(rawModels = {}) {
-  const defaultModel = normalizeModelSection(rawModels.default);
+function getPrimaryProviderConfig(parsed = {}) {
+  return normalizeModelSection(
+    parsed.ai_provider
+    || parsed.aiProvider
+    || parsed.models?.default
+  );
+}
+
+function getMergedModelMap(primaryProvider, rawModels = {}) {
+  const defaultModel = normalizeModelSection(primaryProvider);
 
   if (!defaultModel.base_url || !defaultModel.api_key || !defaultModel.model) {
-    throw new Error('Configuração inválida em config.toml: [models.default] precisa definir base_url, api_key e model.');
+    throw new Error('Configuração inválida em config.toml: [ai_provider] precisa definir base_url, api_key e model.');
   }
 
   const mergedModels = {
@@ -169,7 +177,8 @@ function parseConfig() {
 
   const discordToken = normalizeString(parsed.discord?.token);
   const clientId = normalizeDiscordId(parsed.discord?.client_id ?? parsed.discord?.clientId);
-  const models = getMergedModelMap(parsed.models);
+  const aiProvider = getPrimaryProviderConfig(parsed);
+  const models = getMergedModelMap(aiProvider, parsed.models);
   const aiSettings = normalizeAISettings(parsed.ai_settings);
   const aiTools = normalizeAITools(parsed.ai_tools);
   const ffmpegPath = normalizeString(parsed.ffmpeg?.path || parsed.ffmpeg_path);
@@ -188,6 +197,7 @@ function parseConfig() {
       client_id: clientId,
       clientId,
     },
+    ai_provider: aiProvider,
     models,
     ai_settings: aiSettings,
     settings: aiSettings,
@@ -205,7 +215,9 @@ function parseConfig() {
       return mergeModelConfig(this.getModelConfig(fallbackCapability), getToolRuntimeConfig(toolDefinition));
     },
     hasModelOverride(capability) {
-      return !!parsed.models?.[capability];
+      return capability === 'default'
+        ? false
+        : !!parsed.models?.[capability];
     },
   };
 

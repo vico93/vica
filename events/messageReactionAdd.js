@@ -147,8 +147,23 @@ module.exports = {
 
       if (imageAttachment?.url) {
         imageUrl = imageAttachment.url;
+        prompt = (prompt ? prompt + '\n' : '') + buildAttachmentHint({
+          type: 'image',
+          url: imageAttachment.url,
+          name: imageAttachment.name,
+          content_type: imageAttachment.contentType,
+          size_bytes: imageAttachment.size
+        });
       } else if (videoAttachment?.url) {
         imageDataUrl = await extractFirstFrameFromVideo(videoAttachment.url);
+        if (imageDataUrl) {
+          prompt = (prompt ? prompt + '\n' : '') + buildAttachmentHint({
+            type: 'image',
+            attachment_id: 'video_frame',
+            name: `${videoAttachment.name || 'video'}.first-frame.png`,
+            source: 'video_first_frame'
+          });
+        }
       }
 
       if (audioAttachment?.url) {

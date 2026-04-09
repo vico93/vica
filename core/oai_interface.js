@@ -564,11 +564,7 @@ async function gerarRespostaContextual(guildId, canalId, usuarioId, botUserId, m
     channel,
     sourceMessageId,
     originalAuthorId,
-    imageDataUrl,
-    {
-      forceVisionToolHandoff: false,
-      allowVisionToolRecovery: true
-    }
+    imageDataUrl
   );
 }
 
@@ -582,14 +578,8 @@ async function gerarRespostaContextualInternal(
   channel = null,
   sourceMessageId = null,
   originalAuthorId = null,
-  imageDataUrl = null,
-  options = {}
+  imageDataUrl = null
 ) {
-  const {
-    forceVisionToolHandoff = false,
-    allowVisionToolRecovery = true
-  } = options;
-
   const messages = [];
 
   if (shouldSendSystemPrompt()) {
@@ -690,95 +680,22 @@ async function gerarRespostaContextualInternal(
   if (config.tools?.enabled !== false) {
     tools = await toolLoader.getOpenAITools();
   }
-
-  // Some vision models may emit tool payload as plain text instead of structured tool_calls.
-  const disableToolsOnVision = config.settings?.disableToolsOnVision !== false;
-  if (imageUrl && disableToolsOnVision && tools.length > 0) {
-    console.warn('[OAI][TOOLS][WARN] Ferramentas desativadas para mensagem com imagem (proteção contra vazamento de tool call textual).');
-    tools = [];
+  const inlineAttachments = {};
+  if (typeof imageDataUrl === 'string' && imageDataUrl.startsWith('data:image/')) {
+    inlineAttachments.video_frame = {
+      dataUrl: imageDataUrl,
+      sourceLabel: 'video_frame',
+    };
   }
 
-  const requestContext = {
-    guildId,
-    canalId,
-    usuarioId,
-    botUserId,
-    mensagemUsuario,
-    imageUrl,
-    imageDataUrl,
-    channel,
-    sourceMessageId,
-    originalAuthorId
-  };
-
-  const visionImageSource = normalizeVisionImageInput(imageUrl, imageDataUrl);
-
-  const toolsEnabled = tools.length > 0;
-  const useVisionToolHandoff = shouldUseVisionToolHandoff({
-    hasImageContext: !!visionImageSource,
-    toolsEnabled,
-    forceHandoff: forceVisionToolHandoff
-  });
-
-  let activeImageUrl = visionImageSource;
-  let usingVisionToolHandoff = false;
-  if (useVisionToolHandoff) {
-    const visionHandoffSummary = await buildVisionToolHandoffSummary(mensagemUsuario, visionImageSource);
-    if (!visionHandoffSummary) {
-      if (forceVisionToolHandoff) {
-        console.warn('[OAI][VISION][WARN] Handoff visual falhou durante recuperacao automatica.');
-        return getToolLeakFallbackMessage(true);
-      }
-
-      console.warn('[OAI][VISION][WARN] Handoff visual indisponivel. Mantendo fluxo direto com visao.');
-    } else {
-      const insertAt = messages[0]?.role === 'system' ? 1 : 0;
-      messages.splice(insertAt, 0, {
-        role: 'system',
-        content: `### Contexto Visual Interno\n\n${visionHandoffSummary}\n\nUse este contexto visual para responder e decidir se precisa chamar alguma ferramenta. Não mencione este resumo interno ao usuário.`
-      });
-      activeImageUrl = null;
-      usingVisionToolHandoff = true;
-      console.log('[OAI][VISION][INFO] Contexto visual convertido em handoff para o modelo principal.');
-    }
-  }
-
-  const canRecoverVisionToolFlow = shouldAttemptVisionToolRecovery({
-    hasImageContext: !!visionImageSource,
-    toolsEnabled,
-    disableToolsOnVision,
-    usedVisionToolHandoff: usingVisionToolHandoff,
-    allowVisionToolRecovery
-  });
-
-  // Mensagem atual
-  let userContent;
-  if (activeImageUrl) {
-    const base64Url = activeImageUrl.startsWith('data:image/')
-      ? activeImageUrl
-      : await fetchImageAsBase64(activeImageUrl);
-    if (base64Url) {
-      userContent = [
-        { type: 'text', text: mensagemUsuario },
-        { type: 'image_url', image_url: { url: base64Url } }
-      ];
-    } else {
-      console.warn('[OAI] Falha ao converter imagem para base64, enviando sem imagem.');
-      userContent = mensagemUsuario;
-      activeImageUrl = null;
-    }
-  } else {
-    userContent = mensagemUsuario;
-  }
-  messages.push({ role: 'user', content: userContent });
+  messages.push({ role: 'user', content: mensagemUsuario });
 
   // --- TOKENIZER CHECK ---
   const budget = config.settings.budgetTokenLimit || config.settings.maxTokens || 3000;
 
-  const requestCapability = activeImageUrl ? 'vision' : 'default';
-  const requestModel = getModel(requestCapability === 'vision');
-  const requestClient = getOpenAIClient(requestCapability);
-  const estimatedTokens = await tokenizer.countTokens(messages, tools, requestModel, requestCapability);
+  const requestModel = getModel();
+  const requestClient = getOpenAIClient('default');
+  const estimatedTokens = await tokenizer.countTokens(messages, tools, requestModel, 'default');
 
   if (estimatedTokens > budget) {
     console.warn(`[TOKENIZER][BUDGET] ⚠️ Mensagem excede orçamento! Estimado: ${estimatedTokens}, Limite: ${budget}.`);
@@ -812,7 +729,8 @@ async function gerarRespostaContextualInternal(
         userId: usuarioId,
         botUserId,
         channel,
-        client: channel?.client || channel?.guild?.client
+        client: channel?.client || channel?.guild?.client,
+        inlineAttachments
       };
       const toolResults = await toolLoader.executeToolCalls(toolCalls, context);
 
@@ -833,12 +751,6 @@ async function gerarRespostaContextualInternal(
     const hasPendingToolCalls = Array.isArray(toolCalls) && toolCalls.length > 0;
     if (hasPendingToolCalls) {
       console.warn(`[OAI][TOOLS][WARN] Limite de turnos de ferramentas atingido (${toolTurnLimit}). Finalizando com fallback seguro.`);
-      if (canRecoverVisionToolFlow) {
-        return await retryContextualResponseViaVisionToolHandoff(
-          requestContext,
-          `Limite de turnos de ferramentas atingido com ${getModel(true)}`
-        );
-      }
     }
 
     let content = message?.content || '';
@@ -852,16 +764,9 @@ async function gerarRespostaContextualInternal(
       console.error('[OAI][SAFETY] Resposta bloqueada por conter payload interno de ferramenta.', {
         guildId,
         canalId,
-        usuarioId,
-        imageContext: !!visionImageSource
+        usuarioId
       });
-      if (canRecoverVisionToolFlow) {
-        return await retryContextualResponseViaVisionToolHandoff(
-          requestContext,
-          'Payload interno de ferramenta vazou na resposta do modelo com visao'
-        );
-      }
-      return getToolLeakFallbackMessage(!!visionImageSource);
+      return getToolLeakFallbackMessage(false);
     }
 
     const cleanedMessage = typeof parsedTags.cleanedMessage === 'string'
@@ -877,21 +782,9 @@ async function gerarRespostaContextualInternal(
     }
 
     console.warn('[OAI][WARN] Resposta vazia após processamento de tags. Retornando fallback.');
-    if (canRecoverVisionToolFlow) {
-      return await retryContextualResponseViaVisionToolHandoff(
-        requestContext,
-        'Resposta vazia apos fluxo de visao com ferramentas'
-      );
-    }
     return getEmptyResponseFallbackMessage();
   } catch (error) {
     console.error('[ERRO] Falha na geração de resposta:', error.message);
-    if (canRecoverVisionToolFlow) {
-      return await retryContextualResponseViaVisionToolHandoff(
-        requestContext,
-        `Erro no fluxo direto de visao com ferramentas: ${error.message}`
-      );
-    }
     throw error;
   }
 }

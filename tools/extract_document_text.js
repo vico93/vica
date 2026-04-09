@@ -1,5 +1,5 @@
 /*
-** caminho: tools/document_ocr.js
+** caminho: tools/extract_document_text.js
 ** últimaMod: 2026-04-08 01:55
 ** autor: Vico
 ** colaboração: GPT-5.4
@@ -222,7 +222,7 @@ function buildOcrApiError(status, rawBody) {
   }
 
   const preview = rawBody.length > 500 ? `${rawBody.slice(0, 500)}...` : rawBody;
-  const message = `Falha no document_ocr (HTTP ${status}): ${preview}`;
+  const message = `Falha no extract_document_text (HTTP ${status}): ${preview}`;
   const error = new Error(message);
 
   error.status = status;
@@ -301,7 +301,7 @@ async function postWithRetries(url, options) {
       } catch {
         // ignore body drain errors before retry
       }
-      console.warn(`[TOOLS][DOCUMENT_OCR][WARN] HTTP ${response.status} na tentativa ${attempt}/${maxRetries}. Retentando em ${delay}ms...`);
+      console.warn(`[TOOLS][EXTRACT_DOCUMENT_TEXT][WARN] HTTP ${response.status} na tentativa ${attempt}/${maxRetries}. Retentando em ${delay}ms...`);
       await sleep(delay);
     } catch (error) {
       if (attempt >= maxRetries) {
@@ -310,7 +310,7 @@ async function postWithRetries(url, options) {
 
       attempt += 1;
       const delay = getBackoffDelay(attempt, baseDelay);
-      console.warn(`[TOOLS][DOCUMENT_OCR][WARN] Erro de rede na tentativa ${attempt}/${maxRetries}: ${error.message}. Retentando em ${delay}ms...`);
+      console.warn(`[TOOLS][EXTRACT_DOCUMENT_TEXT][WARN] Erro de rede na tentativa ${attempt}/${maxRetries}: ${error.message}. Retentando em ${delay}ms...`);
       await sleep(delay);
     }
   }
@@ -376,7 +376,7 @@ async function requestLayoutParsing(endpoint, apiKey, payload) {
       body: JSON.stringify(payload),
     });
   } catch (error) {
-    throw new Error(`Falha de rede ao chamar document_ocr: ${error.message}`);
+    throw new Error(`Falha de rede ao chamar extract_document_text: ${error.message}`);
   }
 
   const rawBody = await response.text();
@@ -387,7 +387,7 @@ async function requestLayoutParsing(endpoint, apiKey, payload) {
   try {
     return JSON.parse(rawBody);
   } catch (_) {
-    throw new Error('Resposta inválida do document_ocr: JSON não reconhecido.');
+    throw new Error('Resposta inválida do extract_document_text: JSON não reconhecido.');
   }
 }
 
@@ -399,25 +399,25 @@ async function execute(args, context) {
   const baseUrl = normalizeBaseUrl(llmConfig?.base_url);
 
   if (!runtimeConfig?.model) {
-    throw new Error('Configuracao da ferramenta invalida. Defina runtime.model em data/tools.json para document_ocr.');
+    throw new Error('Configuracao da ferramenta invalida. Defina runtime.model em data/tools.json para extract_document_text.');
   }
 
   if (!apiKey || !baseUrl) {
-    throw new Error('Configuracao LLM invalida. Verifique runtime.base_url/runtime.api_key em data/tools.json ou [models.default] em config.toml.');
+    throw new Error('Configuracao LLM invalida. Verifique runtime.base_url/runtime.api_key em data/tools.json ou [ai_provider] em config.toml.');
   }
 
   if (!model) {
-    throw new Error('Configuracao LLM invalida. Verifique runtime.model em data/tools.json para document_ocr.');
+    throw new Error('Configuracao LLM invalida. Verifique runtime.model em data/tools.json para extract_document_text.');
   }
 
   const validatedUrl = validateAttachmentUrl(args?.url);
   const payload = buildPayload(args, model, validatedUrl, context);
   const endpoint = `${baseUrl}/paas/v4/layout_parsing`;
 
-  console.log(`[TOOLS][DOCUMENT_OCR][INFO] Iniciando OCR de documento: ${validatedUrl}`);
+  console.log(`[TOOLS][EXTRACT_DOCUMENT_TEXT][INFO] Iniciando extração de texto do documento: ${validatedUrl}`);
 
   const inlineFile = await downloadAttachmentAsInlinePayload(validatedUrl);
-  console.log(`[TOOLS][DOCUMENT_OCR][INFO] Documento baixado do Discord (${inlineFile.kind}, ${formatBytes(inlineFile.sizeBytes)}).`);
+  console.log(`[TOOLS][EXTRACT_DOCUMENT_TEXT][INFO] Documento baixado do Discord (${inlineFile.kind}, ${formatBytes(inlineFile.sizeBytes)}).`);
 
   const data = await requestLayoutParsing(endpoint, apiKey, {
     ...payload,

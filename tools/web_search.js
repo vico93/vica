@@ -110,7 +110,7 @@ async function execute(args, context) {
 
     const llmConfig = getLLMConfig(context);
     if (!llmConfig?.api_key || !llmConfig?.base_url) {
-        throw new Error('Configuração LLM inválida. Verifique [models.default] em config.toml.');
+        throw new Error('Configuração LLM inválida. Verifique [ai_provider] em config.toml.');
     }
 
     const baseUrl = normalizeBaseUrl(llmConfig.base_url);
