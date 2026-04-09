@@ -21,6 +21,7 @@ const {
   isImageAttachment,
   isAudioAttachment,
   isPdfAttachment,
+  isTextAttachment,
   getFirstAttachmentByPredicate,
   buildAttachmentHint
 } = require('../helpers/message_attachments');
@@ -247,6 +248,7 @@ module.exports = {
       const userVideoAttachment = getFirstAttachmentByPredicate(message, isVideoAttachment);
       const userAudioAttachment = getFirstAttachmentByPredicate(message, isAudioAttachment);
       const userPdfAttachment = getFirstAttachmentByPredicate(message, isPdfAttachment);
+      const userTextAttachment = getFirstAttachmentByPredicate(message, isTextAttachment);
 
       let imageTag = null;
       if (userImageAttachment?.url) {
@@ -298,6 +300,16 @@ module.exports = {
           name: userPdfAttachment.name,
           content_type: userPdfAttachment.contentType,
           size_bytes: userPdfAttachment.size
+        });
+      }
+
+      if (userTextAttachment?.url) {
+        prompt = (prompt ? prompt + '\n' : '') + buildAttachmentHint({
+          type: 'text',
+          url: userTextAttachment.url,
+          name: userTextAttachment.name,
+          content_type: userTextAttachment.contentType,
+          size_bytes: userTextAttachment.size
         });
       }
 
