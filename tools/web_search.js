@@ -1,6 +1,6 @@
 /*
 ** caminho: tools/web_search.js
-** últimaMod: 2026-04-08 15:10
+** últimaMod: 2026-04-10 21:20
 ** autor: Vico
 ** colaboração: ChatGPT (GPT-5)
 */
@@ -70,7 +70,7 @@ function buildPayload(args, searchQuery) {
     const payload = {
         search_engine: searchEngine,
         search_query: searchQuery,
-        count: clampInteger(args?.count, 10, 1, 50),
+        count: clampInteger(args?.count, 5, 1, 10),
         search_recency_filter: recencyFilter,
     };
 
@@ -120,7 +120,7 @@ async function execute(args, context) {
 
     const endpoint = `${baseUrl}/web_search`;
     const payload = buildPayload(args, searchQuery);
-    const maxContentLength = clampInteger(args?.max_content_length, 600, 100, 5000);
+    const maxContentLength = clampInteger(args?.max_content_length, 280, 120, 1200);
 
     console.log(`[TOOLS][WEB_SEARCH][INFO] Buscando por: ${truncateText(searchQuery, 160)}`);
 
@@ -153,13 +153,6 @@ async function execute(args, context) {
         throw new Error('Resposta inválida do web_search: JSON não reconhecido.');
     }
 
-    const searchIntent = Array.isArray(data?.search_intent)
-        ? data.search_intent.map((item) => ({
-            intent: typeof item?.intent === 'string' ? item.intent : '',
-            keywords: typeof item?.keywords === 'string' ? item.keywords : '',
-            query: typeof item?.query === 'string' ? item.query : '',
-        }))
-        : [];
     const searchResults = Array.isArray(data?.search_result) ? data.search_result : null;
     if (!searchResults) {
         throw new Error('Resposta inválida do web_search: campo search_result ausente.');
@@ -167,16 +160,11 @@ async function execute(args, context) {
 
     return {
         query: searchQuery,
-        request_id: typeof data?.request_id === 'string' ? data.request_id : '',
-        search_intent: searchIntent,
         count: searchResults.length,
         results: searchResults.map((item) => ({
             title: typeof item?.title === 'string' ? item.title : '',
             content: truncateText(typeof item?.content === 'string' ? item.content : '', maxContentLength),
             link: typeof item?.link === 'string' ? item.link : '',
-            media: typeof item?.media === 'string' ? item.media : '',
-            icon: typeof item?.icon === 'string' ? item.icon : '',
-            refer: typeof item?.refer === 'string' ? item.refer : '',
             publish_date: typeof item?.publish_date === 'string' ? item.publish_date : '',
         })),
     };

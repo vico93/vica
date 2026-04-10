@@ -1,6 +1,6 @@
 /*
 ** caminho: core/tool_loader.js
-** últimaMod: 2026-03-09
+** últimaMod: 2026-04-10 21:20
 ** autor: Vico
 ** colaboração: Roo, ChatGPT (GPT-5)
 */
@@ -9,6 +9,8 @@ const fs = require('fs');
 const path = require('path');
 const config = require('./config');
 const mcpClient = require('./mcp_client');
+
+const MAX_WEB_SEARCH_CALLS_PER_RESPONSE = 2;
 
 // Cache para ferramentas carregadas
 let toolsCache = null;
@@ -226,6 +228,42 @@ function normalizeString(value) {
   }
 
   return value.trim();
+}
+
+function getToolUsageState(context = {}) {
+  if (!context || typeof context !== 'object') {
+    return null;
+  }
+
+  if (!context.toolUsageState || typeof context.toolUsageState !== 'object') {
+    context.toolUsageState = {};
+  }
+
+  return context.toolUsageState;
+}
+
+function enforceConversationToolLimits(toolName, context = {}) {
+  const usageState = getToolUsageState(context);
+  if (!usageState) {
+    return { allowed: true };
+  }
+
+  if (toolName === 'web_search') {
+    const currentCount = Number.isInteger(usageState.webSearchCalls)
+      ? usageState.webSearchCalls
+      : 0;
+
+    if (currentCount >= MAX_WEB_SEARCH_CALLS_PER_RESPONSE) {
+      return {
+        allowed: false,
+        reason: `Limite de web_search por resposta atingido (${MAX_WEB_SEARCH_CALLS_PER_RESPONSE}). Use os resultados já obtidos ou chame web_reader em um link específico.`
+      };
+    }
+
+    usageState.webSearchCalls = currentCount + 1;
+  }
+
+  return { allowed: true };
 }
 
 function containsToolPayloadMarkup(value) {
@@ -608,6 +646,15 @@ async function executeTool(toolName, args, context = {}) {
     return {
       success: false,
       error: error
+    };
+  }
+
+  const toolLimitCheck = enforceConversationToolLimits(normalizedToolName, context);
+  if (!toolLimitCheck.allowed) {
+    console.warn(`[TOOL_LOADER][WARN] Tool '${normalizedToolName}' bloqueada por limite de conversa: ${toolLimitCheck.reason}`);
+    return {
+      success: false,
+      error: toolLimitCheck.reason
     };
   }
 

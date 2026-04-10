@@ -1,6 +1,6 @@
 /*
 ** caminho: core/oai_interface.js
-** últimaMod: 2026-03-12 10:30
+** últimaMod: 2026-04-10 21:20
 ** autor: Vico
 ** colaboração: Gemini, ChatGPT, Grok Code (Fast), GPT-5
 */
@@ -118,6 +118,7 @@ const MAX_TOOL_RESULT_CHARS = (() => {
 
   return Math.max(500, Math.min(configuredValue, 20000));
 })();
+const TOKEN_BUDGET_TARGET_RATIO = 0.9;
 
 function getToolTurnLimit() {
   const configuredValue = config.settings?.maxToolTurns;
@@ -139,6 +140,50 @@ function truncateToolResultForContext(toolResult) {
 
   const omittedChars = toolResult.length - MAX_TOOL_RESULT_CHARS;
   return `${toolResult.slice(0, MAX_TOOL_RESULT_CHARS)}\n[tool_result_truncated:${omittedChars}]`;
+}
+
+function isPinnedContextMessage(messages, index) {
+  const message = messages[index];
+  if (!message) {
+    return false;
+  }
+
+  if (index === 0 && message.role === 'system') {
+    return true;
+  }
+
+  return index === messages.length - 1;
+}
+
+async function pruneMessagesToBudget(messages, tools, requestModel, capability, budget) {
+  let estimatedTokens = await tokenizer.countTokens(messages, tools, requestModel, capability);
+  if (estimatedTokens <= budget) {
+    return {
+      estimatedTokens,
+      removedMessages: 0,
+      targetBudget: budget
+    };
+  }
+
+  const targetBudget = Math.max(500, Math.floor(budget * TOKEN_BUDGET_TARGET_RATIO));
+  let removedMessages = 0;
+
+  while (estimatedTokens > targetBudget) {
+    const removableIndex = messages.findIndex((_, index) => !isPinnedContextMessage(messages, index));
+    if (removableIndex === -1) {
+      break;
+    }
+
+    messages.splice(removableIndex, 1);
+    removedMessages++;
+    estimatedTokens = await tokenizer.countTokens(messages, tools, requestModel, capability);
+  }
+
+  return {
+    estimatedTokens,
+    removedMessages,
+    targetBudget
+  };
 }
 
 function getEmptyResponseFallbackMessage() {
@@ -695,11 +740,20 @@ async function gerarRespostaContextualInternal(
 
   const requestModel = getModel();
   const requestClient = getOpenAIClient('default');
-  const estimatedTokens = await tokenizer.countTokens(messages, tools, requestModel, 'default');
+  let estimatedTokens = await tokenizer.countTokens(messages, tools, requestModel, 'default');
 
   if (estimatedTokens > budget) {
     console.warn(`[TOKENIZER][BUDGET] ⚠️ Mensagem excede orçamento! Estimado: ${estimatedTokens}, Limite: ${budget}.`);
-    // Futuro: Implementar pruning
+    const pruningResult = await pruneMessagesToBudget(messages, tools, requestModel, 'default', budget);
+    estimatedTokens = pruningResult.estimatedTokens;
+
+    if (pruningResult.removedMessages > 0) {
+      console.log(`[TOKENIZER][PRUNE] ${pruningResult.removedMessages} mensagem(ns) antigas removida(s). Novo estimado: ${estimatedTokens}/${budget} tokens (alvo interno: ${pruningResult.targetBudget}).`);
+    }
+
+    if (estimatedTokens > budget) {
+      console.warn(`[TOKENIZER][BUDGET] Contexto ainda acima do orçamento após pruning: ${estimatedTokens}/${budget}.`);
+    }
   } else {
     console.log(`[TOKENIZER][INFO] Orçamento ok: ${estimatedTokens}/${budget} tokens.`);
   }
@@ -719,6 +773,7 @@ async function gerarRespostaContextualInternal(
     let toolCalls = message?.tool_calls;
 
     const toolTurnLimit = getToolTurnLimit();
+    const toolUsageState = {};
     let turns = 0;
     while (toolCalls?.length > 0 && turns < toolTurnLimit) {
       turns++;
@@ -730,7 +785,8 @@ async function gerarRespostaContextualInternal(
         botUserId,
         channel,
         client: channel?.client || channel?.guild?.client,
-        inlineAttachments
+        inlineAttachments,
+        toolUsageState
       };
       const toolResults = await toolLoader.executeToolCalls(toolCalls, context);
 
@@ -831,11 +887,12 @@ ${conversationText}
     let toolCalls = message?.tool_calls;
 
     const toolTurnLimit = getToolTurnLimit();
+    const toolUsageState = {};
     let turns = 0;
     while (toolCalls?.length > 0 && turns < toolTurnLimit) {
       turns++;
       messages.push({ role: 'assistant', tool_calls: toolCalls });
-      const toolResults = await toolLoader.executeToolCalls(toolCalls);
+      const toolResults = await toolLoader.executeToolCalls(toolCalls, { source: 'comment', toolUsageState });
       for (const res of toolResults) {
         const normalizedToolResult = truncateToolResultForContext(res.result);
         messages.push({
