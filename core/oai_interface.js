@@ -628,16 +628,7 @@ async function gerarRespostaContextualInternal(
   const messages = [];
 
   if (shouldSendSystemPrompt()) {
-    let systemPrompt = await carregarSystemPrompt();
-    try {
-      const ranking = database.buscarRank(guildId, 5);
-      if (ranking?.length > 0) {
-        const rankingLines = ranking.map((user, index) => `${index + 1}. <@${user.usuario_id}> (${user.xp} XP)`);
-        systemPrompt += `\n\n**Ranking de participação:**\n${rankingLines.join(', ')}`;
-      }
-    } catch (e) {
-      console.error('[OAI] Erro ao buscar ranking:', e);
-    }
+    const systemPrompt = await carregarSystemPrompt();
     messages.push({ role: 'system', content: systemPrompt });
   }
 

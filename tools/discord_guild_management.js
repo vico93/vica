@@ -1,12 +1,13 @@
 /*
-** caminho: tools/discord_moderation.js
-** últimaMod: 2026-03-01 11:12
+** caminho: tools/discord_guild_management.js
+** últimaMod: 2026-04-13
 ** autor: Vico
 ** colaboração: OpenCode (GPT-5.3-Codex)
 */
 
 const { PermissionsBitField } = require('discord.js');
 const moderation = require('../core/moderation');
+const database = require('../core/database');
 
 function buildError(error) {
     return {
@@ -65,6 +66,62 @@ async function resolveTargetMember(guild, targetUserId) {
     return moderation.fetchGuildMember(guild, normalizedUserId);
 }
 
+function handleRankingAction(guild, args) {
+    const limit = Math.min(Math.max(Number.isInteger(args?.limit) ? args.limit : 5, 1), 20);
+    const ranking = database.buscarRank(guild.id, limit);
+
+    if (!ranking?.length) {
+        return {
+            success: true,
+            ranking: [],
+            message: 'Nenhum usuário no ranking ainda.'
+        };
+    }
+
+    const formatted = ranking.map((user, index) => ({
+        position: index + 1,
+        user_id: user.usuario_id,
+        xp: user.xp,
+        level: user.nivel
+    }));
+
+    return {
+        success: true,
+        ranking: formatted,
+        total_returned: formatted.length
+    };
+}
+
+function handleUserRankAction(guild, args) {
+    const targetUserId = normalizeId(args?.target_user_id);
+    if (!targetUserId) {
+        return buildError('target_user_id é obrigatório para user_rank.');
+    }
+
+    const userData = database.buscarUsuarioXP(guild.id, targetUserId);
+    if (!userData) {
+        return {
+            success: true,
+            found: false,
+            message: 'Usuário não encontrado no ranking.'
+        };
+    }
+
+    const allUsers = database.buscarTodosUsuariosXP(guild.id);
+    const sorted = allUsers.sort((a, b) => b.xp - a.xp);
+    const position = sorted.findIndex(u => u.usuario_id === targetUserId) + 1;
+
+    return {
+        success: true,
+        found: true,
+        position,
+        user_id: targetUserId,
+        xp: userData.xp,
+        level: userData.nivel,
+        total_users: sorted.length
+    };
+}
+
 async function execute(args, context) {
     const action = typeof args?.action === 'string'
         ? args.action.trim().toLowerCase()
@@ -76,7 +133,15 @@ async function execute(args, context) {
 
     const guild = await resolveGuildFromContext(context);
     if (!guild) {
-        return buildError('Contexto inválido: guild/client não disponível para moderação.');
+        return buildError('Contexto inválido: guild/client não disponível.');
+    }
+
+    if (action === 'ranking') {
+        return handleRankingAction(guild, args);
+    }
+
+    if (action === 'user_rank') {
+        return handleUserRankAction(guild, args);
     }
 
     const executorMember = await resolveExecutorMember(guild, context);
@@ -85,7 +150,7 @@ async function execute(args, context) {
     }
 
     if (!ensureBanPermission(executorMember)) {
-        return buildError('Você precisa da permissão BanMembers para usar a ferramenta de moderação.');
+        return buildError('Você precisa da permissão BanMembers para usar ações de moderação.');
     }
 
     if (action === 'warn') {
@@ -179,7 +244,7 @@ async function execute(args, context) {
         return buildError('Ações de alteração da lista de proteção não estão expostas para a IA. Use o comando /mod_protect.');
     }
 
-    return buildError(`Ação '${action}' não suportada pela ferramenta de moderação.`);
+    return buildError(`Ação '${action}' não suportada.`);
 }
 
 module.exports = {
