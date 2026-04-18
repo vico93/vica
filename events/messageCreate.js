@@ -1,6 +1,6 @@
 /*
 ** caminho: events/messageCreate.js
-** últimaMod: 2026-04-08 01:15
+** últimaMod: 2026-04-19 03:15
 ** autor: Vico
 ** colaboração: Grok Code (Fast), ChatGPT (GPT-5)
 */
@@ -356,13 +356,22 @@ module.exports = {
       }
     } catch (err) {
       console.error('[VICA][CHATBOT] Falha ao responder:', err);
-      if (responseChannel.id === message.channel.id) {
-        await message.reply({
-          content: 'Deu um tilt aqui nos meus circuitos, não consegui processar sua mensagem. 😢',
-          failIfNotExists: false
-        });
+
+      const apiErrorCode = err?.error?.code;
+      const apiErrorMessage = err?.error?.message;
+      const httpStatus = err?.status;
+
+      let userMessage;
+      if (apiErrorCode && apiErrorMessage) {
+        userMessage = `<:red_cross:1415557583191801906> Erro ${httpStatus || ''}: ${apiErrorCode} - ${apiErrorMessage}`;
       } else {
-        await responseChannel.send('Deu um tilt aqui nos meus circuitos, não consegui processar sua mensagem. 😢');
+        userMessage = 'Deu um tilt aqui nos meus circuitos, não consegui processar sua mensagem. 😢';
+      }
+
+      if (responseChannel.id === message.channel.id) {
+        await message.reply({ content: userMessage, failIfNotExists: false });
+      } else {
+        await responseChannel.send(userMessage);
       }
     }
   }
