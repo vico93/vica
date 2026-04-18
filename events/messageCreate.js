@@ -363,7 +363,7 @@ module.exports = {
 
       let userMessage;
       if (apiErrorCode && apiErrorMessage) {
-        userMessage = `<:red_cross:1415557583191801906> Erro ${httpStatus || ''}: ${apiErrorCode} - ${apiErrorMessage}`;
+        userMessage = `<:red_cross:1415557583191801906> Erro *${httpStatus || ''}* (cód. API ${apiErrorCode}): **${apiErrorMessage}**`;
       } else {
         userMessage = 'Deu um tilt aqui nos meus circuitos, não consegui processar sua mensagem. 😢';
       }
