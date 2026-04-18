@@ -1,13 +1,16 @@
 /*
 ** caminho: tools/image_generation.js
-** últimaMod: 2026-03-09 12:20
+** últimaMod: 2026-04-17 22:30
 ** autor: Vico
-** colaboração: ChatGPT (GPT-5)
+** colaboração: ChatGPT (GPT-5), Roo
 */
 
 const OpenAI = require('openai');
 const fetch = require('node-fetch');
 const config = require('../core/config');
+
+const ZAI_IMAGE_ENDPOINT = '/images/generations';
+const MAX_ZAI_PROMPT_LENGTH = 1000;
 
 function getFileExtension(outputFormat) {
     if (outputFormat === 'jpeg') {
@@ -204,8 +207,62 @@ async function downloadImageFromUrl(imageUrl, options = {}) {
     throw lastError || new Error('Falha ao baixar imagem da URL.');
 }
 
+function isZAIEndpoint(baseUrl) {
+    if (typeof baseUrl !== 'string') {
+        return false;
+    }
+    const normalized = baseUrl.toLowerCase();
+    return normalized.includes('/paas/v4') || normalized.includes('z.ai') || normalized.includes('bigmodel.cn');
+}
+
+function normalizeBaseUrl(baseUrl) {
+    return String(baseUrl || '').trim().replace(/\/+$/, '');
+}
+
+async function generateImageZAI(baseUrl, apiKey, model, prompt, size = '1280x1280') {
+    const endpoint = normalizeBaseUrl(baseUrl) + ZAI_IMAGE_ENDPOINT;
+    const truncatedPrompt = prompt.length > MAX_ZAI_PROMPT_LENGTH ? prompt.slice(0, MAX_ZAI_PROMPT_LENGTH) : prompt;
+
+    const payload = {
+        model,
+        prompt: truncatedPrompt,
+        size,
+    };
+
+    console.log(`[TOOLS][IMAGE][INFO] Chamando Z.AI API: ${endpoint}`);
+
+    const response = await fetch(endpoint, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${apiKey}`,
+            'X-Title': 'Vica',
+        },
+        body: JSON.stringify(payload),
+    });
+
+    if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(`Z.AI API falhou (HTTP ${response.status}): ${errorText.slice(0, 500)}`);
+    }
+
+    const data = await response.json();
+
+    if (!data?.data?.[0]?.url) {
+        throw new Error('Z.AI API nao retornou URL da imagem.');
+    }
+
+    return {
+        data: [{
+            url: data.data[0].url,
+        }],
+        created: data.created,
+    };
+}
+
 async function execute(args, context) {
     const prompt = args?.prompt;
+    const size = args?.size || '1280x1280';
 
     if (typeof prompt !== 'string' || prompt.trim().length === 0) {
         throw new Error('O parametro "prompt" e obrigatorio.');
@@ -230,18 +287,25 @@ async function execute(args, context) {
         throw new Error('Configuracao LLM invalida. Verifique runtime.model em data/tools.json para image_generation.');
     }
 
-    const openai = new OpenAI({
-        apiKey: llmConfig.api_key,
-        baseURL: llmConfig.base_url,
-        defaultHeaders: {
-            'X-Title': 'Vica',
-        },
-    });
+    const useZAI = isZAIEndpoint(llmConfig.base_url);
 
-    console.log(`[TOOLS][IMAGE][INFO] Gerando imagem com o modelo: ${llmConfig.model}`);
+    console.log(`[TOOLS][IMAGE][INFO] Gerando imagem com o modelo: ${llmConfig.model} (${useZAI ? 'Z.AI' : 'OpenAI'})`);
 
     try {
-        const response = await generateImageWithFallback(openai, llmConfig.model, prompt);
+        let response;
+
+        if (useZAI) {
+            response = await generateImageZAI(llmConfig.base_url, llmConfig.api_key, llmConfig.model, prompt, size);
+        } else {
+            const openai = new OpenAI({
+                apiKey: llmConfig.api_key,
+                baseURL: llmConfig.base_url,
+                defaultHeaders: {
+                    'X-Title': 'Vica',
+                },
+            });
+            response = await generateImageWithFallback(openai, llmConfig.model, prompt);
+        }
 
         const image = response?.data?.[0];
         if (!image) {
