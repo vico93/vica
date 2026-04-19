@@ -1,8 +1,8 @@
 /*
 ** caminho: core/tool_loader.js
-** últimaMod: 2026-04-10 21:20
+** últimaMod: 2026-04-19 14:25
 ** autor: Vico
-** colaboração: Roo, ChatGPT (GPT-5)
+** colaboração: Roo, ChatGPT (GPT-5), Claude Opus 4.6
 */
 
 const fs = require('fs');
@@ -110,7 +110,7 @@ async function reloadTools() {
  * Obtém todas as ferramentas no formato OpenAI
  * @returns {Promise<Array>} Array de ferramentas no formato OpenAI
  */
-async function getOpenAITools() {
+async function getOpenAITools({ excludeTools = [] } = {}) {
   const config = loadToolsConfig();
 
   if (!config.tools || !Array.isArray(config.tools)) {
@@ -118,12 +118,22 @@ async function getOpenAITools() {
     return [];
   }
 
+  const excludeSet = new Set(
+    Array.isArray(excludeTools) ? excludeTools : []
+  );
+
   const openaiTools = [];
 
   // Process custom tools (with handler)
   for (const tool of config.tools) {
     // Skip MCP servers (they will be processed separately)
     if (tool.type === 'mcp') {
+      continue;
+    }
+
+    // Skip excluded tools
+    if (excludeSet.size > 0 && excludeSet.has(tool.name)) {
+      console.log(`[TOOL_LOADER][INFO] Ferramenta '${tool.name}' excluída por filtro.`);
       continue;
     }
 
@@ -145,9 +155,15 @@ async function getOpenAITools() {
     });
   }
 
-  // Add MCP tools
+  // Add MCP tools (filtered by excludeSet)
   const mcpTools = await getMCPTools();
-  openaiTools.push(...mcpTools);
+  for (const mcpTool of mcpTools) {
+    if (excludeSet.size > 0 && excludeSet.has(mcpTool.function?.name)) {
+      console.log(`[TOOL_LOADER][INFO] Ferramenta MCP '${mcpTool.function?.name}' excluída por filtro.`);
+      continue;
+    }
+    openaiTools.push(mcpTool);
+  }
 
   return openaiTools;
 }

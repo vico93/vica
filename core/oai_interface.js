@@ -1,8 +1,8 @@
 /*
 ** caminho: core/oai_interface.js
-** últimaMod: 2026-04-10 21:20
+** últimaMod: 2026-04-19 14:25
 ** autor: Vico
-** colaboração: Gemini, ChatGPT, Grok Code (Fast), GPT-5
+** colaboração: Gemini, ChatGPT, Grok Code (Fast), GPT-5, Claude Opus 4.6
 */
 
 const OpenAI = require('openai');
@@ -41,9 +41,7 @@ function getOpenAIClient(capability = 'default') {
   const client = new OpenAI({
     apiKey: modelConfig.api_key,
     baseURL: modelConfig.base_url,
-    defaultHeaders: {
-      'X-OpenRouter-Title': 'Vica',
-    },
+    defaultHeaders: modelConfig.headers || {},
   });
 
   openaiClients.set(capability, client);
@@ -713,8 +711,14 @@ async function gerarRespostaContextualInternal(
 
   // Ferramentas
   let tools = [];
+  const useModelVision = config.settings.useModelVision === true;
+  const imageSource = normalizeVisionImageInput(imageUrl, imageDataUrl);
+  const hasImageContext = !!imageSource;
+  const visionInline = useModelVision && hasImageContext;
+
   if (config.tools?.enabled !== false) {
-    tools = await toolLoader.getOpenAITools();
+    const toolOpts = visionInline ? { excludeTools: ['analyze_image'] } : {};
+    tools = await toolLoader.getOpenAITools(toolOpts);
   }
   const inlineAttachments = {};
   if (typeof imageDataUrl === 'string' && imageDataUrl.startsWith('data:image/')) {
@@ -724,7 +728,29 @@ async function gerarRespostaContextualInternal(
     };
   }
 
-  messages.push({ role: 'user', content: mensagemUsuario });
+  // Build user message — multimodal if vision inline is active
+  if (visionInline) {
+    const resolvedImage = imageSource.startsWith('data:image/')
+      ? imageSource
+      : await fetchImageAsBase64(imageSource);
+
+    if (resolvedImage) {
+      messages.push({
+        role: 'user',
+        content: [
+          { type: 'text', text: mensagemUsuario },
+          { type: 'image_url', image_url: { url: resolvedImage } }
+        ]
+      });
+      console.log('[OAI][VISION][INFO] Imagem enviada inline ao modelo principal (useModelVision=true).');
+    } else {
+      // Fallback: could not resolve image, send text only
+      console.warn('[OAI][VISION][WARN] Falha ao resolver imagem para envio inline. Enviando apenas texto.');
+      messages.push({ role: 'user', content: mensagemUsuario });
+    }
+  } else {
+    messages.push({ role: 'user', content: mensagemUsuario });
+  }
 
   // --- TOKENIZER CHECK ---
   const budget = config.settings.budgetTokenLimit || config.settings.maxTokens || 3000;

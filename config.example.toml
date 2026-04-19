@@ -14,6 +14,11 @@ api_key = "SUA_API_KEY"
 # Modelo principal de chat/texto
 model = "glm-5"
 
+# Headers HTTP extras enviados em toda requisição ao provider (opcional)
+# Útil para identificação em dashboards, ex: OpenRouter
+[ai_provider.headers]
+# X-OpenRouter-Title = "Vica"
+
 # Ferramentas com modelo próprio (ex: transcrição ou geração de imagem)
 # podem definir runtime.model em data/tools.json.
 # Se runtime.base_url ou runtime.api_key forem omitidos, usam [ai_provider].
@@ -35,6 +40,9 @@ budgetTokenLimit = 6000
 rate_limit_ms = 5000
 # Restringe operações de memória ao escopo permitido
 memoryStrictMode = true
+# Se true, envia imagens diretamente ao modelo principal (vision nativo).
+# Se false, usa a tool analyze_image para descrever a imagem primeiro.
+useModelVision = false
 
 [ai_tools]
 # Habilita ou desabilita o uso de tools/function calling

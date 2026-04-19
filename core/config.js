@@ -1,8 +1,8 @@
 /*
 ** caminho: core/config.js
-** últimaMod: 2026-04-06 23:35
+** últimaMod: 2026-04-19 14:25
 ** autor: Vico
-** colaboração: ChatGPT (GPT-5.4)
+** colaboração: ChatGPT (GPT-5.4), Claude Opus 4.6
 */
 
 const fs = require('fs');
@@ -25,6 +25,21 @@ function normalizeInteger(value, fallback) {
 
 function normalizeBoolean(value, fallback) {
   return typeof value === 'boolean' ? value : fallback;
+}
+
+function normalizeHeaders(value) {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) {
+    return {};
+  }
+
+  const result = {};
+  for (const [key, val] of Object.entries(value)) {
+    if (typeof key === 'string' && key.trim() && typeof val === 'string') {
+      result[key.trim()] = val;
+    }
+  }
+
+  return result;
 }
 
 function normalizeDiscordId(value) {
@@ -52,14 +67,21 @@ function normalizeModelSection(section) {
     base_url: normalizeString(section?.base_url),
     api_key: normalizeString(section?.api_key),
     model: normalizeString(section?.model),
+    headers: normalizeHeaders(section?.headers),
   };
 }
 
 function mergeModelConfig(defaultConfig, overrideConfig = {}) {
+  const mergedHeaders = {
+    ...defaultConfig.headers,
+    ...overrideConfig.headers,
+  };
+
   return {
     base_url: overrideConfig.base_url || defaultConfig.base_url,
     api_key: overrideConfig.api_key || defaultConfig.api_key,
     model: overrideConfig.model || defaultConfig.model,
+    headers: Object.keys(mergedHeaders).length > 0 ? mergedHeaders : {},
   };
 }
 
@@ -104,6 +126,7 @@ function normalizeAISettings(settings = {}) {
     disableToolsOnVision: normalizeBoolean(settings.disableToolsOnVision, true),
     visionToolStrategy: normalizeVisionToolStrategy(settings.visionToolStrategy),
     memoryStrictMode: normalizeBoolean(settings.memoryStrictMode, true),
+    useModelVision: normalizeBoolean(settings.useModelVision, false),
   };
 }
 
