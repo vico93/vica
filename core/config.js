@@ -142,7 +142,7 @@ function normalizeAISettings(settings = {}) {
     visionToolStrategy: normalizeVisionToolStrategy(settings.visionToolStrategy),
     memoryStrictMode: normalizeBoolean(settings.memoryStrictMode, true),
     useModelVision: normalizeBoolean(settings.useModelVision, false),
-    useTokenizer: normalizeTokenizerStrategy(settings.useTokenizer),
+    // useTokenizer removed – o OpenRouter free tem limite de 200k tokens
   };
 }
 
