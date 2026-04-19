@@ -1,8 +1,8 @@
 /*
 ** caminho: core/tagParser.js
-** últimaMod: 2025-09-12 20:15
+** últimaMod: 2026-04-19 21:50
 ** autor: Vico
-** colaboração: Gemini, ChatGPT, Roo Sonic, Kimi, Roo Sonic (xai/grok-code-fast-1)
+** colaboração: Gemini, ChatGPT, Grok Code Fast, Kimi
 
 // Módulo de parser de tags especiais
 // Responsável por analisar mensagens com tags específicas como [imagem], [imagem_gerada], [meta]...[/meta] e [memory]...[/memory] (case-insensitive)
@@ -118,6 +118,18 @@ function parseTags(message, context = {}) {
         // const match = text.match(memoryRegex);
         // console.log('[TAG_PARSER][INFO] Stripping memory tag content:', match[1]);
         text = text.replace(memoryRegex, '');
+    }
+
+    // Remover linha com tags de instrução vazadas (ex: erro onde o modelo repete o "[trigger] prompt" inteiro)
+    const instructionTagsRegex = /^\s*\[(?:trigger|pergunta|welcome|leave|kick|ban|up_role)\].*?(?:\r?\n|$)/gim;
+    if (instructionTagsRegex.test(text)) {
+        text = text.replace(instructionTagsRegex, '');
+    }
+
+    // Remover qualquer menção solta às tags (se não estivessem no início da linha)
+    const looseTagsRegex = /\[(?:trigger|pergunta|welcome|leave|kick|ban|up_role)\]/gi;
+    if (looseTagsRegex.test(text)) {
+        text = text.replace(looseTagsRegex, '');
     }
 
     // Limpar espaços extras do texto resultante
