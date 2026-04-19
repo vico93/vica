@@ -42,7 +42,7 @@ function getOpenAIClient(capability = 'default') {
     apiKey: modelConfig.api_key,
     baseURL: modelConfig.base_url,
     defaultHeaders: {
-      'X-Title': 'Vica',
+      'X-OpenRouter-Title': 'Vica',
     },
   });
 
