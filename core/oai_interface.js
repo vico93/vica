@@ -753,26 +753,30 @@ async function gerarRespostaContextualInternal(
   }
 
   // --- TOKENIZER CHECK ---
+  const tokenizerStrategy = config.settings.useTokenizer || 'none';
   const budget = config.settings.budgetTokenLimit || config.settings.maxTokens || 3000;
 
   const requestModel = getModel();
   const requestClient = getOpenAIClient('default');
-  let estimatedTokens = await tokenizer.countTokens(messages, tools, requestModel, 'default');
 
-  if (estimatedTokens > budget) {
-    console.warn(`[TOKENIZER][BUDGET] ⚠️ Mensagem excede orçamento! Estimado: ${estimatedTokens}, Limite: ${budget}.`);
-    const pruningResult = await pruneMessagesToBudget(messages, tools, requestModel, 'default', budget);
-    estimatedTokens = pruningResult.estimatedTokens;
-
-    if (pruningResult.removedMessages > 0) {
-      console.log(`[TOKENIZER][PRUNE] ${pruningResult.removedMessages} mensagem(ns) antigas removida(s). Novo estimado: ${estimatedTokens}/${budget} tokens (alvo interno: ${pruningResult.targetBudget}).`);
-    }
+  if (tokenizerStrategy === 'zai') {
+    let estimatedTokens = await tokenizer.countTokens(messages, tools, requestModel, 'default');
 
     if (estimatedTokens > budget) {
-      console.warn(`[TOKENIZER][BUDGET] Contexto ainda acima do orçamento após pruning: ${estimatedTokens}/${budget}.`);
+      console.warn(`[TOKENIZER][BUDGET] ⚠️ Mensagem excede orçamento! Estimado: ${estimatedTokens}, Limite: ${budget}.`);
+      const pruningResult = await pruneMessagesToBudget(messages, tools, requestModel, 'default', budget);
+      estimatedTokens = pruningResult.estimatedTokens;
+
+      if (pruningResult.removedMessages > 0) {
+        console.log(`[TOKENIZER][PRUNE] ${pruningResult.removedMessages} mensagem(ns) antigas removida(s). Novo estimado: ${estimatedTokens}/${budget} tokens (alvo interno: ${pruningResult.targetBudget}).`);
+      }
+
+      if (estimatedTokens > budget) {
+        console.warn(`[TOKENIZER][BUDGET] Contexto ainda acima do orçamento após pruning: ${estimatedTokens}/${budget}.`);
+      }
+    } else {
+      console.log(`[TOKENIZER][INFO] Orçamento ok: ${estimatedTokens}/${budget} tokens.`);
     }
-  } else {
-    console.log(`[TOKENIZER][INFO] Orçamento ok: ${estimatedTokens}/${budget} tokens.`);
   }
   // -----------------------
 
@@ -821,6 +825,15 @@ async function gerarRespostaContextualInternal(
       toolCalls = message?.tool_calls;
     }
 
+    // --- Post-response usage logging (openrouter strategy) ---
+    if (tokenizerStrategy === 'openrouter') {
+      const usage = response?.usage;
+      if (usage) {
+        const costStr = typeof usage.cost === 'number' ? ` | custo: ${usage.cost}` : '';
+        console.log(`[TOKENIZER][OPENROUTER] Usage: prompt=${usage.prompt_tokens || '?'}, completion=${usage.completion_tokens || '?'}, total=${usage.total_tokens || '?'}${costStr}`);
+      }
+    }
+
     const hasPendingToolCalls = Array.isArray(toolCalls) && toolCalls.length > 0;
     if (hasPendingToolCalls) {
       console.warn(`[OAI][TOOLS][WARN] Limite de turnos de ferramentas atingido (${toolTurnLimit}). Finalizando com fallback seguro.`);
@@ -830,6 +843,7 @@ async function gerarRespostaContextualInternal(
     if (response?.choices?.[0]?.finish_reason === 'length') {
       content = 'Desculpe, minha resposta ficou muito longa! Tente ser mais breve. 😊';
     }
+
 
     const parsedTags = tagParser.parseTags(content, { guildId });
 

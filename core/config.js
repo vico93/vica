@@ -95,6 +95,21 @@ function normalizeVisionToolStrategy(value) {
   return 'auto';
 }
 
+function normalizeTokenizerStrategy(value) {
+  const normalized = normalizeString(value).toLowerCase();
+
+  if (normalized === 'zai' || normalized === 'openrouter') {
+    return normalized;
+  }
+
+  // Backwards compat: boolean true maps to 'zai'
+  if (value === true) {
+    return 'zai';
+  }
+
+  return 'none';
+}
+
 function normalizeAISettings(settings = {}) {
   const sendSystemPrompt = normalizeBoolean(
     settings.send_system_prompt,
@@ -127,6 +142,7 @@ function normalizeAISettings(settings = {}) {
     visionToolStrategy: normalizeVisionToolStrategy(settings.visionToolStrategy),
     memoryStrictMode: normalizeBoolean(settings.memoryStrictMode, true),
     useModelVision: normalizeBoolean(settings.useModelVision, false),
+    useTokenizer: normalizeTokenizerStrategy(settings.useTokenizer),
   };
 }
 
