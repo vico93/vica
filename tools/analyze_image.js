@@ -315,14 +315,6 @@ async function execute(args, context) {
     throw new Error(`Falha na API de análise visual: ${apiError?.message || 'unknown error'}`);
   }
 
-  console.log(`[TOOLS][ANALYZE_IMAGE][DEBUG] API response:`, JSON.stringify({
-    model: response?.model,
-    usage: response?.usage,
-    finish_reason: response?.choices?.[0]?.finish_reason,
-    has_content: !!response?.choices?.[0]?.message?.content,
-    content_preview: response?.choices?.[0]?.message?.content?.slice(0, 100) || '(empty)'
-  }));
-
   const rawContent = response?.choices?.[0]?.message?.content;
   const fullText = typeof rawContent === 'string' ? rawContent.trim() : '';
   if (!fullText) {
