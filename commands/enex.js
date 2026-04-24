@@ -42,7 +42,7 @@ module.exports = {
                 .setDescription('Adicionar mensagem de boas-vindas')
                 .addStringOption(option =>
                   option.setName('message')
-                    .setDescription('Texto da mensagem ou prompt para IA. Alias: {mention}, {username}, {displayname}, {globalname}, {server}')
+                    .setDescription('Texto ou prompt. Alias: {mention}, {username}, {displayname}, {globalname}, {server}')
                     .setRequired(true))
             .addBooleanOption(option =>
               option.setName('isprompt')
@@ -70,7 +70,7 @@ module.exports = {
                 .setDescription('Adicionar mensagem de saída')
                 .addStringOption(option =>
                   option.setName('message')
-                    .setDescription('Texto da mensagem ou prompt para IA. Alias: {mention}, {username}, {displayname}, {globalname}, {server}')
+                    .setDescription('Texto ou prompt. Alias: {mention}, {username}, {displayname}, {globalname}, {server}')
                     .setRequired(true))
             .addBooleanOption(option =>
               option.setName('isprompt')
@@ -98,7 +98,7 @@ module.exports = {
                 .setDescription('Adicionar mensagem de expulsão')
                 .addStringOption(option =>
                   option.setName('message')
-                    .setDescription('Texto da mensagem ou prompt para IA. Alias: {mention}, {username}, {displayname}, {globalname}, {server}, {reason}')
+                    .setDescription('Texto ou prompt. Alias: {mention}, {username}, {displayname}, {globalname}, {server}, {reason}')
                     .setRequired(true))
             .addBooleanOption(option =>
               option.setName('isprompt')
@@ -126,7 +126,7 @@ module.exports = {
                 .setDescription('Adicionar mensagem de banimento')
                 .addStringOption(option =>
                   option.setName('message')
-                    .setDescription('Texto da mensagem ou prompt para IA. Alias: {mention}, {username}, {displayname}, {globalname}, {server}, {reason}')
+                    .setDescription('Texto ou prompt. Alias: {mention}, {username}, {displayname}, {globalname}, {server}, {reason}')
                     .setRequired(true))
             .addBooleanOption(option =>
               option.setName('isprompt')
