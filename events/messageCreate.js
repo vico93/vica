@@ -14,9 +14,11 @@
   4. Gerar resposta via IA (respeitando blacklist) e enviar.
 */
 
+const { PermissionsBitField } = require('discord.js');
 const oai = require('../core/oai_interface');
 const database = require('../core/database');
 const tagParser = require('../core/tagParser');
+const { processAliases } = require('../core/aliasProcessor');
 const {
   isImageAttachment,
   isAudioAttachment,
@@ -126,6 +128,42 @@ module.exports = {
     const canalId = message.channel.id;
     const usuarioId = message.author.id;
 
+    /* ---------------- Macros ---------------- */
+    if (message.content.startsWith('!')) {
+      const macroName = message.content.slice(1).split(/\s+/)[0].toLowerCase().trim();
+      if (macroName) {
+        try {
+          const macro = database.getMacro(guildId, macroName);
+          if (macro) {
+            // Verifica se é moderador-only
+            if (macro.moderatorOnly && !message.member.permissions.has(PermissionsBitField.Flags.ManageMessages)) {
+              // Silenciosamente ignora se não for moderador
+              return;
+            }
+
+            // Deleta a mensagem do usuário
+            try {
+              await message.delete();
+            } catch (deleteErr) {
+              console.warn('[MACRO][WARN] Falha ao deletar mensagem do usuário:', deleteErr.message);
+            }
+
+            // Processa alias no conteúdo
+            const processedContent = processAliases(macro.content, {
+              member: message.member,
+              guild: message.guild,
+              channel: message.channel
+            });
+
+            // Envia como mensagem nova separada (não reply)
+            await message.channel.send(processedContent);
+            return;
+          }
+        } catch (macroErr) {
+          console.error('[MACRO][ERROR] Erro ao processar macro:', macroErr);
+        }
+      }
+    }
 
     /* ---------------- XP ---------------- */
     if (!database.xpCanalNaBlacklist(guildId, canalId)) {

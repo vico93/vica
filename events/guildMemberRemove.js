@@ -8,6 +8,7 @@
 const database = require('../core/database');
 const oai_interface = require('../core/oai_interface');
 const auditCache = require('../core/auditCache');
+const { processAliases } = require('../core/aliasProcessor');
 const { PermissionsBitField } = require('discord.js');
 
 module.exports = {
@@ -150,16 +151,18 @@ module.exports = {
         let finalMessage = messageConfig.message;
         console.log('[GUILDMEMBERREMOVE][DEBUG] Original message:', finalMessage.substring(0, 100) + '...');
 
-        // Replace placeholders - use username for leave/kick/ban (not mention)
-        finalMessage = finalMessage.replace(/\{@USER\}/g, member.user.username).replace(/\{USER\}/g, member.user.username);
-
-        // Replace {reason} placeholder for kicks and bans
+        // Processa alias dinâmicos
+        const aliasContext = {
+          member: member,
+          guild: member.guild
+        };
         if (messageType === 'kick') {
-          finalMessage = finalMessage.replace(/\{reason\}/g, kickReason);
+          aliasContext.reason = kickReason;
         } else if (messageType === 'ban') {
-          finalMessage = finalMessage.replace(/\{reason\}/g, banReason);
+          aliasContext.reason = banReason;
         }
-        console.log('[GUILDMEMBERREMOVE][DEBUG] After placeholder replacement:', finalMessage.substring(0, 100) + '...');
+        finalMessage = processAliases(finalMessage, aliasContext);
+        console.log('[GUILDMEMBERREMOVE][DEBUG] After alias processing:', finalMessage.substring(0, 100) + '...');
 
         // If it's a prompt, generate message via AI
         if (messageConfig.isPrompt) {

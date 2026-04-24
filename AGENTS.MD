@@ -53,6 +53,7 @@ vica/
 │   ├── deslurkar.js       # Remove slur words
 │   ├── enex.js            # Enable/disable features
 │   ├── gmemories.js       # Global memory search
+│   ├── macro.js           # Macro management (text snippets with aliases)
 │   ├── mmemories.js       # Memory management
 │   ├── noticia.js         # News posting
 │   ├── perguntar.js       # Ask questions to AI
@@ -66,7 +67,8 @@ vica/
 │   ├── system_channel.js  # System channel configuration
 │   ├── trigger.js         # Trigger word configuration
 │   └── up_role.js         # Role upgrade configuration
-├── core/                  # Core modules (8 files)
+├── core/                  # Core modules (9 files)
+│   ├── aliasProcessor.js  # Dynamic alias replacement for macros and messages
 │   ├── auditCache.js      # LRU cache for audit log deduplication
 │   ├── database.js        # All database operations with prepared statements
 │   ├── mcp_client.js      # MCP client for communicating with MCP servers
@@ -288,6 +290,32 @@ Audio transcription using OpenAI Whisper API.
 LRU cache for audit log deduplication.
 
 **Usage**: Prevent duplicate audit log entries within a time window.
+
+### Alias Processor Module ([`core/aliasProcessor.js`](core/aliasProcessor.js:1))
+
+Dynamic alias replacement system for macros and messages.
+
+**Supported Aliases**:
+| Alias | Replacement | Context Required |
+|-------|-------------|-----------------|
+| `{mention}` | `<@userId>` | `member` |
+| `{username}` | `user.username` | `member` |
+| `{displayname}` | `member.displayName` | `member` |
+| `{globalname}` | `user.globalName \|\| user.username` | `member` |
+| `{server}` | `guild.name` | `guild` |
+| `{channel}` | `<#channelId>` | `channel` |
+| `{reason}` | `reason string` | `reason` |
+
+**Usage**:
+```javascript
+const { processAliases } = require('./core/aliasProcessor');
+
+const result = processAliases('Olá {mention}! Bem-vindo ao {server}.', {
+  member: guildMember,
+  guild: guildMember.guild
+});
+// Result: "Olá <@123456789>! Bem-vindo ao Meu Servidor."
+```
 
 ---
 
@@ -852,6 +880,14 @@ sudo journalctl -u vica.service -f
 3. Update code to use new configuration
 4. Test with various configurations
 5. Deploy configuration changes
+
+### Adding a New Macro
+
+1. Use `/macro create` command to add the macro
+2. Use aliases like `{mention}`, `{username}`, `{server}`, `{channel}` in the content
+3. Set `moderator_only` to true if only moderators should use it
+4. Test the macro by typing `!nome` in a channel
+5. Update documentation if needed
 
 ---
 

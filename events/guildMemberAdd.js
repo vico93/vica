@@ -7,6 +7,7 @@
 
 const database = require('../core/database');
 const oai_interface = require('../core/oai_interface');
+const { processAliases } = require('../core/aliasProcessor');
 
 module.exports = {
   name: 'guildMemberAdd',
@@ -35,10 +36,10 @@ module.exports = {
         return;
       }
 
-      let finalMessage = messageConfig.message;
-
-      // Replace placeholders - use mention for welcome messages
-      finalMessage = finalMessage.replace(/\{@USER\}/g, `<@${member.id}>`).replace(/\{USER\}/g, `<@${member.id}>`);
+      let finalMessage = processAliases(messageConfig.message, {
+        member: member,
+        guild: member.guild
+      });
 
       // If it's a prompt, generate message via AI
       if (messageConfig.isPrompt) {

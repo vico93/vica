@@ -413,6 +413,17 @@ CREATE TABLE IF NOT EXISTS moderation_protected_roles (
   role_id TEXT NOT NULL,
   PRIMARY KEY (guild_id, role_id)
 );
+
+CREATE TABLE IF NOT EXISTS guild_macros (
+  guild_id TEXT NOT NULL,
+  name TEXT NOT NULL,
+  content TEXT NOT NULL,
+  moderator_only INTEGER DEFAULT 0,
+  created_by TEXT NOT NULL,
+  created_at INTEGER NOT NULL,
+  updated_at INTEGER NOT NULL,
+  PRIMARY KEY (guild_id, name)
+);
 `);
 })();
 
@@ -686,7 +697,18 @@ const stmts = {
   translationSet: db.prepare(`INSERT INTO guild_settings (guild_id, translation_emoji)
                            VALUES (?, ?)
                           ON CONFLICT(guild_id) DO UPDATE SET
-                            translation_emoji = excluded.translation_emoji`)
+                            translation_emoji = excluded.translation_emoji`),
+
+  /* --- MACROS --- */
+  macroInsert: db.prepare(`INSERT INTO guild_macros (guild_id, name, content, moderator_only, created_by, created_at, updated_at)
+                           VALUES (?, ?, ?, ?, ?, ?, ?)
+                           ON CONFLICT(guild_id, name) DO UPDATE SET
+                             content = excluded.content,
+                             moderator_only = excluded.moderator_only,
+                             updated_at = excluded.updated_at`),
+  macroDelete: db.prepare('DELETE FROM guild_macros WHERE guild_id = ? AND name = ?'),
+  macroGet: db.prepare('SELECT name, content, moderator_only, created_by, created_at, updated_at FROM guild_macros WHERE guild_id = ? AND name = ?'),
+  macroList: db.prepare('SELECT name, content, moderator_only, created_by, created_at, updated_at FROM guild_macros WHERE guild_id = ? ORDER BY name ASC')
 };
 
 /* ----------------------------------------------------------
@@ -1108,11 +1130,42 @@ module.exports = {
   getTranslationEmoji: (guildId) => {
     const row = stmts.translationGet.get(guildId);
     return row ? row.translation_emoji : null;
- },
- setTranslationEmoji: (guildId, emojiId) => {
-   return stmts.translationSet.run(guildId, emojiId).changes;
- },
+  },
+  setTranslationEmoji: (guildId, emojiId) => {
+    return stmts.translationSet.run(guildId, emojiId).changes;
+  },
 
-// helper para graceful shutdown
-close: () => db.close()
+  /* --- MACROS --- */
+  createMacro: (guildId, name, content, moderatorOnly, createdBy) => {
+    const now = Date.now();
+    return stmts.macroInsert.run(guildId, name, content, moderatorOnly ? 1 : 0, createdBy, now, now).changes;
+  },
+  deleteMacro: (guildId, name) => {
+    return stmts.macroDelete.run(guildId, name).changes;
+  },
+  getMacro: (guildId, name) => {
+    const row = stmts.macroGet.get(guildId, name);
+    if (!row) return null;
+    return {
+      name: row.name,
+      content: row.content,
+      moderatorOnly: row.moderator_only === 1,
+      createdBy: row.created_by,
+      createdAt: row.created_at,
+      updatedAt: row.updated_at
+    };
+  },
+  listMacros: (guildId) => {
+    return stmts.macroList.all(guildId).map(row => ({
+      name: row.name,
+      content: row.content,
+      moderatorOnly: row.moderator_only === 1,
+      createdBy: row.created_by,
+      createdAt: row.created_at,
+      updatedAt: row.updated_at
+    }));
+  },
+
+  // helper para graceful shutdown
+  close: () => db.close()
 };

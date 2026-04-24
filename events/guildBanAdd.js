@@ -9,6 +9,7 @@ const { AuditLogEvent } = require('discord.js');
 const database = require('../core/database');
 const oai_interface = require('../core/oai_interface');
 const auditCache = require('../core/auditCache');
+const { processAliases } = require('../core/aliasProcessor');
 
 module.exports = {
   name: 'GuildAuditLogEntryCreate',
@@ -73,19 +74,20 @@ module.exports = {
       let finalMessage = messageConfig.message;
       console.log('[GUILDBANADD][DEBUG] Original message:', finalMessage.substring(0, 100) + '...');
 
-      // Replace placeholders - use username for ban messages (not mention)
-      const userName = bannedUser.username || bannedUser.displayName || 'Unknown User';
-      finalMessage = finalMessage.replace(/\{@USER\}/g, userName).replace(/\{USER\}/g, userName);
-
-      // Get ban reason from audit log and replace {reason} placeholder
+      // Processa alias dinâmicos
       const banReason = auditLog.reason || 'Nenhuma razão informada';
-      finalMessage = finalMessage.replace(/\{reason\}/g, banReason);
-      console.log('[GUILDBANADD][DEBUG] After placeholder replacement:', finalMessage.substring(0, 100) + '...');
+      finalMessage = processAliases(finalMessage, {
+        member: auditLog.target,
+        guild: auditLog.guild,
+        reason: banReason
+      });
+      console.log('[GUILDBANADD][DEBUG] After alias processing:', finalMessage.substring(0, 100) + '...');
 
       // If it's a prompt, generate message via AI
       if (messageConfig.isPrompt) {
         console.log('[GUILDBANADD][DEBUG] Generating AI message...');
         try {
+          const userName = bannedUser.username || bannedUser.displayName || 'Unknown User';
           finalMessage = await oai_interface.gerarMensagemBemVindoViaAPI(
             auditLog.guild.id,
             bannedUser.id,
