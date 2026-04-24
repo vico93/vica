@@ -282,37 +282,52 @@ async function execute(args, context) {
 
   console.log(`[TOOLS][ANALYZE_IMAGE][INFO] Iniciando análise visual: ${imageSource.sourceLabel} (${formatBytes(imageSource.sizeBytes)}).`);
 
-  const response = await openai.chat.completions.create({
-    model,
-    temperature: 0.2,
-    max_tokens: 1200,
-    messages: [
-      {
-        role: 'system',
-        content: 'Você é uma etapa interna de análise visual para outro assistente. Responda em texto estruturado, objetivo e útil. Não converse com o usuário. Não invente detalhes quando houver incerteza.'
-      },
-      {
-        role: 'user',
-        content: [
-          {
-            type: 'text',
-            text: prompt,
-          },
-          {
-            type: 'image_url',
-            image_url: {
-              url: imageSource.dataUrl,
+  let response;
+  try {
+    response = await openai.chat.completions.create({
+      model,
+      temperature: 0.2,
+      max_tokens: 1200,
+      messages: [
+        {
+          role: 'system',
+          content: 'Você é uma etapa interna de análise visual para outro assistente. Responda em texto estruturado, objetivo e útil. Não converse com o usuário. Não invente detalhes quando houver incerteza.'
+        },
+        {
+          role: 'user',
+          content: [
+            {
+              type: 'text',
+              text: prompt,
             },
-          },
-        ],
-      },
-    ],
-  });
+            {
+              type: 'image_url',
+              image_url: {
+                url: imageSource.dataUrl,
+              },
+            },
+          ],
+        },
+      ],
+    });
+  } catch (apiError) {
+    console.error(`[TOOLS][ANALYZE_IMAGE][ERROR] API error:`, apiError?.message || apiError);
+    throw new Error(`Falha na API de análise visual: ${apiError?.message || 'unknown error'}`);
+  }
+
+  console.log(`[TOOLS][ANALYZE_IMAGE][DEBUG] API response:`, JSON.stringify({
+    model: response?.model,
+    usage: response?.usage,
+    finish_reason: response?.choices?.[0]?.finish_reason,
+    has_content: !!response?.choices?.[0]?.message?.content,
+    content_preview: response?.choices?.[0]?.message?.content?.slice(0, 100) || '(empty)'
+  }));
 
   const rawContent = response?.choices?.[0]?.message?.content;
   const fullText = typeof rawContent === 'string' ? rawContent.trim() : '';
   if (!fullText) {
-    throw new Error('A análise visual não retornou conteúdo.');
+    const finishReason = response?.choices?.[0]?.finish_reason || 'unknown';
+    throw new Error(`A análise visual não retornou conteúdo. (finish_reason: ${finishReason})`);
   }
 
   const content = truncateText(fullText, maxResultChars);
