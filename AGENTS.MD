@@ -304,6 +304,8 @@ Dynamic alias replacement system for macros and messages.
 | `{globalname}` | `user.globalName \|\| user.username` | `member` |
 | `{server}` | `guild.name` | `guild` |
 | `{channel}` | `<#channelId>` | `channel` |
+| `{role}` | `role.name` | `role` |
+| `{role_mention}` | `<@&roleId>` | `role` |
 | `{reason}` | `reason string` | `reason` |
 
 **Usage**:

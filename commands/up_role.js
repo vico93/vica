@@ -31,7 +31,7 @@ module.exports = {
             .setRequired(true))
         .addStringOption(option =>
           option.setName('message')
-            .setDescription('Texto ou prompt para IA com placeholders: {@USER}, {USER}, {ROLE}, {@ROLE}')
+            .setDescription('Texto ou prompt. Alias: {mention}, {username}, {displayname}, {globalname}, {role}, {role_mention}')
             .setRequired(true))
         .addBooleanOption(option =>
           option.setName('isprompt')

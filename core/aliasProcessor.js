@@ -26,6 +26,7 @@
  * @param {import('discord.js').GuildMember|null} [context.member] - Membro do Discord
  * @param {import('discord.js').Guild|null} [context.guild] - Servidor
  * @param {import('discord.js').Channel|null} [context.channel] - Canal
+ * @param {import('discord.js').Role|null} [context.role] - Cargo
  * @param {string|null} [context.reason] - Razão (para kicks/bans)
  * @returns {string} String com alias processados
  */
@@ -34,7 +35,7 @@ function processAliases(content, context = {}) {
     if (!content) return '';
 
     let result = content;
-    const { member, guild, channel, reason } = context;
+    const { member, guild, channel, role, reason } = context;
 
     // {mention} -> <@userId>
     if (member) {
@@ -65,6 +66,16 @@ function processAliases(content, context = {}) {
     // {channel} -> <#channelId>
     if (channel?.id) {
         result = result.replace(/\{channel\}/g, `<#${channel.id}>`);
+    }
+
+    // {role} -> role.name
+    if (role) {
+        result = result.replace(/\{role\}/g, role.name);
+    }
+
+    // {role_mention} -> <@&roleId>
+    if (role?.id) {
+        result = result.replace(/\{role_mention\}/g, `<@&${role.id}>`);
     }
 
     // {reason} -> reason string

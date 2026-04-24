@@ -16,6 +16,7 @@
 
 const oai = require('../core/oai_interface');
 const database = require('../core/database');
+const { processAliases } = require('../core/aliasProcessor');
 
 module.exports = {
   name: 'guildMemberUpdate',
@@ -123,29 +124,29 @@ module.exports = {
       }
 
       // Agrupa prompts por texto para evitar duplicados
-      const promptsToSend = new Map(); // replacedPrompt -> { roleName, replacedPrompt }
+      const promptsToSend = new Map(); // replacedPrompt -> { role, roleName, replacedPrompt }
 
       for (const cfg of matchedConfigs) {
         const role = newMember.guild.roles.cache.get(cfg.roleId);
-        const roleName = role ? role.name : 'cargo desconhecido';
-        const roleMention = role ? `<@&${role.id}>` : '@cargo-desconhecido';
-        const userMention = `<@${newMember.id}>`;
-        const userDisplayName = newMember.displayName;
         const promptText = String(cfg.prompt || '');
         console.log(`[ROLE-CONGRATS][DEBUG] Original prompt: "${promptText}"`);
-        const replacedPrompt = promptText
-          .replace(/{@USER}/g, userMention)
-          .replace(/{USER}/g, userDisplayName)
-          .replace(/{ROLE}/g, roleName)
-          .replace(/{@ROLE}/g, roleMention);
+
+        // Processa alias no prompt
+        const replacedPrompt = processAliases(promptText, {
+          member: newMember,
+          guild: newMember.guild,
+          role: role
+        });
+
         console.log(`[ROLE-CONGRATS][DEBUG] Replaced prompt: "${replacedPrompt}"`);
         // Armazena o prompt já substituído
         if (!promptsToSend.has(replacedPrompt)) {
-          promptsToSend.set(replacedPrompt, { role, roleName, replacedPrompt });
+          promptsToSend.set(replacedPrompt, { role, replacedPrompt });
         }
       }
 
-      for (const { role, roleName, replacedPrompt } of promptsToSend.values()) {
+      for (const { role, replacedPrompt } of promptsToSend.values()) {
+        const roleName = role ? role.name : 'cargo desconhecido';
         console.log(`[ROLE-CONGRATS] Gerando parabéns para ${newMember.user.tag} no servidor ${newMember.guild.name} (cargo: ${roleName})`);
         let congratsMessage;
         try {
@@ -167,15 +168,12 @@ module.exports = {
             console.error('[ROLE-CONGRATS][MEM] Erro ao salvar memória de fallback:', memError);
           }
         }
-        // Ensure placeholders are replaced in the final message
-        const userMention = `<@${newMember.id}>`;
-        const userDisplayName = newMember.displayName;
-        const roleMention = role ? `<@&${role.id}>` : '@cargo-desconhecido';
-        congratsMessage = congratsMessage
-          .replace(/{@USER}/g, userMention)
-          .replace(/{USER}/g, userDisplayName)
-          .replace(/{ROLE}/g, roleName)
-          .replace(/{@ROLE}/g, roleMention);
+        // Processa alias na mensagem final (caso a IA retorne alias)
+        congratsMessage = processAliases(congratsMessage, {
+          member: newMember,
+          guild: newMember.guild,
+          role: role
+        });
         console.log(`[ROLE-CONGRATS][DEBUG] Final congrats message: "${congratsMessage}"`);
         await targetChannel.send(congratsMessage);
       }
