@@ -287,7 +287,7 @@ async function execute(args, context) {
     response = await openai.chat.completions.create({
       model,
       temperature: 0.2,
-      max_tokens: 1200,
+      max_tokens: 4096,
       messages: [
         {
           role: 'system',
