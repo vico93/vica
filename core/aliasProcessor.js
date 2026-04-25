@@ -16,14 +16,17 @@
     {globalname}  -> user.globalName || user.username
     {server}      -> guild.name
     {channel}     -> <#channelId>
+    {role}        -> role.name
+    {role_mention}-> <@&roleId>
     {reason}      -> reason (quando fornecido no contexto)
 */
 
 /**
  * Processa alias em uma string, substituindo placeholders por valores do contexto.
+ * Aceita tanto GuildMember quanto User como 'member' no contexto.
  * @param {string} content - String contendo alias
  * @param {object} context - Objeto de contexto
- * @param {import('discord.js').GuildMember|null} [context.member] - Membro do Discord
+ * @param {import('discord.js').GuildMember|import('discord.js').User|null} [context.member] - Membro ou User do Discord
  * @param {import('discord.js').Guild|null} [context.guild] - Servidor
  * @param {import('discord.js').Channel|null} [context.channel] - Canal
  * @param {import('discord.js').Role|null} [context.role] - Cargo
@@ -37,26 +40,27 @@ function processAliases(content, context = {}) {
     let result = content;
     const { member, guild, channel, role, reason } = context;
 
+    // Normaliza member: pode ser GuildMember (tem .user) ou User (não tem .user)
+    // Se for User, usamos ele próprio como user
+    const user = member?.user || member;
+    const memberId = member?.id || null;
+    const displayName = member?.displayName || user?.username || user?.globalName || 'Fulano';
+    const username = user?.username || 'Fulano';
+    const globalName = user?.globalName || username;
+
     // {mention} -> <@userId>
-    if (member) {
-        result = result.replace(/\{mention\}/g, `<@${member.id}>`);
+    if (memberId) {
+        result = result.replace(/\{mention\}/g, `<@${memberId}>`);
     }
 
     // {username} -> user.username
-    if (member?.user) {
-        result = result.replace(/\{username\}/g, member.user.username);
-    }
+    result = result.replace(/\{username\}/g, username);
 
-    // {displayname} -> member.displayName
-    if (member) {
-        result = result.replace(/\{displayname\}/g, member.displayName);
-    }
+    // {displayname} -> member.displayName (ou fallback para username/globalName)
+    result = result.replace(/\{displayname\}/g, displayName);
 
     // {globalname} -> user.globalName || user.username
-    if (member?.user) {
-        const globalName = member.user.globalName || member.user.username;
-        result = result.replace(/\{globalname\}/g, globalName);
-    }
+    result = result.replace(/\{globalname\}/g, globalName);
 
     // {server} -> guild.name
     if (guild) {
