@@ -49,7 +49,7 @@ module.exports = {
             member.id,
             `<@${member.id}>`,
             'welcome',
-            messageConfig.message
+            finalMessage
           );
         } catch (error) {
           console.error(`[GUILDMEMBERADD][ERROR] Failed to generate welcome message via AI:`, error);
