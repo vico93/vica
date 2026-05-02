@@ -1,6 +1,6 @@
 /*
 **  caminho: commands/rank.js
-**  últimaMod: 16/07/2025 22:40
+**  últimaMod: 02/05/2026 00:00
 **  autor: Vico
 **  colaboração: ChatGPT, Gemini, Kimi AI
 */
@@ -8,8 +8,9 @@
 /*
   Comando /rank
   - Exibe TOP 10 de XP do servidor.
-  - TOP 4 entram no “Pódio” com medalhas.
-  - 5º ao 10º ficam na seção “…também figuram…”.
+  - Membros nível 100+ vão para seção "🏁 ZERARAM 🏁" no topo.
+  - TOP 4 dos ativos entram no "Pódio" com medalhas.
+  - 5º ao 10º dos ativos ficam na seção "…também figuram…".
   - Nome do servidor vem no campo Author.
 */
 
@@ -52,41 +53,69 @@ module.exports = {
         });
       }
 
+      // Separa em dois grupos
+      const zeraram = ranking.filter(u => u.nivel >= 100);
+      const ativos  = ranking.filter(u => u.nivel < 100);
+
       // Ícones para o pódio
       const medalhas = ['🥇', '🥈', '🥉', '🏅'];
 
-      /* --------- Pódio (TOP 4) --------- */
-      const podiumLines = [];
-      for (let i = 0; i < Math.min(4, ranking.length); i++) {
-      const user = ranking[i];
-      const nivelDisplay = user.nivel >= 100 ? '**\\*\\***' : `**${user.nivel}**`;
-      podiumLines.push(
-          `${medalhas[i]} <@${user.usuario_id}> ・ **${user.xp} XP** ・ Nível ${nivelDisplay}`
-      );
-      }
-      const podiumText = podiumLines.join('\n');
-
-    /* --------- “Também figuram” (5-10) --------- */
-    let tambemText = '';
-    if (ranking.length > 4) {
-      const restLines = [];
-      const icones = ['5️⃣', '6️⃣', '7️⃣', '8️⃣', '9️⃣', '🔟'];
-      for (let i = 4; i < ranking.length; i++) {
-        const user = ranking[i];
-        const nivelDisplay = user.nivel >= 100 ? '**\\*\\***' : `**${user.nivel}**`;
-        restLines.push(
-          `${icones[i - 4]} <@${user.usuario_id}> ・ **${user.xp} XP** ・ Nível ${nivelDisplay}`
+      /* --------- Seção ZERARAM (nível 100+) --------- */
+      let zeraramText = '';
+      if (zeraram.length > 0) {
+        const lines = zeraram.map(user =>
+          `🎖️ <@${user.usuario_id}> ・ **∞ XP** ・ **Nível ⭐⭐**`
         );
+        zeraramText = lines.join('\n');
       }
-      tambemText = restLines.join('\n');
-    }
+
+      /* --------- Pódio (TOP 4 ativos) --------- */
+      let podiumText = '';
+      if (ativos.length > 0) {
+        const podiumLines = [];
+        for (let i = 0; i < Math.min(4, ativos.length); i++) {
+          const user = ativos[i];
+          podiumLines.push(
+            `${medalhas[i]} <@${user.usuario_id}> ・ **${user.xp} XP** ・ Nível **${user.nivel}**`
+          );
+        }
+        podiumText = podiumLines.join('\n');
+      }
+
+      /* --------- "Também figuram" (5-10 ativos) --------- */
+      let tambemText = '';
+      if (ativos.length > 4) {
+        const restLines = [];
+        const icones = ['5️⃣', '6️⃣', '7️⃣', '8️⃣', '9️⃣', '🔟'];
+        for (let i = 4; i < ativos.length; i++) {
+          const user = ativos[i];
+          restLines.push(
+            `${icones[i - 4]} <@${user.usuario_id}> ・ **${user.xp} XP** ・ Nível **${user.nivel}**`
+          );
+        }
+        tambemText = restLines.join('\n');
+      }
 
       /* --------- Monta o embed --------- */
       const embed = new EmbedBuilder()
-        .setTitle('Pódio')
-        .setDescription(podiumText)
-        .setColor(0x23650b) // verde escuro
-        .setAuthor({ name: `RANKING - ${interaction.guild.name}` });
+        .setColor(0x23650b); // verde escuro
+
+      if (zeraramText) {
+        // Se há zeradores, eles ficam no topo
+        embed.setTitle('🏁 ZERARAM 🏁');
+        embed.setDescription(zeraramText);
+
+        if (podiumText) {
+          embed.addFields({
+            name: 'Pódio',
+            value: podiumText
+          });
+        }
+      } else {
+        // Sem zeradores, mantém estrutura original
+        embed.setTitle('Pódio');
+        embed.setDescription(podiumText || 'Nenhum membro ativo no ranking.');
+      }
 
       if (tambemText) {
         embed.addFields({
@@ -94,11 +123,14 @@ module.exports = {
           value: tambemText
         });
       }
+
+      embed.setAuthor({ name: `RANKING - ${interaction.guild.name}` });
+
       const reply = await interaction.editReply({
         content: mencionar ? `${mencionar}` : '',
         embeds: [embed],
         allowedMentions: mencionar ? { parse: ['everyone', 'roles', 'users'] } : {}
-     });
+      });
 
       if (criaTopico) {
         const targetChannel = reply.channel;
