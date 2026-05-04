@@ -785,7 +785,8 @@ async function gerarRespostaContextualInternal(
         channel,
         client: channel?.client || channel?.guild?.client,
         inlineAttachments,
-        toolUsageState
+        toolUsageState,
+        sourceMessageId
       };
       const toolResults = await toolLoader.executeToolCalls(toolCalls, context);
 

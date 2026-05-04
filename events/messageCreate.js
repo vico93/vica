@@ -355,6 +355,11 @@ module.exports = {
         prompt = prompt ? `${imageTag} ${prompt}` : imageTag;
       }
 
+      // Add has_embed tag if message contains embeds
+      if (message.embeds?.length > 0) {
+        prompt = prompt ? `${prompt} [has_embed]` : '[has_embed]';
+      }
+
       // Adicionar contexto do usuário para o prompt
       const username = message.author.username;
       const globalName = message.author.globalName || username;
