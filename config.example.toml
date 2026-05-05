@@ -38,6 +38,13 @@ historyMaxAge = 480
 budgetTokenLimit = 6000
 # Intervalo mínimo por usuário entre respostas da IA, em ms
 rate_limit_ms = 5000
+# Número máximo de turnos de ferramentas (tool calls) por resposta.
+# Cada turno pode conter múltiplas ferramentas. O modelo recebe os resultados e pode solicitar novas.
+# Aumente se o bot precisar encadear mais operações; reduza se ele ficar preso em loops de ferramentas.
+maxToolTurns = 5
+# Timeout para chamadas de ferramentas MCP (em milissegundos).
+# Se uma ferramenta MCP demorar mais que isso, ela será cancelada.
+mcpToolTimeoutMs = 30000
 # Restringe operações de memória ao escopo permitido
 memoryStrictMode = true
 # Se true, envia imagens diretamente ao modelo principal (vision nativo).

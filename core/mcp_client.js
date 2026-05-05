@@ -6,6 +6,7 @@
 */
 
 const { spawn } = require('child_process');
+const config = require('./config');
 
 // Track running servers
 const runningServers = new Map();
@@ -13,8 +14,8 @@ const runningServers = new Map();
 // Request ID counter for JSON-RPC
 let requestIdCounter = 0;
 
-// Default timeout for requests (120 seconds)
-const DEFAULT_TIMEOUT = 120000;
+// Default timeout for requests (30 seconds, configurable via config.toml)
+const DEFAULT_TIMEOUT = config.settings?.mcpToolTimeoutMs || 30000;
 
 /**
  * Generate a unique request ID for JSON-RPC

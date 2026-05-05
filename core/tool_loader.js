@@ -264,7 +264,9 @@ function enforceConversationToolLimits(toolName, context = {}) {
     return { allowed: true };
   }
 
-  if (toolName === 'web_search') {
+  // Limit web search tools (legacy + MCP)
+  const searchTools = ['web_search', 'google-search', 'ddg-search'];
+  if (searchTools.includes(toolName)) {
     const currentCount = Number.isInteger(usageState.webSearchCalls)
       ? usageState.webSearchCalls
       : 0;
@@ -272,11 +274,28 @@ function enforceConversationToolLimits(toolName, context = {}) {
     if (currentCount >= MAX_WEB_SEARCH_CALLS_PER_RESPONSE) {
       return {
         allowed: false,
-        reason: `Limite de web_search por resposta atingido (${MAX_WEB_SEARCH_CALLS_PER_RESPONSE}). Use os resultados já obtidos ou chame web_reader em um link específico.`
+        reason: `Limite de buscas por resposta atingido (${MAX_WEB_SEARCH_CALLS_PER_RESPONSE}). Use os resultados já obtidos ou informe o usuário.`
       };
     }
 
     usageState.webSearchCalls = currentCount + 1;
+  }
+
+  // Limit fetch tools
+  const fetchTools = ['fetch', 'fetch_content'];
+  if (fetchTools.includes(toolName)) {
+    const currentCount = Number.isInteger(usageState.fetchCalls)
+      ? usageState.fetchCalls
+      : 0;
+
+    if (currentCount >= MAX_WEB_SEARCH_CALLS_PER_RESPONSE) {
+      return {
+        allowed: false,
+        reason: `Limite de fetch por resposta atingido (${MAX_WEB_SEARCH_CALLS_PER_RESPONSE}). Use os resultados já obtidos ou tente get_message_embeds.`
+      };
+    }
+
+    usageState.fetchCalls = currentCount + 1;
   }
 
   return { allowed: true };

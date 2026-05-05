@@ -123,6 +123,7 @@ function normalizeAISettings(settings = {}) {
   const maxTokens = normalizeInteger(settings.maxTokens, normalizeInteger(settings.max_tokens, budgetTokenLimit));
   const maxToolTurns = normalizeInteger(settings.maxToolTurns, normalizeInteger(settings.max_tool_turns, 5));
   const maxToolResultChars = normalizeInteger(settings.maxToolResultChars, normalizeInteger(settings.max_tool_result_chars, 4000));
+  const mcpToolTimeoutMs = normalizeInteger(settings.mcpToolTimeoutMs, normalizeInteger(settings.mcp_tool_timeout_ms, 30000));
 
   return {
     send_system_prompt: sendSystemPrompt,
@@ -138,6 +139,7 @@ function normalizeAISettings(settings = {}) {
     maxTokens,
     maxToolTurns,
     maxToolResultChars,
+    mcpToolTimeoutMs,
     disableToolsOnVision: normalizeBoolean(settings.disableToolsOnVision, true),
     visionToolStrategy: normalizeVisionToolStrategy(settings.visionToolStrategy),
     memoryStrictMode: normalizeBoolean(settings.memoryStrictMode, true),

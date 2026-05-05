@@ -773,9 +773,26 @@ async function gerarRespostaContextualInternal(
 
     const toolTurnLimit = getToolTurnLimit();
     const toolUsageState = {};
+    const usedToolsHistory = [];
     let turns = 0;
     while (toolCalls?.length > 0 && turns < toolTurnLimit) {
       turns++;
+
+      // Detect tool loops: same tool called repeatedly
+      const currentToolNames = toolCalls.map(tc => tc.function?.name).filter(Boolean);
+      usedToolsHistory.push(...currentToolNames);
+      const recentTools = usedToolsHistory.slice(-6);
+      const isLooping = recentTools.length >= 4 &&
+        recentTools.every(name => name === recentTools[0]);
+
+      if (isLooping && turns >= 3) {
+        console.warn(`[OAI][TOOLS][WARN] Detected tool loop: '${recentTools[0]}' called ${recentTools.length} times. Forcing stop.`);
+        messages.push({
+          role: 'system',
+          content: `[system_notice] The tool '${recentTools[0]}' has been called multiple times and appears to be stuck in a loop. Stop calling tools and respond to the user with the information you have, or explain that you cannot complete the request.`
+        });
+      }
+
       messages.push({ role: 'assistant', tool_calls: toolCalls });
       const context = {
         source: 'chat',
@@ -897,9 +914,26 @@ ${conversationText}
 
     const toolTurnLimit = getToolTurnLimit();
     const toolUsageState = {};
+    const usedToolsHistory = [];
     let turns = 0;
     while (toolCalls?.length > 0 && turns < toolTurnLimit) {
       turns++;
+
+      // Detect tool loops: same tool called repeatedly
+      const currentToolNames = toolCalls.map(tc => tc.function?.name).filter(Boolean);
+      usedToolsHistory.push(...currentToolNames);
+      const recentTools = usedToolsHistory.slice(-6);
+      const isLooping = recentTools.length >= 4 &&
+        recentTools.every(name => name === recentTools[0]);
+
+      if (isLooping && turns >= 3) {
+        console.warn(`[OAI][TOOLS][WARN] Detected tool loop in comment: '${recentTools[0]}' called ${recentTools.length} times. Forcing stop.`);
+        messages.push({
+          role: 'system',
+          content: `[system_notice] The tool '${recentTools[0]}' has been called multiple times and appears to be stuck in a loop. Stop calling tools and respond with the information you have.`
+        });
+      }
+
       messages.push({ role: 'assistant', tool_calls: toolCalls });
       const toolResults = await toolLoader.executeToolCalls(toolCalls, { source: 'comment', toolUsageState });
       for (const res of toolResults) {

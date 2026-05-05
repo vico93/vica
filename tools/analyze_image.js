@@ -309,6 +309,8 @@ async function execute(args, context) {
           ],
         },
       ],
+    }, {
+      timeout: 30000, // 30 seconds timeout
     });
   } catch (apiError) {
     console.error(`[TOOLS][ANALYZE_IMAGE][ERROR] API error:`, apiError?.message || apiError);
