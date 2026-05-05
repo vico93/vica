@@ -262,14 +262,18 @@ async function listTools(server) {
         const tools = response.result?.tools || [];
 
         // Convert to OpenAI function format
-        const openaiTools = tools.map((tool) => ({
-            type: 'function',
-            function: {
-                name: tool.name,
-                description: tool.description,
-                parameters: tool.inputSchema
-            }
-        }));
+        // Prefix tool names with server name to avoid conflicts between MCP servers
+        const openaiTools = tools.map((tool) => {
+            const prefixedName = `${server.name}_${tool.name}`;
+            return {
+                type: 'function',
+                function: {
+                    name: prefixedName,
+                    description: `[${server.name}] ${tool.description}`,
+                    parameters: tool.inputSchema
+                }
+            };
+        });
 
         return openaiTools;
     } catch (error) {
@@ -291,8 +295,12 @@ async function callTool(server, toolName, args = {}) {
             throw new Error(`Server ${server.name} is not initialized`);
         }
 
+        // Remove server prefix from tool name if present
+        const prefix = `${server.name}_`;
+        const actualToolName = toolName.startsWith(prefix) ? toolName.slice(prefix.length) : toolName;
+
         const request = createJsonRpcRequest('tools/call', {
-            name: toolName,
+            name: actualToolName,
             arguments: args
         });
 

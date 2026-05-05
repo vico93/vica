@@ -184,7 +184,11 @@ async function pruneMessagesToBudget(messages, tools, requestModel, capability, 
   };
 }
 
-function getEmptyResponseFallbackMessage() {
+function getEmptyResponseFallbackMessage(pendingTools = []) {
+  if (pendingTools.length > 0) {
+    const toolNames = pendingTools.map(tc => tc.function?.name).filter(Boolean).join(', ');
+    return `Bah, acabei usando muitas ferramentas aqui (${toolNames}) e atingi meu limite 😵‍💫. Tenta de novo com uma pergunta mais direta?`;
+  }
   return 'Bah, dei uma travada enquanto montava a resposta 😵‍💫. Tenta de novo em seguida.';
 }
 
@@ -793,6 +797,10 @@ async function gerarRespostaContextualInternal(
         });
       }
 
+      // Log tool calls for debugging
+      const toolNames = toolCalls.map(tc => tc.function?.name).filter(Boolean);
+      console.log(`[OAI][TOOLS][DEBUG] Turn ${turns}/${toolTurnLimit} - Calling tools: [${toolNames.join(', ')}]`);
+
       messages.push({ role: 'assistant', tool_calls: toolCalls });
       const context = {
         source: 'chat',
@@ -809,6 +817,8 @@ async function gerarRespostaContextualInternal(
 
       for (const res of toolResults) {
         const normalizedToolResult = truncateToolResultForContext(res.result);
+        const resultPreview = typeof normalizedToolResult === 'string' ? normalizedToolResult.substring(0, 200) : JSON.stringify(normalizedToolResult).substring(0, 200);
+        console.log(`[OAI][TOOLS][DEBUG] Tool result for ${res.tool_call_id}: ${resultPreview}${normalizedToolResult?.length > 200 ? '...' : ''}`);
         messages.push({
           role: 'tool',
           tool_call_id: res.tool_call_id,
@@ -860,7 +870,7 @@ async function gerarRespostaContextualInternal(
     }
 
     if (hasPendingToolCalls) {
-      return getEmptyResponseFallbackMessage();
+      return getEmptyResponseFallbackMessage(toolCalls);
     }
 
     console.warn('[OAI][WARN] Resposta vazia após processamento de tags. Retornando fallback.');
@@ -934,10 +944,16 @@ ${conversationText}
         });
       }
 
+      // Log tool calls for debugging
+      const commentToolNames = toolCalls.map(tc => tc.function?.name).filter(Boolean);
+      console.log(`[OAI][TOOLS][DEBUG][COMMENT] Turn ${turns}/${toolTurnLimit} - Calling tools: [${commentToolNames.join(', ')}]`);
+
       messages.push({ role: 'assistant', tool_calls: toolCalls });
       const toolResults = await toolLoader.executeToolCalls(toolCalls, { source: 'comment', toolUsageState });
       for (const res of toolResults) {
         const normalizedToolResult = truncateToolResultForContext(res.result);
+        const resultPreview = typeof normalizedToolResult === 'string' ? normalizedToolResult.substring(0, 200) : JSON.stringify(normalizedToolResult).substring(0, 200);
+        console.log(`[OAI][TOOLS][DEBUG][COMMENT] Tool result for ${res.tool_call_id}: ${resultPreview}${normalizedToolResult?.length > 200 ? '...' : ''}`);
         messages.push({
           role: 'tool',
           tool_call_id: res.tool_call_id,

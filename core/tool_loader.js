@@ -264,9 +264,9 @@ function enforceConversationToolLimits(toolName, context = {}) {
     return { allowed: true };
   }
 
-  // Limit web search tools (legacy + MCP)
-  const searchTools = ['web_search', 'google-search', 'ddg-search'];
-  if (searchTools.includes(toolName)) {
+  // Limit web search tools (legacy + MCP with prefixed names)
+  const searchTools = ['web_search', 'google-search_search', 'ddg-search_search'];
+  if (searchTools.includes(toolName) || toolName.endsWith('_search')) {
     const currentCount = Number.isInteger(usageState.webSearchCalls)
       ? usageState.webSearchCalls
       : 0;
@@ -281,9 +281,9 @@ function enforceConversationToolLimits(toolName, context = {}) {
     usageState.webSearchCalls = currentCount + 1;
   }
 
-  // Limit fetch tools
-  const fetchTools = ['fetch', 'fetch_content'];
-  if (fetchTools.includes(toolName)) {
+  // Limit fetch tools (legacy + MCP with prefixed names)
+  const fetchTools = ['fetch', 'fetch_content', 'ddg-search_fetch_content', 'fetch_fetch'];
+  if (fetchTools.includes(toolName) || toolName.endsWith('_fetch') || toolName.endsWith('_fetch_content')) {
     const currentCount = Number.isInteger(usageState.fetchCalls)
       ? usageState.fetchCalls
       : 0;
