@@ -224,11 +224,28 @@ async function getTool(toolName) {
     return customTool;
   }
 
-  // Then, check MCP tools
+  // Then, check MCP tools by full prefixed name (e.g., "memory_create_entities")
   const mcpTools = await getMCPTools();
   const mcpTool = mcpTools.find(tool => tool.function?.name === toolName);
   if (mcpTool) {
     return mcpTool;
+  }
+
+  // Fallback: check MCP tools by original name (without server prefix)
+  // This allows direct calls from commands like mmemories/gmemories to work
+  // without knowing the server prefix (e.g., "create_entities" -> "memory_create_entities")
+  const mcpToolByOriginalName = mcpTools.find(tool => {
+    const prefixedName = tool.function?.name || '';
+    // Extract original name: "memory_create_entities" -> "create_entities"
+    const underscoreIndex = prefixedName.indexOf('_');
+    if (underscoreIndex === -1) return false;
+    const originalName = prefixedName.slice(underscoreIndex + 1);
+    return originalName === toolName;
+  });
+
+  if (mcpToolByOriginalName) {
+    console.log(`[TOOL_LOADER][DEBUG] Resolved '${toolName}' to MCP tool '${mcpToolByOriginalName.function?.name}' (fallback by original name)`);
+    return mcpToolByOriginalName;
   }
 
   return null;
