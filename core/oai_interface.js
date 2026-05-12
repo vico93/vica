@@ -1,8 +1,8 @@
 /*
 ** caminho: core/oai_interface.js
-** últimaMod: 2026-04-19 14:25
+** últimaMod: 2026-05-12 15:30
 ** autor: Vico
-** colaboração: Gemini, ChatGPT, Grok Code (Fast), GPT-5, Claude Opus 4.6
+** colaboração: Gemini, GPT-4o, Grok Code (Fast), GPT-5, Claude Opus 4.6, Kimi K2
 */
 
 const OpenAI = require('openai');
@@ -707,9 +707,40 @@ async function gerarRespostaContextualInternal(
     } catch (e) { console.warn('[CONVERSATION] Falha no fallback tradicional:', e.message); }
   }
 
+  // Adicionar contexto da mensagem que abriu a thread (se aplicável)
+  if (channel?.isThread?.()) {
+    try {
+      const starterMessage = await channel.fetchStarterMessage();
+      if (starterMessage?.content) {
+        const alreadyInHistory = historicoTextos.some(
+          msg => msg.content === starterMessage.content && msg.authorId === starterMessage.author.id
+        );
+        if (!alreadyInHistory) {
+          historicoTextos.unshift({
+            content: starterMessage.content,
+            authorId: starterMessage.author.id,
+            username: starterMessage.author.username,
+            globalName: starterMessage.author.globalName || starterMessage.author.username,
+            createdAt: starterMessage.createdTimestamp,
+            isThreadOp: true
+          });
+        }
+      }
+    } catch (err) {
+      console.warn('[CONVERSATION][THREAD_OP] Falha ao buscar starter message:', err.message);
+    }
+  }
+
   for (const msg of historicoTextos) {
     const isBot = msg.authorId === botUserId;
-    const content = isBot ? msg.content : `${msg.username}: ${msg.content} [meta]user:${msg.username}|globalname:${msg.globalName}|id:${msg.authorId}[/meta]`;
+    let content;
+    if (isBot) {
+      content = msg.content;
+    } else if (msg.isThreadOp) {
+      content = `[thread_op]${msg.username}: ${msg.content}[/thread_op][meta]user:${msg.username}|globalname:${msg.globalName}|id:${msg.authorId}[/meta]`;
+    } else {
+      content = `${msg.username}: ${msg.content} [meta]user:${msg.username}|globalname:${msg.globalName}|id:${msg.authorId}[/meta]`;
+    }
     messages.push({ role: isBot ? 'assistant' : 'user', content: content });
   }
 
