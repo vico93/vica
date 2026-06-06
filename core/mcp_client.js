@@ -1,6 +1,6 @@
 /*
 ** caminho: core/mcp_client.js
-** últimaMod: 2026-02-01
+** últimaMod: 2026-06-06
 ** autor: Vico
 ** colaboração: Roo
 */
@@ -47,6 +47,7 @@ function createJsonRpcRequest(method, params = {}) {
  * @param {string} config.type - Server type (should be "mcp")
  * @param {string} config.transport - Transport type ("stdio" or "http")
  * @param {string} [config.url] - URL for http transport
+ * @param {object} [config.headers] - Headers for http transport
  * @param {string} [config.command] - Command for stdio transport
  * @param {string[]} [config.args] - Arguments for stdio transport
  * @param {object} [config.env] - Environment variables for stdio transport
@@ -374,6 +375,13 @@ function sendJsonRpcRequest(server, request, timeout = DEFAULT_TIMEOUT) {
     });
 }
 
+function getHttpHeaders(server) {
+    return {
+        'Content-Type': 'application/json',
+        ...(server.config.headers || {})
+    };
+}
+
 /**
  * Send a JSON-RPC notification (no response expected)
  * @param {object} server - Server object
@@ -394,9 +402,7 @@ function sendJsonRpcNotification(server, notification) {
             // HTTP notifications are sent as requests but we don't wait for response
             fetch(server.url, {
                 method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json'
-                },
+                headers: getHttpHeaders(server),
                 body: JSON.stringify(notification)
             }).catch((error) => {
                 console.warn(`[MCP_CLIENT][WARN] HTTP notification failed:`, error.message);
@@ -439,9 +445,7 @@ async function handleHttpRequest(server, request) {
     try {
         const response = await fetch(server.url, {
             method: 'POST',
-            headers: {
-                'Content-Type': 'application/json'
-            },
+            headers: getHttpHeaders(server),
             body: JSON.stringify(request)
         });
 
