@@ -526,8 +526,7 @@ async function handleHttpRequest(server, request) {
         captureHttpSessionId(server, response);
 
         if (!response.ok) {
-            const body = await response.text();
-            throw new Error(`HTTP error: ${response.status} ${response.statusText}: ${body.slice(0, 500)}`);
+            throw new Error(`HTTP error: ${response.status} ${response.statusText}`);
         }
 
         const data = await parseHttpResponse(response, request.id);
