@@ -10,7 +10,7 @@ const path = require('path');
 const config = require('./config');
 const mcpClient = require('./mcp_client');
 
-const MAX_WEB_SEARCH_CALLS_PER_RESPONSE = config.settings?.maxWebSearchCallsPerResponse ?? 2;
+const MAX_SEARCH_CALLS_PER_RESPONSE = config.settings?.maxSearchCallsPerResponse ?? 2;
 
 // Cache para ferramentas carregadas
 let toolsCache = null;
@@ -281,34 +281,34 @@ function enforceConversationToolLimits(toolName, context = {}) {
     return { allowed: true };
   }
 
-  // Limit web search tools (legacy + MCP with prefixed names)
-  const searchTools = ['web_search', 'google-search_search', 'ddg-search_search'];
+  // Limit web search tools (MCP with prefixed names)
+  const searchTools = ['google-search_search'];
   if (searchTools.includes(toolName) || toolName.endsWith('_search')) {
     const currentCount = Number.isInteger(usageState.webSearchCalls)
       ? usageState.webSearchCalls
       : 0;
 
-    if (currentCount >= MAX_WEB_SEARCH_CALLS_PER_RESPONSE) {
+    if (currentCount >= MAX_SEARCH_CALLS_PER_RESPONSE) {
       return {
         allowed: false,
-        reason: `Limite de buscas por resposta atingido (${MAX_WEB_SEARCH_CALLS_PER_RESPONSE}). Use os resultados já obtidos ou informe o usuário.`
+        reason: `Limite de buscas por resposta atingido (${MAX_SEARCH_CALLS_PER_RESPONSE}). Use os resultados já obtidos ou informe o usuário.`
       };
     }
 
     usageState.webSearchCalls = currentCount + 1;
   }
 
-  // Limit fetch tools (legacy + MCP with prefixed names)
-  const fetchTools = ['fetch', 'fetch_content', 'ddg-search_fetch_content', 'fetch_fetch'];
+  // Limit fetch tools (MCP with prefixed names)
+  const fetchTools = ['fetch', 'fetch_content', 'fetch_fetch'];
   if (fetchTools.includes(toolName) || toolName.endsWith('_fetch') || toolName.endsWith('_fetch_content')) {
     const currentCount = Number.isInteger(usageState.fetchCalls)
       ? usageState.fetchCalls
       : 0;
 
-    if (currentCount >= MAX_WEB_SEARCH_CALLS_PER_RESPONSE) {
+    if (currentCount >= MAX_SEARCH_CALLS_PER_RESPONSE) {
       return {
         allowed: false,
-        reason: `Limite de fetch por resposta atingido (${MAX_WEB_SEARCH_CALLS_PER_RESPONSE}). Use os resultados já obtidos ou tente get_message_embeds.`
+        reason: `Limite de fetch por resposta atingido (${MAX_SEARCH_CALLS_PER_RESPONSE}). Use os resultados já obtidos ou tente get_message_embeds.`
       };
     }
 

@@ -123,7 +123,7 @@ function normalizeAISettings(settings = {}) {
   const maxTokens = normalizeInteger(settings.maxTokens, normalizeInteger(settings.max_tokens, budgetTokenLimit));
   const maxToolTurns = normalizeInteger(settings.maxToolTurns, normalizeInteger(settings.max_tool_turns, 5));
   const maxToolResultChars = normalizeInteger(settings.maxToolResultChars, normalizeInteger(settings.max_tool_result_chars, 4000));
-  const maxWebSearchCallsPerResponse = normalizeInteger(settings.maxWebSearchCallsPerResponse, normalizeInteger(settings.max_web_search_calls_per_response, 2));
+  const maxSearchCallsPerResponse = normalizeInteger(settings.maxSearchCallsPerResponse, normalizeInteger(settings.max_search_calls_per_response, 2));
   const mcpToolTimeoutMs = normalizeInteger(settings.mcpToolTimeoutMs, normalizeInteger(settings.mcp_tool_timeout_ms, 30000));
 
   return {
@@ -140,8 +140,8 @@ function normalizeAISettings(settings = {}) {
     maxTokens,
     maxToolTurns,
     maxToolResultChars,
-    max_web_search_calls_per_response: maxWebSearchCallsPerResponse,
-    maxWebSearchCallsPerResponse,
+    max_search_calls_per_response: maxSearchCallsPerResponse,
+    maxSearchCallsPerResponse,
     mcpToolTimeoutMs,
     disableToolsOnVision: normalizeBoolean(settings.disableToolsOnVision, true),
     visionToolStrategy: normalizeVisionToolStrategy(settings.visionToolStrategy),

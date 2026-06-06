@@ -44,7 +44,7 @@ rate_limit_ms = 5000
 maxToolTurns = 5
 # Número máximo de chamadas de busca/fetch web por resposta.
 # Ajuda a evitar loops e gasto excessivo quando ferramentas de busca retornam resultados insuficientes.
-max_web_search_calls_per_response = 2
+max_search_calls_per_response = 2
 # Timeout para chamadas de ferramentas MCP (em milissegundos).
 # Se uma ferramenta MCP demorar mais que isso, ela será cancelada.
 mcpToolTimeoutMs = 30000
