@@ -1,6 +1,6 @@
 /*
 ** caminho: core/tool_loader.js
-** últimaMod: 2026-04-19 14:25
+** últimaMod: 2026-06-06 01:15
 ** autor: Vico
 ** colaboração: Roo, ChatGPT (GPT-5), Claude Opus 4.6
 */
@@ -10,7 +10,7 @@ const path = require('path');
 const config = require('./config');
 const mcpClient = require('./mcp_client');
 
-const MAX_WEB_SEARCH_CALLS_PER_RESPONSE = 2;
+const MAX_WEB_SEARCH_CALLS_PER_RESPONSE = config.settings?.maxWebSearchCallsPerResponse ?? 2;
 
 // Cache para ferramentas carregadas
 let toolsCache = null;

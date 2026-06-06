@@ -1,6 +1,6 @@
 /*
 ** caminho: core/config.js
-** últimaMod: 2026-04-19 14:25
+** últimaMod: 2026-06-06 01:15
 ** autor: Vico
 ** colaboração: ChatGPT (GPT-5.4), Claude Opus 4.6
 */
@@ -123,6 +123,7 @@ function normalizeAISettings(settings = {}) {
   const maxTokens = normalizeInteger(settings.maxTokens, normalizeInteger(settings.max_tokens, budgetTokenLimit));
   const maxToolTurns = normalizeInteger(settings.maxToolTurns, normalizeInteger(settings.max_tool_turns, 5));
   const maxToolResultChars = normalizeInteger(settings.maxToolResultChars, normalizeInteger(settings.max_tool_result_chars, 4000));
+  const maxWebSearchCallsPerResponse = normalizeInteger(settings.maxWebSearchCallsPerResponse, normalizeInteger(settings.max_web_search_calls_per_response, 2));
   const mcpToolTimeoutMs = normalizeInteger(settings.mcpToolTimeoutMs, normalizeInteger(settings.mcp_tool_timeout_ms, 30000));
 
   return {
@@ -139,6 +140,8 @@ function normalizeAISettings(settings = {}) {
     maxTokens,
     maxToolTurns,
     maxToolResultChars,
+    max_web_search_calls_per_response: maxWebSearchCallsPerResponse,
+    maxWebSearchCallsPerResponse,
     mcpToolTimeoutMs,
     disableToolsOnVision: normalizeBoolean(settings.disableToolsOnVision, true),
     visionToolStrategy: normalizeVisionToolStrategy(settings.visionToolStrategy),
