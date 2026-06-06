@@ -1,6 +1,6 @@
 /*
 ** caminho: core/mcp_client.js
-** últimaMod: 2026-06-06
+** últimaMod: 2026-06-06 01:00
 ** autor: Vico
 ** colaboração: Roo
 */
@@ -63,6 +63,8 @@ async function startServer(config) {
         config: config,
         initialized: false,
         capabilities: null,
+        sessionId: null,
+        protocolVersion: null,
         pendingRequests: new Map(),
         buffer: ''
     };
@@ -223,6 +225,7 @@ async function initializeServer(server) {
         }
 
         server.capabilities = initResponse.result?.capabilities || {};
+        server.protocolVersion = initResponse.result?.protocolVersion || initRequest.params.protocolVersion;
 
         // Send initialized notification
         const initializedNotification = {
@@ -376,10 +379,81 @@ function sendJsonRpcRequest(server, request, timeout = DEFAULT_TIMEOUT) {
 }
 
 function getHttpHeaders(server) {
-    return {
+    const headers = {
+        Accept: 'application/json, text/event-stream',
         'Content-Type': 'application/json',
         ...(server.config.headers || {})
     };
+
+    if (server.sessionId) {
+        headers['Mcp-Session-Id'] = server.sessionId;
+    }
+
+    if (server.protocolVersion) {
+        headers['MCP-Protocol-Version'] = server.protocolVersion;
+    }
+
+    return headers;
+}
+
+function captureHttpSessionId(server, response) {
+    const sessionId = response.headers.get('mcp-session-id');
+    if (sessionId && sessionId !== server.sessionId) {
+        server.sessionId = sessionId;
+        console.log(`[MCP_CLIENT][INFO] Captured session id for ${server.name}`);
+    }
+}
+
+async function parseHttpResponse(response, requestId) {
+    const contentType = response.headers.get('content-type') || '';
+    const body = await response.text();
+
+    if (!body.trim()) {
+        return {};
+    }
+
+    if (contentType.includes('text/event-stream')) {
+        return parseEventStreamResponse(body, requestId);
+    }
+
+    try {
+        return JSON.parse(body);
+    } catch (error) {
+        throw new Error(`Invalid JSON response: ${body.slice(0, 500)}`);
+    }
+}
+
+function parseEventStreamResponse(body, requestId) {
+    const events = body.split(/\r?\n\r?\n/);
+    let lastParsed = null;
+
+    for (const event of events) {
+        const dataLines = event
+            .split(/\r?\n/)
+            .filter((line) => line.startsWith('data:'))
+            .map((line) => line.slice(5).trimStart());
+
+        if (dataLines.length === 0) {
+            continue;
+        }
+
+        const data = dataLines.join('\n');
+        if (!data || data === '[DONE]') {
+            continue;
+        }
+
+        try {
+            const parsed = JSON.parse(data);
+            if (parsed.id === requestId) {
+                return parsed;
+            }
+            lastParsed = parsed;
+        } catch (error) {
+            throw new Error(`Invalid SSE JSON response: ${data.slice(0, 500)}`);
+        }
+    }
+
+    return lastParsed || {};
 }
 
 /**
@@ -449,11 +523,14 @@ async function handleHttpRequest(server, request) {
             body: JSON.stringify(request)
         });
 
+        captureHttpSessionId(server, response);
+
         if (!response.ok) {
-            throw new Error(`HTTP error: ${response.status} ${response.statusText}`);
+            const body = await response.text();
+            throw new Error(`HTTP error: ${response.status} ${response.statusText}: ${body.slice(0, 500)}`);
         }
 
-        const data = await response.json();
+        const data = await parseHttpResponse(response, request.id);
 
         if (data.error) {
             throw new Error(`JSON-RPC error: ${data.error.message} (code: ${data.error.code})`);
