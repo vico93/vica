@@ -15,9 +15,11 @@
 */
 
 const { PermissionsBitField } = require('discord.js');
+const config = require('../core/config');
 const oai = require('../core/oai_interface');
 const database = require('../core/database');
 const tagParser = require('../core/tagParser');
+const channelContext = require('../core/channel_context');
 const { processAliases } = require('../core/aliasProcessor');
 const {
   isImageAttachment,
@@ -213,16 +215,29 @@ module.exports = {
     }
 
     /* ---------------- Histórico da IA ---------------- */
+    const contentPreview = channelContext.cleanPreview(message.content || '');
     try {
       database.inserirMensagem(
         guildId,
         canalId,
         usuarioId,
         message.id,
-        message.createdTimestamp
+        message.createdTimestamp,
+        contentPreview || null
       );
     } catch (err) {
       console.error('[VICA][DB] Falha ao inserir mensagem:', err, '| ID:', message.id);
+    }
+
+    /* ---------------- Atualização de contexto ativo do canal ---------------- */
+    try {
+      const settings = config.settings || {};
+      if (settings.channelContextEnabled !== false && contentPreview) {
+        const recentPreviews = database.buscarPreviewsCanalRecentes(guildId, canalId, settings.channelContextReevalEvery || 3);
+        await channelContext.updateChannelContext(guildId, canalId, recentPreviews);
+      }
+    } catch (ctxErr) {
+      console.warn('[VICA][CONTEXT] Falha ao atualizar contexto de canal:', ctxErr.message);
     }
 
     /* ---------------- Chatbot ---------------- */

@@ -13,6 +13,8 @@ base_url = "https://example.com/v1"
 api_key = "SUA_API_KEY"
 # Modelo principal de chat/texto
 model = "glm-5"
+# Modelo leve para tarefas auxiliares (classificação, extração, resumo curto)
+light_model = "qwen-turbo"
 
 # Headers HTTP extras enviados em toda requisição ao provider (opcional)
 # Útil para identificação em dashboards, ex: OpenRouter
@@ -48,8 +50,14 @@ max_search_calls_per_response = 2
 # Timeout para chamadas de ferramentas MCP (em milissegundos).
 # Se uma ferramenta MCP demorar mais que isso, ela será cancelada.
 mcpToolTimeoutMs = 30000
-# Restringe operações de memória ao escopo permitido
-memoryStrictMode = true
+# Ativa injeção automática de contexto de canal/tópico no prompt
+channelContextEnabled = true
+# Tempo de inatividade para expirar contexto de canal (minutos)
+channelContextTtlMinutes = 30
+# Tamanho máximo do snapshot injetado (caracteres)
+channelContextMaxChars = 400
+# A cada quantas mensagens forçar reavaliação do contexto
+channelContextReevalEvery = 3
 # Se true, envia imagens diretamente ao modelo principal (vision nativo).
 # Se false, usa a tool analyze_image para descrever a imagem primeiro.
 useModelVision = false

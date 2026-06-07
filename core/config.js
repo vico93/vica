@@ -67,6 +67,7 @@ function normalizeModelSection(section) {
     base_url: normalizeString(section?.base_url),
     api_key: normalizeString(section?.api_key),
     model: normalizeString(section?.model),
+    light_model: normalizeString(section?.light_model),
     headers: normalizeHeaders(section?.headers),
   };
 }
@@ -145,8 +146,12 @@ function normalizeAISettings(settings = {}) {
     mcpToolTimeoutMs,
     disableToolsOnVision: normalizeBoolean(settings.disableToolsOnVision, true),
     visionToolStrategy: normalizeVisionToolStrategy(settings.visionToolStrategy),
-    memoryStrictMode: normalizeBoolean(settings.memoryStrictMode, true),
+    memoryStrictMode: normalizeBoolean(settings.memoryStrictMode, false),
     useModelVision: normalizeBoolean(settings.useModelVision, false),
+    channelContextEnabled: normalizeBoolean(settings.channelContextEnabled, true),
+    channelContextTtlMinutes: normalizeInteger(settings.channelContextTtlMinutes, 30),
+    channelContextMaxChars: normalizeInteger(settings.channelContextMaxChars, 400),
+    channelContextReevalEvery: normalizeInteger(settings.channelContextReevalEvery, 3),
     // useTokenizer removed – o OpenRouter free tem limite de 200k tokens
   };
 }

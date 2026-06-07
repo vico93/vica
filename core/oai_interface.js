@@ -13,6 +13,7 @@ const config = require('./config');
 const database = require('../core/database');
 const tagParser = require('../core/tagParser');
 const toolLoader = require('../core/tool_loader');
+const channelContext = require('../core/channel_context');
 // tokenizer removed - functionality migrated to OpenRouter usage info
 
 const rateLimitMap = new Map();
@@ -728,6 +729,20 @@ async function gerarRespostaContextualInternal(
       }
     } catch (err) {
       console.warn('[CONVERSATION][THREAD_OP] Falha ao buscar starter message:', err.message);
+    }
+  }
+
+  // Injetar contexto ativo do canal/tópico (se disponível)
+  if (guildId && canalId) {
+    try {
+      const context = channelContext.getChannelContext(guildId, canalId);
+      const contextText = channelContext.formatContextForPrompt(context);
+      if (contextText) {
+        messages.push({ role: 'system', content: contextText });
+        console.log(`[OAI][CONTEXT] ${contextText}`);
+      }
+    } catch (ctxErr) {
+      console.warn('[OAI][CONTEXT] Falha ao buscar contexto de canal:', ctxErr.message);
     }
   }
 

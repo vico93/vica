@@ -273,6 +273,20 @@ db.pragma('synchronous = NORMAL');    // commits mais rápidos
     console.error('[DB] Erro durante migração da coluna translation_emoji:', e.message);
   }
 
+  // Migração para adicionar coluna content_preview na tabela mensagens
+  try {
+    const msgCols = db.prepare('PRAGMA table_info(mensagens)').all();
+    const hasContentPreview = msgCols.some(c => c.name === 'content_preview');
+
+    if (msgCols.length > 0 && !hasContentPreview) {
+      console.warn('[DB] Migrando tabela mensagens -> adicionando coluna content_preview.');
+      db.exec('ALTER TABLE mensagens ADD COLUMN content_preview TEXT');
+      console.log('[DB] Adicionada coluna content_preview à tabela mensagens');
+    }
+  } catch (e) {
+    console.error('[DB] Erro durante migração da coluna content_preview:', e.message);
+  }
+
   db.exec(`
 CREATE TABLE IF NOT EXISTS mensagens (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -282,8 +296,24 @@ CREATE TABLE IF NOT EXISTS mensagens (
   message_id TEXT NOT NULL,
   timestamp INTEGER NOT NULL,
   response_id TEXT,
+  content_preview TEXT,
   UNIQUE (guild_id, canal_id, message_id) ON CONFLICT IGNORE
 );
+
+CREATE TABLE IF NOT EXISTS channel_contexts (
+  guild_id TEXT NOT NULL,
+  channel_id TEXT NOT NULL,
+  active_topic TEXT,
+  topic_snapshot TEXT,
+  extracted_entities TEXT,
+  message_count INTEGER DEFAULT 0,
+  last_updated INTEGER NOT NULL,
+  expires_at INTEGER NOT NULL,
+  PRIMARY KEY (guild_id, channel_id)
+);
+
+CREATE INDEX IF NOT EXISTS idx_channel_contexts_expires
+  ON channel_contexts (expires_at);
 
 CREATE TABLE IF NOT EXISTS rank_xp (
   guild_id  TEXT NOT NULL,
@@ -475,12 +505,26 @@ const stmts = {
   rankTop:      db.prepare('SELECT usuario_id, xp, nivel FROM rank_xp WHERE guild_id=? ORDER BY xp DESC LIMIT ?'),
   xpGetAll:     db.prepare('SELECT * FROM rank_xp WHERE guild_id=?'),
 
-  /* --- Mensagens para histórico da IA (agora armazena message_id) --- */
-  msgInsert:  db.prepare('INSERT OR IGNORE INTO mensagens (guild_id, canal_id, usuario_id, message_id, timestamp) VALUES (?, ?, ?, ?, ?)'),
+  /* --- Mensagens para histórico da IA (agora armazena message_id + content_preview) --- */
+  msgInsert:  db.prepare('INSERT OR IGNORE INTO mensagens (guild_id, canal_id, usuario_id, message_id, timestamp, content_preview) VALUES (?, ?, ?, ?, ?, ?)'),
   msgHistory: db.prepare('SELECT message_id FROM mensagens WHERE guild_id=? AND canal_id=? AND usuario_id=? ORDER BY timestamp DESC LIMIT ?'),
   channelMsgHistory: db.prepare('SELECT message_id, usuario_id FROM mensagens WHERE guild_id=? AND canal_id=? ORDER BY timestamp DESC LIMIT ?'),
   channelMsgHistoryRange: db.prepare('SELECT message_id, usuario_id FROM mensagens WHERE guild_id=? AND canal_id=? ORDER BY timestamp DESC LIMIT ? OFFSET ?'),
+  recentChannelPreviews: db.prepare('SELECT content_preview FROM mensagens WHERE guild_id=? AND canal_id=? AND content_preview IS NOT NULL ORDER BY timestamp DESC LIMIT ?'),
   
+  /* --- CONTEXTO ATIVO DE CANAL --- */
+  ctxGet: db.prepare('SELECT guild_id, channel_id, active_topic, topic_snapshot, extracted_entities, message_count, last_updated, expires_at FROM channel_contexts WHERE guild_id = ? AND channel_id = ?'),
+  ctxUpsert: db.prepare(`INSERT INTO channel_contexts (guild_id, channel_id, active_topic, topic_snapshot, extracted_entities, message_count, last_updated, expires_at)
+                         VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                         ON CONFLICT(guild_id, channel_id) DO UPDATE SET
+                           active_topic = excluded.active_topic,
+                           topic_snapshot = excluded.topic_snapshot,
+                           extracted_entities = excluded.extracted_entities,
+                           message_count = excluded.message_count,
+                           last_updated = excluded.last_updated,
+                           expires_at = excluded.expires_at`),
+  ctxDeleteExpired: db.prepare('DELETE FROM channel_contexts WHERE expires_at <= ?'),
+
   /* --- NOVAS STATEMENTS PARA CONFIGURAÇÕES DO SERVIDOR --- */
   settingsGetChannel: db.prepare('SELECT system_channel_id FROM guild_settings WHERE guild_id = ?'),
   settingsSetChannel: db.prepare(`INSERT INTO guild_settings (guild_id, system_channel_id)
@@ -773,14 +817,37 @@ module.exports = {
   buscarRank: (g, limit = 10) => stmts.rankTop.all(g, limit),
   buscarTodosUsuariosXP: (g) => stmts.xpGetAll.all(g),
 
-  // mensagens (salvando IDs do Discord)
-  inserirMensagem: (g, c, u, messageId, ts) => stmts.msgInsert.run(g, c, u, messageId, ts).lastInsertRowid,
+  // mensagens (salvando IDs do Discord + preview do conteudo)
+  inserirMensagem: (g, c, u, messageId, ts, contentPreview = null) => stmts.msgInsert.run(g, c, u, messageId, ts, contentPreview).lastInsertRowid,
   buscarHistoricoConversa: (g, c, u, l = 3) =>
     stmts.msgHistory.all(g, c, u, l).map(r => r.message_id).reverse(),
   buscarHistoricoCanal: (g, c, l = 10) =>
     stmts.channelMsgHistory.all(g, c, l).reverse(),
   buscarHistoricoCanalRange: (g, c, limit, offset) =>
     stmts.channelMsgHistoryRange.all(g, c, limit, offset).reverse(),
+  buscarPreviewsCanalRecentes: (g, c, limit = 10) =>
+    stmts.recentChannelPreviews.all(g, c, limit).map(r => r.content_preview).reverse(),
+
+  // --- CONTEXTO ATIVO DE CANAL ---
+  getChannelContext: (g, c) => {
+    const row = stmts.ctxGet.get(g, c);
+    if (!row) return null;
+    return {
+      guildId: row.guild_id,
+      channelId: row.channel_id,
+      activeTopic: row.active_topic,
+      topicSnapshot: row.topic_snapshot,
+      extractedEntities: row.extracted_entities,
+      messageCount: row.message_count,
+      lastUpdated: row.last_updated,
+      expiresAt: row.expires_at
+    };
+  },
+  setChannelContext: (g, c, activeTopic, topicSnapshot, extractedEntities, messageCount, lastUpdated, expiresAt) => {
+    const entitiesJson = extractedEntities ? JSON.stringify(extractedEntities) : null;
+    return stmts.ctxUpsert.run(g, c, activeTopic, topicSnapshot, entitiesJson, messageCount, lastUpdated, expiresAt).changes;
+  },
+  deleteExpiredChannelContexts: (now = Date.now()) => stmts.ctxDeleteExpired.run(now).changes,
 
   // --- NOVAS FUNÇÕES EXPORTADAS ---
   // configurações do servidor
