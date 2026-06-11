@@ -174,7 +174,7 @@ module.exports = {
               member.id,
               member.user.username,
               messageType,
-              messageConfig.message,
+              finalMessage,
               null,
               null,
               moderationReason
