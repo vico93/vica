@@ -1,0 +1,17 @@
+[Unit]
+Description=NeoVica Discord bot
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=neovica
+WorkingDirectory=/opt/neovica
+ExecStart=/opt/neovica/venv/bin/python -m vica
+Restart=on-failure
+RestartSec=10
+NoNewPrivileges=true
+PrivateTmp=true
+
+[Install]
+WantedBy=multi-user.target
