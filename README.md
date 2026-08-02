@@ -10,6 +10,7 @@ python3.11 -m venv venv
 source venv/bin/activate
 pip install -r requirements.txt
 cp config.example.json config.json
+cp system_prompt.example.txt system_prompt.txt
 python -m vica
 ```
 
@@ -20,6 +21,7 @@ python -m venv venv
 .\venv\Scripts\Activate.ps1
 pip install -r requirements.txt
 Copy-Item config.example.json config.json
+Copy-Item system_prompt.example.txt system_prompt.txt
 python -m vica
 ```
 
@@ -28,6 +30,12 @@ para desenvolvimento local.
 
 Preencha o token do Discord, o `application_id` da aplicacao/bot e pelo menos um
 provedor em `config.json`. O arquivo nao deve ser commitado.
+
+O prompt do sistema fica em `system_prompt.txt`, na mesma raiz do `config.json`,
+e tambem nao deve ser commitado. `llm.send_system_prompt` vem como `true`; ao
+defini-lo como `false`, a NeoVica nao envia `instructions` para o provider e o
+prompt configurado diretamente na API Key do provider pode ser usado. Nesse
+modo, o arquivo local de prompt nao e necessario.
 
 O processo do bot nao sincroniza slash commands automaticamente. Use os scripts
 abaixo sempre que adicionar, editar ou remover comandos:

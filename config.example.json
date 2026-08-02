@@ -4,7 +4,7 @@
     "application_id": null
   },
   "llm": {
-    "system_prompt": "Voce e Vica, uma assistente amigavel de um servidor do Discord.",
+    "send_system_prompt": true,
     "providers": [
       {
         "name": "openai",

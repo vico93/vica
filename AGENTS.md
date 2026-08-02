@@ -19,6 +19,7 @@ python3.11 -m venv venv   # 3.11 é o piso mínimo (versão do Raspberry Pi); no
 source venv/bin/activate
 pip install -r requirements.txt
 cp config.example.json config.json   # depois preencher com token e chaves reais
+cp system_prompt.example.txt system_prompt.txt
 ```
 - Ambiente e dependências: **pip + venv**, nada de poetry/uv/pipenv.
 - Versão mínima do Python: **3.11** (ver `planning/01-ARQUITETURA.md` para o porquê).
@@ -55,12 +56,13 @@ neovica/
 │   │   ├── chat_repository.py
 │   │   ├── rank_repository.py
 │   │   └── config_repository.py
+│   ├── deployment.py        # inicialização HTTP-only dos scripts de comandos
 │   └── llm/                 # abstração de provedores de LLM (Responses API)
-│       ├── provider.py
-│       └── deployment.py
+│       └── provider.py
 ├── migrations/              # scripts de criação/alteração de schema SQLite
 ├── requirements.txt
 ├── config.example.json
+├── system_prompt.example.txt
 ├── deploy_commands.py
 ├── delete_commands.py
 ├── neovica.example.service
@@ -76,6 +78,8 @@ precisa ter um motivo claro, e se virar padrão novo, atualizar esta seção.
 - Segredos (token do Discord, chaves de API) ficam em `config.json`, que é
   ignorado pelo Git e nunca deve ser commitado. Toda nova configuração precisa
   entrar também no `config.example.json`, sem segredos reais.
+- O prompt local fica em `system_prompt.txt`, ignorado pelo Git; sua estrutura
+  inicial deve ser copiada de `system_prompt.example.txt`.
 - Configurações por servidor (multiplicadores de cargo, canais na lista negra,
   emoji de trigger) são dados de runtime no SQLite, não em `config.json`.
 - Async em tudo que toca rede ou disco — nada de chamada bloqueante no event

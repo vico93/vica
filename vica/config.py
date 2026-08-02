@@ -32,6 +32,7 @@ class ProviderConfig:
 @dataclass(frozen=True)
 class LLMConfig:
     system_prompt: str
+    send_system_prompt: bool
     providers: tuple[ProviderConfig, ...]
 
 
@@ -87,6 +88,13 @@ def _optional_id(section: dict[str, Any], key: str, section_name: str) -> int | 
         return None
     if isinstance(value, bool) or not isinstance(value, int) or value <= 0:
         raise ConfigError(f"'{section_name}.{key}' precisa ser um ID inteiro positivo ou null.")
+    return value
+
+
+def _boolean(section: dict[str, Any], key: str, section_name: str, default: bool) -> bool:
+    value = section.get(key, default)
+    if not isinstance(value, bool):
+        raise ConfigError(f"'{section_name}.{key}' precisa ser true ou false.")
     return value
 
 
@@ -177,8 +185,25 @@ async def load_config(path: str | Path = "config.json") -> AppConfig:
         token=_string(discord, "token", "discord"),
         application_id=_optional_id(discord, "application_id", "discord"),
     )
+    send_system_prompt = _boolean(llm, "send_system_prompt", "llm", True)
+    system_prompt = ""
+    if send_system_prompt:
+        prompt_path = config_path.parent / "system_prompt.txt"
+        if not await asyncio.to_thread(prompt_path.is_file):
+            raise ConfigError(
+                f"Arquivo de prompt nao encontrado: {prompt_path}. "
+                "Copie system_prompt.example.txt para system_prompt.txt."
+            )
+        try:
+            system_prompt = await asyncio.to_thread(prompt_path.read_text, encoding="utf-8")
+        except (OSError, UnicodeError) as exc:
+            raise ConfigError(f"Nao foi possivel ler {prompt_path}: {exc}.") from exc
+        if not system_prompt.strip():
+            raise ConfigError(f"O arquivo de prompt esta vazio: {prompt_path}.")
+
     llm_config = LLMConfig(
-        system_prompt=str(llm.get("system_prompt", "")).strip(),
+        system_prompt=system_prompt,
+        send_system_prompt=send_system_prompt,
         providers=tuple(providers),
     )
     database_config = DatabaseConfig(

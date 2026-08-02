@@ -23,9 +23,10 @@ class ProviderError(RuntimeError):
 
 
 class ResponsesProvider:
-    def __init__(self, config: ProviderConfig, system_prompt: str) -> None:
+    def __init__(self, config: ProviderConfig, system_prompt: str, send_system_prompt: bool) -> None:
         self.config = config
         self.system_prompt = system_prompt
+        self.send_system_prompt = send_system_prompt
 
     @property
     def endpoint(self) -> str:
@@ -38,7 +39,7 @@ class ResponsesProvider:
             "model": self.config.model,
             "input": input_text,
         }
-        if self.system_prompt:
+        if self.send_system_prompt and self.system_prompt:
             payload["instructions"] = self.system_prompt
         if previous_response_id:
             payload["previous_response_id"] = previous_response_id
@@ -82,7 +83,8 @@ class ResponsesProviderManager:
 
     def __init__(self, config: LLMConfig, chat_repository: ChatRepository) -> None:
         self.providers = [
-            ResponsesProvider(provider, config.system_prompt) for provider in config.providers
+            ResponsesProvider(provider, config.system_prompt, config.send_system_prompt)
+            for provider in config.providers
         ]
         self.chat_repository = chat_repository
         self.session: aiohttp.ClientSession | None = None

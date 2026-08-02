@@ -1,4 +1,5 @@
 config.json
+system_prompt.txt
 data/
 logs/
 venv/
