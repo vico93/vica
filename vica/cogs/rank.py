@@ -8,6 +8,7 @@ import random
 import re
 import time
 from collections.abc import Callable
+from datetime import datetime
 
 import discord
 from discord import app_commands
@@ -67,6 +68,11 @@ def apply_multiplier(amount: int, multiplier: float) -> int:
     return max(0, int(round(amount * multiplier)))
 
 
+def rank_thread_name() -> str:
+    now = datetime.now()
+    return f"Rank {now.day:02d}/{now.month:02d}"
+
+
 class RankCog(commands.Cog):
     def __init__(
         self, bot: commands.Bot, config: AppConfig, start_background_tasks: bool = True
@@ -123,7 +129,16 @@ class RankCog(commands.Cog):
         )
 
     @app_commands.command(name="rank", description="Mostra o top 10 de EXP do servidor.")
-    async def rank_command(self, interaction: discord.Interaction) -> None:
+    @app_commands.describe(
+        mencionar="Membro, cargo ou @everyone para mencionar junto do ranking",
+        cria_topico="Cria um tópico na mensagem do ranking",
+    )
+    async def rank_command(
+        self,
+        interaction: discord.Interaction,
+        mencionar: discord.Member | discord.Role | None = None,
+        cria_topico: bool = False,
+    ) -> None:
         if interaction.guild is None:
             await interaction.response.send_message(
                 "Este comando so pode ser usado dentro de um servidor.", ephemeral=True
@@ -131,22 +146,59 @@ class RankCog(commands.Cog):
             return
         entries = await self.rank_repository.top_experience(interaction.guild.id)
         embed = discord.Embed(
-            title=f"Ranking de EXP | {interaction.guild.name}",
-            description="Top 10 colocados do servidor.",
-            color=discord.Color.blurple(),
+            title="Pódio",
+            color=discord.Color(0x23650B),
         )
+        embed.set_author(name=f"RANKING - {interaction.guild.name}")
         if not entries:
             embed.description = "Ainda nao ha EXP registrada neste servidor."
         else:
-            for position, (user_id, xp) in enumerate(entries, start=1):
-                member = interaction.guild.get_member(user_id)
-                name = member.display_name if member is not None else f"Usuario {user_id}"
+            podium_emojis = ("🥇", "🥈", "🥉", "🏅")
+            podium_lines = [
+                f"{podium_emojis[position]} <@{user_id}> ・ **{xp:,} XP**".replace(",", ".")
+                for position, (user_id, xp) in enumerate(entries[:4])
+            ]
+            embed.description = "\n".join(podium_lines)
+
+            if len(entries) > 4:
+                remaining_lines = [
+                    f"🎖️ <@{user_id}> ・ **{xp:,} XP**".replace(",", ".")
+                    for user_id, xp in entries[4:]
+                ]
                 embed.add_field(
-                    name=f"#{position} {name}",
-                    value=f"{xp:,} EXP".replace(",", "."),
+                    name="…também figuram…",
+                    value="\n".join(remaining_lines),
                     inline=False,
                 )
-        await interaction.response.send_message(embed=embed)
+
+        content = None
+        allowed_mentions = discord.AllowedMentions.none()
+        if mencionar is not None:
+            content = mencionar.mention
+            if isinstance(mencionar, discord.Member):
+                allowed_mentions = discord.AllowedMentions(users=True)
+            elif mencionar.is_default():
+                allowed_mentions = discord.AllowedMentions(everyone=True)
+            else:
+                allowed_mentions = discord.AllowedMentions(roles=True)
+
+        await interaction.response.send_message(
+            content=content,
+            embed=embed,
+            allowed_mentions=allowed_mentions,
+        )
+
+        if cria_topico:
+            ranking_message = await interaction.original_response()
+            if isinstance(ranking_message.channel, (discord.TextChannel, discord.NewsChannel)):
+                try:
+                    await ranking_message.create_thread(
+                        name=rank_thread_name(), auto_archive_duration=1440
+                    )
+                except Exception:
+                    logger.exception("Nao foi possivel criar topico para o ranking")
+            else:
+                logger.warning("Canal nao suporta topicos para o ranking")
 
     @app_commands.command(
         name="rank-multiplicador",
