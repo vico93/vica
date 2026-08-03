@@ -174,26 +174,38 @@ class RankCog(commands.Cog):
         content = None
         allowed_mentions = discord.AllowedMentions.none()
         if mencionar is not None:
-            content = mencionar.mention
-            if isinstance(mencionar, discord.Member):
-                allowed_mentions = discord.AllowedMentions(users=True)
-            elif mencionar.is_default():
+            if isinstance(mencionar, discord.Role) and mencionar.is_default():
+                content = "@everyone"
                 allowed_mentions = discord.AllowedMentions(everyone=True)
+            elif isinstance(mencionar, discord.Member):
+                content = mencionar.mention
+                allowed_mentions = discord.AllowedMentions(users=True)
             else:
+                content = mencionar.mention
                 allowed_mentions = discord.AllowedMentions(roles=True)
 
+        mention_in_thread = cria_topico and mencionar is not None
         await interaction.response.send_message(
-            content=content,
+            content=None if mention_in_thread else content,
             embed=embed,
             allowed_mentions=allowed_mentions,
         )
 
         if cria_topico:
             ranking_message = await interaction.original_response()
-            if isinstance(ranking_message.channel, (discord.TextChannel, discord.NewsChannel)):
+            if isinstance(ranking_message.channel, discord.TextChannel):
                 try:
-                    await ranking_message.create_thread(
+                    thread = await ranking_message.create_thread(
                         name=rank_thread_name(), auto_archive_duration=1440
+                    )
+                    if mention_in_thread:
+                        await thread.send(
+                            content=content,
+                            allowed_mentions=allowed_mentions,
+                        )
+                except discord.Forbidden:
+                    logger.warning(
+                        "Sem permissao para criar topico ou enviar a mencao no ranking"
                     )
                 except Exception:
                     logger.exception("Nao foi possivel criar topico para o ranking")
