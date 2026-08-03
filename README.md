@@ -6,8 +6,8 @@ Responses API.
 ## Setup rapido
 
 ```bash
-python3.11 -m venv venv
-source venv/bin/activate
+python3.11 -m venv .venv
+source .venv/bin/activate
 pip install -r requirements.txt
 cp config.example.json config.json
 cp system_prompt.example.txt system_prompt.txt
@@ -17,8 +17,8 @@ python -m vica
 No Windows, com Python 3.13 instalado pelo Microsoft Store:
 
 ```powershell
-python -m venv venv
-.\venv\Scripts\Activate.ps1
+python -m venv .venv
+.\.venv\Scripts\Activate.ps1
 pip install -r requirements.txt
 Copy-Item config.example.json config.json
 Copy-Item system_prompt.example.txt system_prompt.txt
@@ -36,6 +36,14 @@ e tambem nao deve ser commitado. `llm.send_system_prompt` vem como `true`; ao
 defini-lo como `false`, a NeoVica nao envia `instructions` para o provider e o
 prompt configurado diretamente na API Key do provider pode ser usado. Nesse
 modo, o arquivo local de prompt nao e necessario.
+
+A opcao `chatbot.respond_to_everyone` e falsa por padrao. Quando ativada, a Vica
+tambem responde a mensagens humanas que usem `@everyone` ou `@here`.
+
+O comando `/trigger` envia um pedido direto para a Vica. As mensagens direcionadas
+ao chatbot recebem internamente metadados no formato `[meta|username|ID]`, e os
+pedidos do comando usam `[trigger]texto[/trigger]`; as tags sao explicadas no
+prompt do sistema e nao devem aparecer nas respostas.
 
 O processo do bot nao sincroniza slash commands automaticamente. Use os scripts
 abaixo sempre que adicionar, editar ou remover comandos:

@@ -12,6 +12,21 @@ aqui ou em `planning/03-BACKLOG-FUTURO.md`.
 2. Alguém reage com um **emoji específico** a uma mensagem de **qualquer
    pessoa** (não precisa ser mensagem da Vica). O emoji é configurável por
    servidor.
+3. Um membro humano menciona diretamente a Vica.
+4. Opcionalmente, quando `chatbot.respond_to_everyone` estiver ativado no
+   `config.json`, um membro humano usa `@everyone` ou `@here`.
+
+### Comando direto
+- O slash command `/trigger <texto>` envia o argumento para a Vica como
+  `[trigger]texto[/trigger]`, além do prompt do sistema.
+- O comando usa o mesmo contexto por canal dos demais gatilhos.
+
+### Metadados internos
+- Mensagens disparadas por reply ou menção são enviadas ao modelo no formato
+  `[meta|username|ID]` seguido de `username: mensagem`.
+- Em reações, o `[meta]` identifica quem reagiu e o corpo também informa o autor
+  da mensagem que recebeu a reação.
+- As tags são internas e não devem ser reproduzidas pela Vica.
 
 ### Configuração (admin/moderador apenas)
 - Comando para definir qual emoji dispara a resposta por reação
@@ -28,7 +43,7 @@ aqui ou em `planning/03-BACKLOG-FUTURO.md`.
 
 ### Permissões
 - Configuração do emoji: só quem tem permissão de admin/moderador no servidor.
-- Uso do chatbot (responder via reply/reação): qualquer membro.
+- Uso do chatbot (responder via reply, reação, menção ou `/trigger`): qualquer membro.
 - A lista de administradores e moderadores é específica por servidor e fica no
   SQLite. O dono do servidor é administrador implícito.
 - `/addadm` e `/removeadm` só podem ser usados pelo dono do servidor.

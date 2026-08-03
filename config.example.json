@@ -16,6 +16,9 @@
       }
     ]
   },
+  "chatbot": {
+    "respond_to_everyone": false
+  },
   "database": {
     "path": "data/neovica.sqlite3"
   },

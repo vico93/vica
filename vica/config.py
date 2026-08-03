@@ -37,6 +37,11 @@ class LLMConfig:
 
 
 @dataclass(frozen=True)
+class ChatbotConfig:
+    respond_to_everyone: bool
+
+
+@dataclass(frozen=True)
 class DatabaseConfig:
     path: Path
 
@@ -63,6 +68,7 @@ class RankConfig:
 class AppConfig:
     discord: DiscordConfig
     llm: LLMConfig
+    chatbot: ChatbotConfig
     database: DatabaseConfig
     logging: LoggingConfig
     rank: RankConfig
@@ -150,6 +156,7 @@ async def load_config(path: str | Path = "config.json") -> AppConfig:
     root = _mapping(raw, "raiz")
     discord = _mapping(root.get("discord"), "discord")
     llm = _mapping(root.get("llm"), "llm")
+    chatbot = _mapping(root.get("chatbot", {}), "chatbot")
     database = _mapping(root.get("database"), "database")
     logging_config = _mapping(root.get("logging"), "logging")
     rank = _mapping(root.get("rank", {}), "rank")
@@ -206,6 +213,11 @@ async def load_config(path: str | Path = "config.json") -> AppConfig:
         send_system_prompt=send_system_prompt,
         providers=tuple(providers),
     )
+    chatbot_config = ChatbotConfig(
+        respond_to_everyone=_boolean(
+            chatbot, "respond_to_everyone", "chatbot", False
+        )
+    )
     database_config = DatabaseConfig(
         path=_resolve_path(_string(database, "path", "database"), config_path)
     )
@@ -232,6 +244,7 @@ async def load_config(path: str | Path = "config.json") -> AppConfig:
     return AppConfig(
         discord=discord_config,
         llm=llm_config,
+        chatbot=chatbot_config,
         database=database_config,
         logging=logging_config_value,
         rank=rank_config,

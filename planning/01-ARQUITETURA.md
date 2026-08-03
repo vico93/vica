@@ -63,6 +63,10 @@
 - Configurações por servidor (canais na lista negra, emoji de trigger, multiplicadores
   de cargo, etc.) ficam no SQLite, não em `config.json` — são dados, não segredos, e
   precisam ser alteráveis em runtime via comando.
+- A opção `chatbot.respond_to_everyone` é uma exceção global e opt-in: controla se
+  mensagens com `@everyone` ou `@here` podem disparar o chatbot. Ela fica no
+  `config.json` porque é uma escolha de operação do processo, não uma configuração
+  por servidor, e vem desativada por padrão.
 
 ## Logging e resiliência
 - Logging estruturado (nível INFO em produção, DEBUG opcional via `config.json`),

@@ -15,13 +15,13 @@ sobre **como** trabalhar no código-dia-a-dia.
 
 ## Setup do ambiente
 ```bash
-python3.11 -m venv venv   # 3.11 é o piso mínimo (versão do Raspberry Pi); no VPS há 3.12 disponível, mas não usar recursos exclusivos dele
-source venv/bin/activate
+python3.11 -m venv .venv   # 3.11 é o piso mínimo (versão do Raspberry Pi); no VPS há 3.12 disponível, mas não usar recursos exclusivos dele
+source .venv/bin/activate
 pip install -r requirements.txt
 cp config.example.json config.json   # depois preencher com token e chaves reais
 cp system_prompt.example.txt system_prompt.txt
 ```
-- Ambiente e dependências: **pip + venv**, nada de poetry/uv/pipenv.
+- Ambiente e dependências: **pip + .venv**, nada de poetry/uv/pipenv.
 - Versão mínima do Python: **3.11** (ver `planning/01-ARQUITETURA.md` para o porquê).
 - Manter `requirements.txt` atualizado a cada nova dependência adicionada
   (`pip freeze > requirements.txt` ou adicionar a linha manualmente — preferir
@@ -29,7 +29,7 @@ cp system_prompt.example.txt system_prompt.txt
 
 ## Rodando o bot localmente
 ```bash
-source venv/bin/activate
+source .venv/bin/activate
 python -m vica   # ajustar conforme o entrypoint real definido
 ```
 
