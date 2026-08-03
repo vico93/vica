@@ -147,7 +147,6 @@ class ChatbotCog(commands.Cog):
             message,
             "reaction",
             reaction_author=reaction_author,
-            reaction_emoji=str(payload.emoji),
         )
 
     async def _is_reply_to_vica(self, message: discord.Message) -> bool:
@@ -186,24 +185,22 @@ class ChatbotCog(commands.Cog):
         source: str,
         *,
         reaction_author: discord.User | discord.Member | None = None,
-        reaction_emoji: str | None = None,
     ) -> None:
         if message.guild is None or self.bot.user is None:
             return
         if source == "reaction":
             if reaction_author is None or reaction_author.id == self.bot.user.id:
                 return
-            if reaction_emoji is None:
-                return
-            prompt = self._format_reaction_prompt(message, reaction_author, reaction_emoji)
+            prompt = self._format_message_prompt(message)
         else:
             prompt = self._format_message_prompt(message)
 
         lock = self._channel_locks[message.channel.id]
         async with lock:
             try:
-                response = await self.provider_manager.respond(message.channel.id, prompt)
-                await self._send_response(message, response)
+                async with message.channel.typing():
+                    response = await self.provider_manager.respond(message.channel.id, prompt)
+                    await self._send_response(message, response)
             except (ProviderError, discord.HTTPException):
                 logger.exception("Nao foi possivel responder no canal %s", message.channel.id)
                 await self._send_message_error(message)
@@ -219,21 +216,6 @@ class ChatbotCog(commands.Cog):
         username = message.author.name
         content = self._clean_message_content(message.content)
         return f"[meta|{username}|{message.author.id}]\n{username}: {content}"
-
-    def _format_reaction_prompt(
-        self,
-        message: discord.Message,
-        reaction_author: discord.User | discord.Member,
-        reaction_emoji: str,
-    ) -> str:
-        reaction_username = reaction_author.name
-        message_username = message.author.name
-        content = self._clean_message_content(message.content)
-        return (
-            f"[meta|{reaction_username}|{reaction_author.id}]\n"
-            f"{reaction_username} reagiu com {reaction_emoji} a uma mensagem de "
-            f"{message_username}:\n{message_username}: {content}"
-        )
 
     def _clean_message_content(self, content: str) -> str:
         if self.bot.user is not None:

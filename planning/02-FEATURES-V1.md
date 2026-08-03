@@ -24,8 +24,9 @@ aqui ou em `planning/03-BACKLOG-FUTURO.md`.
 ### Metadados internos
 - Mensagens disparadas por reply ou menção são enviadas ao modelo no formato
   `[meta|username|ID]` seguido de `username: mensagem`.
-- Em reações, o `[meta]` identifica quem reagiu e o corpo também informa o autor
-  da mensagem que recebeu a reação.
+- Em reações, o `[meta]` identifica o autor da mensagem que recebeu a reação, e o
+  corpo usa o mesmo formato de uma mensagem comum. A reação e quem reagiu são
+  apenas o gatilho interno e não são enviados ao modelo.
 - As tags são internas e não devem ser reproduzidas pela Vica.
 
 ### Configuração (admin/moderador apenas)
