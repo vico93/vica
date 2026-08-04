@@ -149,6 +149,7 @@ class ChatbotCog(commands.Cog):
             message,
             "reaction",
             reaction_author=reaction_author,
+            reaction_emoji=payload.emoji,
         )
 
     async def _is_reply_to_vica(self, message: discord.Message) -> bool:
@@ -187,6 +188,7 @@ class ChatbotCog(commands.Cog):
         source: str,
         *,
         reaction_author: discord.User | discord.Member | None = None,
+        reaction_emoji: discord.PartialEmoji | None = None,
     ) -> None:
         if message.guild is None or self.bot.user is None:
             return
@@ -210,6 +212,16 @@ class ChatbotCog(commands.Cog):
                 logger.exception("Nao foi possivel responder no canal %s", message.channel.id)
                 await self._send_message_error(message)
                 return
+
+            if source == "reaction" and reaction_emoji is not None:
+                try:
+                    await message.clear_reaction(reaction_emoji)
+                except discord.HTTPException:
+                    logger.warning(
+                        "Nao foi possivel limpar a reacao %s da mensagem %s",
+                        reaction_emoji,
+                        message.id,
+                    )
 
         rank_cog = self.bot.get_cog("RankCog")
         if rank_cog is not None:
