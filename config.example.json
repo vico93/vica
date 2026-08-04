@@ -19,6 +19,9 @@
   "chatbot": {
     "respond_to_everyone": false
   },
+  "attachments": {
+    "max_per_message": 10
+  },
   "database": {
     "path": "data/neovica.sqlite3"
   },

@@ -3,7 +3,9 @@
 from __future__ import annotations
 
 import asyncio
+import base64
 import logging
+import mimetypes
 import re
 from collections import defaultdict
 
@@ -199,7 +201,10 @@ class ChatbotCog(commands.Cog):
         async with lock:
             try:
                 async with message.channel.typing():
-                    response = await self.provider_manager.respond(message.channel.id, prompt)
+                    input_content = await self._format_message_input(message, prompt)
+                    response = await self.provider_manager.respond(
+                        message.channel.id, input_content
+                    )
                     await self._send_response(message, response)
             except (ProviderError, discord.HTTPException):
                 logger.exception("Nao foi possivel responder no canal %s", message.channel.id)
@@ -216,6 +221,52 @@ class ChatbotCog(commands.Cog):
         username = message.author.name
         content = self._clean_message_content(message.content)
         return f"[meta|{username}|{message.author.id}]\n{username}: {content}"
+
+    async def _format_message_input(
+        self, message: discord.Message, prompt: str
+    ) -> str | list[dict[str, object]]:
+        max_attachments = self.bot.config.attachments.max_per_message
+        attachments = message.attachments[:max_attachments]
+        if len(message.attachments) > max_attachments:
+            logger.info(
+                "Mensagem %s excedeu o limite de %d anexos; os excedentes foram ignorados",
+                message.id,
+                max_attachments,
+            )
+
+        images: list[dict[str, object]] = []
+        for attachment in attachments:
+            media_type = self._image_media_type(attachment)
+            if media_type is None:
+                continue
+            data = await attachment.read()
+            if not data:
+                continue
+            encoded = base64.b64encode(data).decode("ascii")
+            images.append(
+                {
+                    "type": "input_image",
+                    "image_url": f"data:{media_type};base64,{encoded}",
+                }
+            )
+
+        if not images:
+            return prompt
+        return [
+            {
+                "role": "user",
+                "content": [{"type": "input_text", "text": prompt}, *images],
+            }
+        ]
+
+    @staticmethod
+    def _image_media_type(attachment: discord.Attachment) -> str | None:
+        supported_types = {"image/png", "image/jpeg", "image/webp", "image/gif"}
+        content_type = (attachment.content_type or "").split(";", 1)[0].lower()
+        if content_type in supported_types:
+            return content_type
+        guessed_type, _ = mimetypes.guess_type(attachment.filename)
+        return guessed_type if guessed_type in supported_types else None
 
     def _clean_message_content(self, content: str) -> str:
         if self.bot.user is not None:

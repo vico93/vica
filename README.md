@@ -40,6 +40,11 @@ modo, o arquivo local de prompt nao e necessario.
 A opcao `chatbot.respond_to_everyone` e falsa por padrao. Quando ativada, a Vica
 tambem responde a mensagens humanas que usem `@everyone` ou `@here`.
 
+Anexos de imagem presentes na mensagem que disparou a resposta sao enviados aos
+provedores de visao. O limite global de anexos por mensagem fica em
+`attachments.max_per_message` e vale 10 por padrao; anexos alem desse limite sao
+ignorados.
+
 O comando `/trigger` envia um pedido direto para a Vica. As mensagens direcionadas
 ao chatbot recebem internamente metadados no formato `[meta|username|ID]`, e os
 pedidos do comando usam `[trigger]texto[/trigger]`; as tags sao explicadas no

@@ -33,11 +33,14 @@ class ResponsesProvider:
         return f"{self.config.base_url}/responses"
 
     async def request(
-        self, session: aiohttp.ClientSession, input_text: str, previous_response_id: str | None
+        self,
+        session: aiohttp.ClientSession,
+        input_content: str | list[dict[str, Any]],
+        previous_response_id: str | None,
     ) -> tuple[str, str]:
         payload: dict[str, Any] = {
             "model": self.config.model,
-            "input": input_text,
+            "input": input_content,
         }
         if self.send_system_prompt and self.system_prompt:
             payload["instructions"] = self.system_prompt
@@ -95,7 +98,9 @@ class ResponsesProviderManager:
         if self.session is None:
             self.session = aiohttp.ClientSession()
 
-    async def respond(self, channel_id: int, input_text: str) -> str:
+    async def respond(
+        self, channel_id: int, input_content: str | list[dict[str, Any]]
+    ) -> str:
         await self.start()
         assert self.session is not None
         async with self._preference_lock:
@@ -109,7 +114,7 @@ class ResponsesProviderManager:
             )
             try:
                 text, response_id = await provider.request(
-                    self.session, input_text, previous_response_id
+                    self.session, input_content, previous_response_id
                 )
             except ProviderError as exc:
                 logger.warning("Falha no provedor %s: %s", provider.config.name, exc)

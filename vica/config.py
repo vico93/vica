@@ -42,6 +42,11 @@ class ChatbotConfig:
 
 
 @dataclass(frozen=True)
+class AttachmentsConfig:
+    max_per_message: int
+
+
+@dataclass(frozen=True)
 class DatabaseConfig:
     path: Path
 
@@ -69,6 +74,7 @@ class AppConfig:
     discord: DiscordConfig
     llm: LLMConfig
     chatbot: ChatbotConfig
+    attachments: AttachmentsConfig
     database: DatabaseConfig
     logging: LoggingConfig
     rank: RankConfig
@@ -157,6 +163,7 @@ async def load_config(path: str | Path = "config.json") -> AppConfig:
     discord = _mapping(root.get("discord"), "discord")
     llm = _mapping(root.get("llm"), "llm")
     chatbot = _mapping(root.get("chatbot", {}), "chatbot")
+    attachments = _mapping(root.get("attachments", {}), "attachments")
     database = _mapping(root.get("database"), "database")
     logging_config = _mapping(root.get("logging"), "logging")
     rank = _mapping(root.get("rank", {}), "rank")
@@ -218,6 +225,11 @@ async def load_config(path: str | Path = "config.json") -> AppConfig:
             chatbot, "respond_to_everyone", "chatbot", False
         )
     )
+    attachments_config = AttachmentsConfig(
+        max_per_message=_positive_int(
+            attachments, "max_per_message", "attachments", 10
+        )
+    )
     database_config = DatabaseConfig(
         path=_resolve_path(_string(database, "path", "database"), config_path)
     )
@@ -245,6 +257,7 @@ async def load_config(path: str | Path = "config.json") -> AppConfig:
         discord=discord_config,
         llm=llm_config,
         chatbot=chatbot_config,
+        attachments=attachments_config,
         database=database_config,
         logging=logging_config_value,
         rank=rank_config,
