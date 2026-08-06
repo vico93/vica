@@ -13,6 +13,30 @@ Leia, nesta ordem, os arquivos em `planning/` (ou onde eles estiverem no repo):
 Esses arquivos são a fonte da verdade sobre o quê construir. Este `AGENTS.md` é
 sobre **como** trabalhar no código-dia-a-dia.
 
+## Ferramentas MCP disponíveis
+- As ferramentas MCP são opcionais: use-as quando estiverem disponíveis, mas não
+  bloqueie o trabalho nem invente resultados quando alguma não estiver conectada.
+- `vibe_check` é obrigatório após o planejamento e antes de ações relevantes,
+  como editar código, executar operações remotas ou tomar decisões importantes.
+  Passe sempre o pedido completo do usuário, o contexto relevante, o plano,
+  o progresso e as incertezas atuais.
+- Use `vibe_learn` opcionalmente depois de corrigir um erro ou identificar uma
+  lição útil que possa evitar problemas semelhantes no futuro.
+- Use `context7` como fonte primária para documentação atualizada de bibliotecas,
+  frameworks, SDKs e APIs.
+- Use `ref` para documentação complementar, URLs específicas e recursos privados
+  quando estiver disponível.
+- Use `github` para consultar e operar repositórios, issues, releases e pull
+  requests quando isso fizer parte da tarefa. Nunca faça commit, push, merge ou
+  crie pull request sem pedido explícito.
+- Quando o workspace estiver aberto no VS Code, use `vscode` para explorar o
+  projeto e verificar diagnósticos. Comece a exploração com `list_files_code` na
+  raiz (`.`), prefira ferramentas de símbolos para reduzir o contexto e execute
+  `get_diagnostics_code` após cada conjunto de alterações.
+- As regras de edição deste arquivo continuam valendo: alterações manuais devem
+  usar `apply_patch`; as ferramentas de edição específicas do VS Code não as
+  substituem.
+
 ## Setup do ambiente
 ```bash
 python3.11 -m venv .venv   # 3.11 é o piso mínimo (versão do Raspberry Pi); no VPS há 3.12 disponível, mas não usar recursos exclusivos dele
