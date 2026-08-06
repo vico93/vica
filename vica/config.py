@@ -25,6 +25,7 @@ class ProviderConfig:
     base_url: str
     api_key: str
     model: str
+    headers: dict[str, str]
     timeout_seconds: float
     retry_attempts: int
 
@@ -92,6 +93,34 @@ def _string(section: dict[str, Any], key: str, section_name: str) -> str:
     if not isinstance(value, str) or not value.strip():
         raise ConfigError(f"'{section_name}.{key}' precisa ser um texto nao vazio.")
     return value.strip()
+
+
+def _headers(section: dict[str, Any], key: str, section_name: str) -> dict[str, str]:
+    value = section.get(key, {})
+    if not isinstance(value, dict):
+        raise ConfigError(f"'{section_name}.{key}' precisa ser um objeto JSON.")
+
+    headers: dict[str, str] = {}
+    normalized_names: set[str] = set()
+    for header_name, header_value in value.items():
+        if not isinstance(header_name, str) or not header_name.strip():
+            raise ConfigError(f"'{section_name}.{key}' possui um nome de header invalido.")
+        if not isinstance(header_value, str):
+            raise ConfigError(
+                f"'{section_name}.{key}.{header_name}' precisa ser um texto."
+            )
+        clean_name = header_name.strip()
+        clean_value = header_value.strip()
+        normalized_name = clean_name.lower()
+        if normalized_name in normalized_names:
+            raise ConfigError(
+                f"'{section_name}.{key}' possui headers duplicados sem diferenca de maiusculas."
+            )
+        if not clean_value:
+            raise ConfigError(f"'{section_name}.{key}.{header_name}' nao pode ser vazio.")
+        normalized_names.add(normalized_name)
+        headers[clean_name] = clean_value
+    return headers
 
 
 def _optional_id(section: dict[str, Any], key: str, section_name: str) -> int | None:
@@ -186,6 +215,7 @@ async def load_config(path: str | Path = "config.json") -> AppConfig:
                 base_url=_string(provider, "base_url", f"llm.providers[{index}]").rstrip("/"),
                 api_key=_string(provider, "api_key", f"llm.providers[{index}]"),
                 model=_string(provider, "model", f"llm.providers[{index}]"),
+                headers=_headers(provider, "headers", f"llm.providers[{index}]"),
                 timeout_seconds=_positive_float(
                     provider, "timeout_seconds", f"llm.providers[{index}]", 90.0
                 ),

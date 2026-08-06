@@ -48,6 +48,7 @@ class ResponsesProvider:
             payload["previous_response_id"] = previous_response_id
 
         headers = {
+            **self.config.headers,
             "Authorization": f"Bearer {self.config.api_key}",
             "Content-Type": "application/json",
         }
