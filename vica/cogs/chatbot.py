@@ -61,7 +61,11 @@ class ChatbotCog(commands.Cog):
     )
     @app_commands.describe(texto="Texto que a Vica deve responder")
     async def trigger(self, interaction: discord.Interaction, texto: str) -> None:
-        if interaction.guild is None or interaction.channel_id is None:
+        if (
+            interaction.guild is None
+            or interaction.channel_id is None
+            or interaction.channel is None
+        ):
             await interaction.response.send_message(
                 "Use este comando dentro de um servidor.", ephemeral=True
             )
@@ -74,7 +78,7 @@ class ChatbotCog(commands.Cog):
             )
             return
 
-        await interaction.response.defer()
+        await interaction.response.defer(ephemeral=True)
         prompt = f"[trigger]{texto}[/trigger]"
         lock = self._channel_locks[interaction.channel_id]
         async with lock:
@@ -82,7 +86,11 @@ class ChatbotCog(commands.Cog):
                 response = await self.provider_manager.respond(
                     interaction.channel_id, prompt
                 )
-                await self._send_interaction_response(interaction, response)
+                await self._send_channel_response(interaction.channel, response)
+                await interaction.edit_original_response(
+                    content="Trigger enviado com sucesso.",
+                    allowed_mentions=discord.AllowedMentions.none(),
+                )
             except (ProviderError, discord.HTTPException):
                 logger.exception(
                     "Nao foi possivel responder ao trigger no canal %s",
@@ -298,16 +306,12 @@ class ChatbotCog(commands.Cog):
                 allowed_mentions=discord.AllowedMentions.none(),
             )
 
-    async def _send_interaction_response(
-        self, interaction: discord.Interaction, response: str
+    async def _send_channel_response(
+        self, channel: discord.abc.Messageable, response: str
     ) -> None:
         chunks = self._response_chunks(response)
-        await interaction.edit_original_response(
-            content=chunks[0],
-            allowed_mentions=discord.AllowedMentions.none(),
-        )
-        for chunk in chunks[1:]:
-            await interaction.followup.send(
+        for chunk in chunks:
+            await channel.send(
                 chunk,
                 allowed_mentions=discord.AllowedMentions.none(),
             )
