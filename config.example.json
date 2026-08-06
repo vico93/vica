@@ -4,13 +4,13 @@
     "application_id": null
   },
   "llm": {
-    "send_system_prompt": true,
     "providers": [
       {
         "name": "openai",
         "base_url": "https://api.openai.com/v1",
         "api_key": "COLOQUE_A_CHAVE_AQUI",
         "model": "COLOQUE_O_MODELO_AQUI",
+        "send_system_prompt": true,
         "headers": {},
         "timeout_seconds": 90,
         "retry_attempts": 2

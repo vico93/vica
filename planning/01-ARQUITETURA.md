@@ -56,10 +56,10 @@
   nunca commitados. O arquivo real é ignorado pelo Git; `config.example.json`
   documenta a estrutura sem conter segredos reais.
 - O prompt de sistema fica em `system_prompt.txt`, na raiz ao lado do
-  `config.json`, e é ignorado pelo Git. `config.example.json` controla apenas se
-  ele deve ser enviado (`llm.send_system_prompt`, padrão `true`). Quando falso,
-  a requisição não inclui `instructions`, permitindo configurar o prompt no
-  provider.
+  `config.json`, e é ignorado pelo Git. Cada provedor em `config.json` controla
+  individualmente se o conteúdo deve ser enviado (`send_system_prompt`, padrão
+  `true`). Quando falso, a requisição daquele provedor não inclui
+  `instructions`, permitindo configurar o prompt na chave de API do provider.
 - Configurações por servidor (canais na lista negra, emoji de trigger, multiplicadores
   de cargo, etc.) ficam no SQLite, não em `config.json` — são dados, não segredos, e
   precisam ser alteráveis em runtime via comando.

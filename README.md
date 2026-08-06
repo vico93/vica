@@ -32,10 +32,11 @@ Preencha o token do Discord, o `application_id` da aplicacao/bot e pelo menos um
 provedor em `config.json`. O arquivo nao deve ser commitado.
 
 O prompt do sistema fica em `system_prompt.txt`, na mesma raiz do `config.json`,
-e tambem nao deve ser commitado. `llm.send_system_prompt` vem como `true`; ao
-defini-lo como `false`, a NeoVica nao envia `instructions` para o provider e o
-prompt configurado diretamente na API Key do provider pode ser usado. Nesse
-modo, o arquivo local de prompt nao e necessario.
+e tambem nao deve ser commitado. Cada item em `llm.providers` possui sua propria
+opcao `send_system_prompt`, que vem como `true`. Quando definida como `false`, a
+NeoVica nao envia `instructions` para aquele provider, permitindo usar o prompt
+configurado diretamente na API Key dele. O arquivo local de prompt nao e
+necessario quando todos os providers estiverem com essa opcao desativada.
 
 A opcao `chatbot.respond_to_everyone` e falsa por padrao. Quando ativada, a Vica
 tambem responde a mensagens humanas que usem `@everyone` ou `@here`.

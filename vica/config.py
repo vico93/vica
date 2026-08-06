@@ -25,6 +25,7 @@ class ProviderConfig:
     base_url: str
     api_key: str
     model: str
+    send_system_prompt: bool
     headers: dict[str, str]
     timeout_seconds: float
     retry_attempts: int
@@ -33,7 +34,6 @@ class ProviderConfig:
 @dataclass(frozen=True)
 class LLMConfig:
     system_prompt: str
-    send_system_prompt: bool
     providers: tuple[ProviderConfig, ...]
 
 
@@ -215,6 +215,9 @@ async def load_config(path: str | Path = "config.json") -> AppConfig:
                 base_url=_string(provider, "base_url", f"llm.providers[{index}]").rstrip("/"),
                 api_key=_string(provider, "api_key", f"llm.providers[{index}]"),
                 model=_string(provider, "model", f"llm.providers[{index}]"),
+                send_system_prompt=_boolean(
+                    provider, "send_system_prompt", f"llm.providers[{index}]", True
+                ),
                 headers=_headers(provider, "headers", f"llm.providers[{index}]"),
                 timeout_seconds=_positive_float(
                     provider, "timeout_seconds", f"llm.providers[{index}]", 90.0
@@ -229,9 +232,8 @@ async def load_config(path: str | Path = "config.json") -> AppConfig:
         token=_string(discord, "token", "discord"),
         application_id=_optional_id(discord, "application_id", "discord"),
     )
-    send_system_prompt = _boolean(llm, "send_system_prompt", "llm", True)
     system_prompt = ""
-    if send_system_prompt:
+    if any(provider.send_system_prompt for provider in providers):
         prompt_path = config_path.parent / "system_prompt.txt"
         if not await asyncio.to_thread(prompt_path.is_file):
             raise ConfigError(
@@ -247,7 +249,6 @@ async def load_config(path: str | Path = "config.json") -> AppConfig:
 
     llm_config = LLMConfig(
         system_prompt=system_prompt,
-        send_system_prompt=send_system_prompt,
         providers=tuple(providers),
     )
     chatbot_config = ChatbotConfig(
