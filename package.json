@@ -1,0 +1,32 @@
+{
+  "name": "vica",
+  "version": "0.1.0",
+  "description": "Vica - Community bot for Osmium",
+  "type": "module",
+  "main": "src/index.js",
+  "scripts": {
+    "gen": "buf generate",
+    "start": "node src/index.js",
+    "test": "node --test"
+  },
+  "keywords": [
+    "osmium",
+    "bot",
+    "vica"
+  ],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "@bufbuild/protobuf": "^2.2.3",
+    "@modelcontextprotocol/sdk": "^1.6.1",
+    "@openrouter/agent": "^0.9.0",
+    "better-sqlite3": "^13.0.3",
+    "smol-toml": "^1.3.1",
+    "ws": "^8.18.0",
+    "zod": "^3.24.2"
+  },
+  "devDependencies": {
+    "@bufbuild/buf": "^1.50.0",
+    "@bufbuild/protoc-gen-es": "^2.2.3"
+  }
+}
