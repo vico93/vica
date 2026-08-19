@@ -20,7 +20,7 @@
   - AC: nota com achados adicionada (não alucinar; citar arquivos/linhas).
 - [x] **T1.2** `client/connection.js` (WS + reconexão com backoff/jitter).
   - AC: desconecta → reconecta com backoff; eventos `connect`/`disconnect` emitidos.
-- [ ] **T1.3** `client/transport.js` (encode/decode) e `client/rpc.js` (request_id).
+- [x] **T1.3** `client/transport.js` (encode/decode) e `client/rpc.js` (request_id).
   - AC: round-trip de uma RPC de teste com correlação correta.
 - [ ] **T1.4** `client/auth.js` (handshake `Initialize`/`Initialized` + token).
   - AC: autentica com sucesso e marca ready.
