@@ -7,7 +7,7 @@
 
 - [x] **T0.1** Scaffold do `package.json` (ESM, scripts `gen`/`start`) e `.gitignore` (node_modules, `config.toml`, `*.local.*`, `data/`).
   - AC: `npm install` e `npm start` rodam sem erro (mesmo sem funcionalidade).
-- [ ] **T0.2** Adicionar `proto/` como **submódulo git** de `osmiumchat/proto` + criar `buf.gen.yaml` (`target=js`) e script `npm run gen`.
+- [x] **T0.2** Adicionar `proto/` como **submódulo git** de `osmiumchat/proto` + criar `buf.gen.yaml` (`target=js`) e script `npm run gen`.
   - AC: `git submodule` configurado; `npm run gen` gera `.js` em `src/gen/` (gitignored) sem erros.
 - [ ] **T0.3** `src/config.js`: carregar `config.toml`, `tools.json`, `mcp.json` (com fallback para templates).
   - AC: config ausente/malformada → erro claro; valores defaults aplicados.
