@@ -33,7 +33,7 @@
 
 - [x] **T2.1** `commands/registry.js` (prefixo configurável + parser).
   - AC: comando com prefixo correto dispara; prefixo errado é ignorado.
-- [ ] **T2.2** Comando `ping`.
+- [x] **T2.2** Comando `ping`.
 - [ ] **T2.3** Comandos `perfil` e `rank` (consultando DB — inicialmente stub).
 - [ ] **T2.4** Comando `perguntar` (posta pergunta no canal).
 - [ ] **T2.5** Comando `admin` (set emoji de reação, set prefixo) restrito a admins.
