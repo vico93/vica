@@ -6,6 +6,7 @@ const DEFAULT_CONFIG = {
   osmium: {
     endpoint: 'wss://ws-0.osmium.chat',
     token: '',
+    client_id: 120715,
     prefix: '!',
     auto_delete_commands: false,
     voice_xp_per_minute: 1
