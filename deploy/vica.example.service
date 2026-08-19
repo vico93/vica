@@ -1,0 +1,15 @@
+[Unit]
+Description=Vica Bot (Osmium)
+After=network.target
+
+[Service]
+Type=simple
+User=YOUR_USER
+WorkingDirectory=/path/to/vica
+ExecStart=/usr/bin/node src/index.js
+Restart=on-failure
+RestartSec=5s
+Environment=NODE_ENV=production
+
+[Install]
+WantedBy=multi-user.target
