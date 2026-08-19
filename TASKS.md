@@ -53,7 +53,7 @@
 ## M4 — IA (OpenRouter)
 
 - [ ] **T4.1** `ai/agent.js`: `OpenRouter` + `callModel` com modelo configurável.
-- [ ] **T4.2** `ai/persona.md` + injeção do system prompt.
+- [ ] **T4.2** `system_prompt.md` (raiz) + injeção do system prompt.
 - [ ] **T4.3** `ai/triggers.js`: menção + reply a msg do bot + reação (emoji custom; vazio = desativado) → dispara agente; **remove reação** após responder.
   - AC: menção por `username` replicando `hasMention` do SDK (substring `startIndex+1` → compara com username do bot, via code points); reply e reação funcionando; reação removida. `user_mention` opcional (fallback defensivo).
 - [ ] **T4.4** `ai/tools/loader.js`: carregar tools de `tools.json` → `tool()` (estratégia zod do SPEC §6.3).

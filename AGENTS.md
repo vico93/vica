@@ -7,7 +7,7 @@
 
 **Vica** é um bot de chat para comunidade, em **reescrita do Discord para o Osmium** (https://osmium.chat).
 
-Esta é a branch `osmium`. A versão antiga do Discord está na branch `old` e serve **apenas** como referência de regras de negócio (fórmula de XP, comportamento dos comandos) — **não portar código dela**: a estrutura é reescrita **do zero** (ver `SPEC.md`). A persona também é reescrita, num arquivo **`.md`** separado (não reutilizar os `.txt` antigos).
+Esta é a branch `osmium`. A versão antiga do Discord está na branch `old` e serve **apenas** como referência de regras de negócio (fórmula de XP, comportamento dos comandos) — **não portar código dela**: a estrutura é reescrita **do zero** (ver `SPEC.md`). A persona também é reescrita, em `system_prompt.md` na raiz (gitignored; template `system_prompt.example.md` — não reutilizar os `.txt` antigos).
 
 ## Regras de ouro (NÃO negociáveis)
 
@@ -38,7 +38,7 @@ Ver `@SPEC.md` → "Arquitetura". Resumo dos módulos:
 - `src/client/` — camada de transporte Osmium (WebSocket + protobuf)
 - `src/gateway/` — roteamento de eventos recebidos
 - `src/commands/` — sistema de comandos por prefixo
-- `src/ai/` — integração OpenRouter (triggers, persona, tools, MCP)
+- `src/ai/` — integração OpenRouter (triggers, system prompt, tools, MCP)
 - `src/features/` — XP/ranking e engajamento (`/perguntar`)
 - `src/db/` — persistência (SQLite)
 - `src/utils/` — logger e utilitários

@@ -51,7 +51,7 @@
 **Objetivo:** o "coração" da Vica respondendo via OpenRouter.
 
 **Done criteria:**
-- [ ] `ai/agent.js` com `callModel` (modelo configurável) + `ai/persona.md`.
+- [ ] `ai/agent.js` com `callModel` (modelo configurável) + `system_prompt.md` (raiz).
 - [ ] Triggers: menção (ID ou username), reply a msg do bot, reação (emoji CUSTOM configurado; vazio = desativado) — com remoção da reação após responder.
 - [ ] `ai/tools/loader.js` carregando ferramentas locais de `tools.json`.
 - [ ] `ai/mcp.js` carregando MCP remoto de `mcp.json` via `createMCPTools`.
@@ -76,7 +76,7 @@
 - DB: **`better-sqlite3`**. ✓
 - Prefixo: **`!`**. ✓
 - `proto/` = **submódulo git**; `src/gen` **gitignored** (regenerar). ✓
-- Estrutura e persona **reescritas do zero**; persona em arquivo **`.md`** separado. ✓
+- Estrutura e persona **reescritas do zero**; persona em `system_prompt.md` (**`.md`** separado, na raiz). ✓
 
 ## Pendências (fora do nosso controle)
 

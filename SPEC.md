@@ -58,7 +58,6 @@ vica/
 │   ├── ai/
 │   │   ├── agent.js              # OpenRouter callModel + state
 │   │   ├── triggers.js           # menção / reply / reação → dispara agente
-│   │   ├── persona.md            # system prompt de roleplay
 │   │   ├── tools/
 │   │   │   └── loader.js         # tools.json → tool() com zod
 │   │   └── mcp.js                # mcp.json → createMCPTools()
@@ -77,6 +76,7 @@ vica/
 ├── config.example.toml
 ├── tools.example.json
 ├── mcp.example.json
+├── system_prompt.example.md      # template do system prompt (raiz, gitignored: system_prompt.md)
 └── deploy/
     └── vica.service              # unidade systemd (template)
 ```
@@ -157,7 +157,7 @@ Regras extraídas (e confirmadas pelo Folf):
 ⚠️ `start_index`/`length` são em **Unicode code points** (não bytes nem UTF-16). O SDK usa `substring` (UTF-16), que quebra com caracteres fora do BMP (emoji). No nosso bot, fatiar por code point (ex.: `Array.from(text)`).
 
 ### 6.2 Persona
-- `src/ai/persona.md` = system prompt de roleplay, em arquivo **`.md`** separado (não reutilizar os `.txt` das versões antigas; conteúdo a reescrever/definir).
+- `system_prompt.md` (raiz, gitignored; template `system_prompt.example.md`) = system prompt de roleplay, em arquivo **`.md`** separado (não reutilizar os `.txt` das versões antigas; conteúdo a reescrever/definir).
 - Estado de conversa por canal/thread gerido pelo Agent SDK (`callModel` mantém o histórico da sessão).
 
 ### 6.3 Ferramentas locais (`tools.json`)
@@ -225,24 +225,21 @@ Referência: https://loritta.website/us/extras/faq-loritta/experience
 
 ### 9.1 `config.toml` (básico do bot)
 ```toml
-[bot]
+[osmium]
+endpoint = "wss://osmium.chat/api/v1/gateway"  # endpoint WebSocket
+token = "..."          # NUNCA versionar (template usa placeholder)
 prefix = "!"
 auto_delete_commands = false
-token = "..."          # NUNCA versionar (template usa placeholder)
+voice_xp_per_minute = 1
 
-[osmium]
-# endpoint WebSocket (descobrir no submódulo proto + doc do protocolo)
-
-[ai]
+[openrouter]
 model = "..."           # ex.: modelo OpenRouter com crédito/gratuito
 reaction_emoji = ""     # emoji CUSTOM que dispara a IA; vazio = trigger por reação DESATIVADO
-persona_file = "src/ai/persona.md"
+api_key = "..."         # NUNCA versionar
+system_prompt = "system_prompt.md"  # system prompt na raiz (gitignored; template system_prompt.example.md)
 
 [database]
-path = "./data/vica.sqlite"
-
-[xp]
-voice_xp_per_minute = 1  # confirmado
+path = "./data/vica.db"
 
 [logging]
 level = "info"

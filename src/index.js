@@ -20,12 +20,12 @@ async function main() {
   }
 
   // 2. Inicializa Banco de Dados
-  const db = initDatabase(config.database?.path || './data/vica.sqlite');
+  const db = initDatabase(config.database?.path || './data/vica.db');
 
   // 3. Registra Comandos
   const registry = new CommandRegistry({
-    prefix: config.bot?.prefix || '!',
-    autoDelete: config.bot?.auto_delete_commands || false
+    prefix: config.osmium?.prefix || '!',
+    autoDelete: config.osmium?.auto_delete_commands || false
   });
 
   registry.register(pingCommand);
@@ -37,8 +37,8 @@ async function main() {
   // 4. Cria Cliente Osmium
   const client = new OsmiumClient({
     endpoint: config.osmium?.endpoint || 'wss://osmium.chat/api/v1/gateway',
-    token: config.bot?.token,
-    clientId: config.bot?.client_id,
+    token: config.osmium?.token,
+    clientId: config.osmium?.client_id,
     appVersion: '0.1.0'
   });
 

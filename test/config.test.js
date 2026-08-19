@@ -7,9 +7,9 @@ import { loadConfig } from '../src/config.js';
 
 test('loadConfig carrega valores com fallback para templates', (t) => {
   const config = loadConfig();
-  assert.equal(typeof config.bot.prefix, 'string');
-  assert.equal(config.bot.prefix, '!');
-  assert.equal(config.xp.voice_xp_per_minute, 1);
+  assert.equal(typeof config.osmium.prefix, 'string');
+  assert.equal(config.osmium.prefix, '!');
+  assert.equal(config.osmium.voice_xp_per_minute, 1);
   assert.ok(Array.isArray(config.tools));
   assert.ok(typeof config.mcpServers === 'object');
 });

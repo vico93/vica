@@ -3,25 +3,21 @@ import path from 'node:path';
 import { parse as parseToml } from 'smol-toml';
 
 const DEFAULT_CONFIG = {
-  bot: {
+  osmium: {
+    endpoint: 'wss://osmium.chat/api/v1/gateway',
+    token: '',
     prefix: '!',
     auto_delete_commands: false,
-    token: ''
+    voice_xp_per_minute: 1
   },
-  osmium: {
-    endpoint: 'wss://osmium.chat/api/v1/gateway'
-  },
-  ai: {
+  openrouter: {
     model: 'anthropic/claude-3.5-sonnet',
     reaction_emoji: '',
-    persona_file: 'src/ai/persona.md',
-    api_key: ''
+    api_key: '',
+    system_prompt: 'system_prompt.md'
   },
   database: {
-    path: './data/vica.sqlite'
-  },
-  xp: {
-    voice_xp_per_minute: 1
+    path: './data/vica.db'
   },
   logging: {
     level: 'info'
@@ -57,11 +53,9 @@ export function loadConfig(baseDir = process.cwd()) {
 
   // Mescla com defaults
   const config = {
-    bot: { ...DEFAULT_CONFIG.bot, ...(parsedToml.bot || {}) },
     osmium: { ...DEFAULT_CONFIG.osmium, ...(parsedToml.osmium || {}) },
-    ai: { ...DEFAULT_CONFIG.ai, ...(parsedToml.ai || {}) },
+    openrouter: { ...DEFAULT_CONFIG.openrouter, ...(parsedToml.openrouter || {}) },
     database: { ...DEFAULT_CONFIG.database, ...(parsedToml.database || {}) },
-    xp: { ...DEFAULT_CONFIG.xp, ...(parsedToml.xp || {}) },
     logging: { ...DEFAULT_CONFIG.logging, ...(parsedToml.logging || {}) }
   };
 
