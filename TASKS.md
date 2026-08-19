@@ -35,7 +35,7 @@
   - AC: comando com prefixo correto dispara; prefixo errado é ignorado.
 - [x] **T2.2** Comando `ping`.
 - [x] **T2.3** Comandos `perfil` e `rank` (consultando DB — inicialmente stub).
-- [ ] **T2.4** Comando `perguntar` (posta pergunta no canal).
+- [x] **T2.4** Comando `perguntar` (posta pergunta no canal).
 - [ ] **T2.5** Comando `admin` (set emoji de reação, set prefixo) restrito a admins.
 - [ ] **T2.6** Auto-delete opcional de mensagens de comando.
   - AC: com flag ativa, a mensagem do comando é apagada após execução.
