@@ -26,7 +26,7 @@
   - AC: autentica com sucesso e marca ready.
 - [x] **T1.5** `gateway/dispatcher.js` + `events.js`.
   - AC: mensagem recebida é roteada ao handler correto.
-- [ ] **T1.6** Smoke M1: `!ping` → resposta `pong`.
+- [x] **T1.6** Smoke M1: `!ping` → resposta `pong`.
   - AC: comando responde no canal.
 
 ## M2 — Comandos
