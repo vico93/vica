@@ -23,9 +23,10 @@ async function main() {
   const db = initDatabase(config.database?.path || './data/vica.db');
 
   // 3. Registra Comandos
+  const autoDelete = config.osmium?.auto_delete_commands || false;
   const registry = new CommandRegistry({
     prefix: config.osmium?.prefix || '!',
-    autoDelete: config.osmium?.auto_delete_commands || false
+    autoDelete
   });
 
   registry.register(pingCommand);
@@ -83,7 +84,7 @@ async function main() {
         communityId,
         isAdmin: true, // TODO: verificar permissões com base no cargo no futuro
         async reply(replyText) {
-          return client.sendMessage(chatRef, replyText, {
+          return client.sendMessage(chatRef, replyText, autoDelete ? {} : {
             replyToMessageId: messageId
           });
         },
