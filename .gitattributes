@@ -1,0 +1,13 @@
+# Set default behavior to use LF line endings across all platforms
+* text=auto eol=lf
+
+# Explicitly declare text files you want to always be normalized and converted to LF on checkin.
+*.js text eol=lf
+*.json text eol=lf
+*.toml text eol=lf
+*.md text eol=lf
+*.sql text eol=lf
+*.yaml text eol=lf
+*.proto text eol=lf
+.gitignore text eol=lf
+.gitmodules text eol=lf
