@@ -22,7 +22,7 @@
   - AC: desconecta → reconecta com backoff; eventos `connect`/`disconnect` emitidos.
 - [x] **T1.3** `client/transport.js` (encode/decode) e `client/rpc.js` (request_id).
   - AC: round-trip de uma RPC de teste com correlação correta.
-- [ ] **T1.4** `client/auth.js` (handshake `Initialize`/`Initialized` + token).
+- [x] **T1.4** `client/auth.js` (handshake `Initialize`/`Initialized` + token).
   - AC: autentica com sucesso e marca ready.
 - [ ] **T1.5** `gateway/dispatcher.js` + `events.js`.
   - AC: mensagem recebida é roteada ao handler correto.
