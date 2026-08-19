@@ -16,7 +16,7 @@
 
 ## M1 — Transporte Osmium
 
-- [ ] **T1.1** Investigar `.proto` (submódulo) + doc do protocolo (e `sdk-js` só como pista) para mapear WS endpoint, auth e framing; registrar em comentário/código.
+- [x] **T1.1** Investigar `.proto` (submódulo) + doc do protocolo (e `sdk-js` só como pista) para mapear WS endpoint, auth e framing; registrar em comentário/código.
   - AC: nota com achados adicionada (não alucinar; citar arquivos/linhas).
 - [ ] **T1.2** `client/connection.js` (WS + reconexão com backoff/jitter).
   - AC: desconecta → reconecta com backoff; eventos `connect`/`disconnect` emitidos.
