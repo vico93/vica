@@ -119,4 +119,21 @@ export class OsmiumClient extends EventEmitter {
 
     return res?.value;
   }
+
+  /**
+   * Deleta uma ou mais mensagens em um chat.
+   * @param {object} chatRef
+   * @param {bigint[]} messageIds
+   */
+  async deleteMessage(chatRef, messageIds) {
+    const ids = Array.isArray(messageIds) ? messageIds : [messageIds];
+    const res = await this.rpc.request({
+      case: 'messagesDeleteMessage',
+      value: {
+        chatRef,
+        messageIds: ids
+      }
+    });
+    return res;
+  }
 }

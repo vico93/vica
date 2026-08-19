@@ -87,6 +87,16 @@ export class CommandRegistry {
 
     try {
       await parsed.command.execute(ctx, parsed.args);
+
+      // Auto-delete opcional da mensagem de comando
+      if (this.autoDelete && typeof ctx.deleteTriggerMessage === 'function') {
+        try {
+          await ctx.deleteTriggerMessage();
+        } catch (delErr) {
+          logger.debug('Falha ao auto-deletar mensagem de comando:', delErr.message);
+        }
+      }
+
       return true;
     } catch (err) {
       logger.error(`Erro ao executar comando ${parsed.name}:`, err.message);
