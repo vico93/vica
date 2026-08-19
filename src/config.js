@@ -9,6 +9,7 @@ const DEFAULT_CONFIG = {
     client_id: 0,
     prefix: '!',
     auto_delete_commands: false,
+    official_server_id: 0,
     voice_xp_per_minute: 1
   },
   openrouter: {

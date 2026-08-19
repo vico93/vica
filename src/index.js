@@ -61,10 +61,15 @@ async function main() {
       const chatRef = message.chatRef;
       const messageId = message.messageId;
 
-      // Extrai communityId se a mensagem for de um canal
-      let communityId = null;
-      if (chatRef?.ref?.case === 'channel') {
-        communityId = chatRef.ref.value?.communityId;
+      // Só responde em canais de comunidade (ignora DM, mensagens salvas e grupos)
+      if (chatRef?.ref?.case !== 'channel') return;
+
+      const communityId = chatRef.ref.value?.communityId;
+
+      // Ignora o servidor oficial do Osmium
+      const officialServerId = config.osmium?.official_server_id;
+      if (officialServerId && String(communityId) === String(officialServerId)) {
+        return;
       }
 
       // Contexto para execução do comando
