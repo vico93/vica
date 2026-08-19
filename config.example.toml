@@ -1,9 +1,7 @@
 [osmium]
-# Endpoint WebSocket (ws:// ou wss://)
 endpoint = "wss://ws-0.osmium.chat"
-token = "YOUR_OSMIUM_BOT_TOKEN_HERE"
-# client_id do seu bot (obtenha no painel do Osmium; ex.: 620989)
 client_id = 0
+token = "YOUR_OSMIUM_BOT_TOKEN_HERE"
 prefix = "!"
 auto_delete_commands = false
 voice_xp_per_minute = 1
