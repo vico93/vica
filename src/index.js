@@ -36,7 +36,7 @@ async function main() {
 
   // 4. Cria Cliente Osmium
   const client = new OsmiumClient({
-    endpoint: config.osmium?.endpoint || 'wss://osmium.chat/api/v1/gateway',
+    endpoint: config.osmium?.endpoint || 'wss://ws-0.osmium.chat',
     token: config.osmium?.token,
     clientId: config.osmium?.client_id,
     appVersion: '0.1.0'

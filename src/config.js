@@ -4,7 +4,7 @@ import { parse as parseToml } from 'smol-toml';
 
 const DEFAULT_CONFIG = {
   osmium: {
-    endpoint: 'wss://osmium.chat/api/v1/gateway',
+    endpoint: 'wss://ws-0.osmium.chat',
     token: '',
     prefix: '!',
     auto_delete_commands: false,
