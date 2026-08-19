@@ -11,7 +11,7 @@
   - AC: `git submodule` configurado; `npm run gen` gera `.js` em `src/gen/` (gitignored) sem erros.
 - [x] **T0.3** `src/config.js`: carregar `config.toml`, `tools.json`, `mcp.json` (com fallback para templates).
   - AC: config ausente/malformada → erro claro; valores defaults aplicados.
-- [ ] **T0.4** `src/db/` + `schema.sql` + migrations; `src/utils/logger.js`.
+- [x] **T0.4** `src/db/` + `schema.sql` + migrations; `src/utils/logger.js`.
   - AC: DB inicializa; logger escreve em stdout com nível configurável.
 
 ## M1 — Transporte Osmium
