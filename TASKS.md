@@ -9,7 +9,7 @@
   - AC: `npm install` e `npm start` rodam sem erro (mesmo sem funcionalidade).
 - [x] **T0.2** Adicionar `proto/` como **submódulo git** de `osmiumchat/proto` + criar `buf.gen.yaml` (`target=js`) e script `npm run gen`.
   - AC: `git submodule` configurado; `npm run gen` gera `.js` em `src/gen/` (gitignored) sem erros.
-- [ ] **T0.3** `src/config.js`: carregar `config.toml`, `tools.json`, `mcp.json` (com fallback para templates).
+- [x] **T0.3** `src/config.js`: carregar `config.toml`, `tools.json`, `mcp.json` (com fallback para templates).
   - AC: config ausente/malformada → erro claro; valores defaults aplicados.
 - [ ] **T0.4** `src/db/` + `schema.sql` + migrations; `src/utils/logger.js`.
   - AC: DB inicializa; logger escreve em stdout com nível configurável.

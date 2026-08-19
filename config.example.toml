@@ -1,0 +1,23 @@
+[bot]
+prefix = "!"
+auto_delete_commands = false
+token = "YOUR_OSMIUM_BOT_TOKEN_HERE"
+
+[osmium]
+# Endpoint WebSocket (ws:// ou wss://)
+endpoint = "wss://osmium.chat/api/v1/gateway"
+
+[ai]
+model = "anthropic/claude-3.5-sonnet"
+reaction_emoji = ""
+persona_file = "src/ai/persona.md"
+api_key = "YOUR_OPENROUTER_API_KEY_HERE"
+
+[database]
+path = "./data/vica.sqlite"
+
+[xp]
+voice_xp_per_minute = 1
+
+[logging]
+level = "info"
