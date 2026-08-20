@@ -202,13 +202,13 @@ export class OsmiumClient extends EventEmitter {
       case: 'messagesGetHistory',
       value: {
         chatRef,
-        limit: 1,
+        limit: 50,
         offset: { case: 'around', value: messageId }
       }
     });
     const messages = res?.value?.messages;
     if (Array.isArray(messages) && messages.length > 0) {
-      return messages.find((m) => String(m.messageId) === String(messageId)) || messages[0];
+      return messages.find((m) => String(m.messageId) === String(messageId)) || null;
     }
     return null;
   }
