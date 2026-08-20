@@ -25,6 +25,8 @@ export class OsmiumClient extends EventEmitter {
     this.sessionId = null;
     this.sessionToken = null;
     this.isReady = false;
+    this._sentMessageIds = new Set();
+    this._sentMessageIdQueue = [];
 
     this._setupPipeline();
   }
@@ -93,6 +95,26 @@ export class OsmiumClient extends EventEmitter {
     this.connection.disconnect();
   }
 
+  _rememberSentMessageId(messageId) {
+    if (messageId == null) return;
+    const key = String(messageId);
+    if (this._sentMessageIds.has(key)) return;
+    this._sentMessageIds.add(key);
+    this._sentMessageIdQueue.push(key);
+    while (this._sentMessageIdQueue.length > 2000) {
+      const oldest = this._sentMessageIdQueue.shift();
+      this._sentMessageIds.delete(oldest);
+    }
+  }
+
+  /**
+   * Verifica se um ID de mensagem corresponde a uma mensagem enviada pelo bot.
+   * @param {bigint|string} messageId
+   */
+  isBotMessage(messageId) {
+    return this._sentMessageIds.has(String(messageId));
+  }
+
   /**
    * Envia uma mensagem em um chat/canal.
    * @param {object} chatRef
@@ -117,7 +139,129 @@ export class OsmiumClient extends EventEmitter {
       }
     });
 
+    this._rememberSentMessageId(res?.value?.messageId);
     return res?.value;
+  }
+
+  /**
+   * Ativa/desativa o indicador de "digitando" em um chat.
+   * @param {object} chatRef
+   * @param {boolean} [typing=true]
+   */
+  async setTyping(chatRef, typing = true) {
+    await this.rpc.request({
+      case: 'chatsSetTyping',
+      value: {
+        chatRef,
+        typing
+      }
+    });
+  }
+
+  /**
+   * Adiciona uma reação do próprio bot a uma mensagem.
+   * @param {object} chatRef
+   * @param {bigint} messageId
+   * @param {{ case: 'unicodeEmoji'|'customEmoji', value: string|bigint }} emoji
+   */
+  async sendReaction(chatRef, messageId, emoji) {
+    await this.rpc.request({
+      case: 'reactionsAddReaction',
+      value: {
+        chatRef,
+        messageId,
+        emoji: { emoji }
+      }
+    });
+  }
+
+  /**
+   * Remove a reação do próprio bot de uma mensagem.
+   * @param {object} chatRef
+   * @param {bigint} messageId
+   * @param {{ case: 'unicodeEmoji'|'customEmoji', value: string|bigint }} emoji
+   */
+  async removeReaction(chatRef, messageId, emoji) {
+    await this.rpc.request({
+      case: 'reactionsRemoveReaction',
+      value: {
+        chatRef,
+        messageId,
+        emoji: { emoji }
+      }
+    });
+  }
+
+  /**
+   * Busca uma mensagem pelo ID (via getHistory em torno do ID).
+   * @param {object} chatRef
+   * @param {bigint} messageId
+   */
+  async getMessage(chatRef, messageId) {
+    const res = await this.rpc.request({
+      case: 'messagesGetHistory',
+      value: {
+        chatRef,
+        limit: 1,
+        offset: { case: 'around', value: messageId }
+      }
+    });
+    const messages = res?.value?.messages;
+    if (Array.isArray(messages) && messages.length > 0) {
+      return messages.find((m) => String(m.messageId) === String(messageId)) || messages[0];
+    }
+    return null;
+  }
+
+  /**
+   * Baixa um arquivo de mídia (em chunks) e devolve como data URL.
+   * @param {bigint} fileId
+   * @param {bigint} [size]
+   * @param {string} [mimetype='image/png']
+   * @returns {Promise<string|null>}
+   */
+  async downloadMedia(fileId, size, mimetype = 'image/png') {
+    const CHUNK = 512 * 1024;
+    const sizeBig = typeof size === 'bigint' ? size : BigInt(size || 0);
+    const chunks = [];
+    let offset = 0n;
+
+    const readPart = async (length) => {
+      const res = await this.rpc.request({
+        case: 'mediaDownloadFilePart',
+        value: {
+          fileRef: { ref: { case: 'mediaFile', value: { fileId } } },
+          offset,
+          length
+        }
+      });
+      return res?.value?.data;
+    };
+
+    if (sizeBig > 0n) {
+      while (offset < sizeBig) {
+        const remaining = sizeBig - offset;
+        const length = remaining > BigInt(CHUNK) ? CHUNK : Number(remaining);
+        const data = await readPart(length);
+        if (!data || data.length === 0) break;
+        chunks.push(data);
+        offset += BigInt(data.length);
+      }
+    } else {
+      let guard = 0;
+      while (guard++ < 200) {
+        const data = await readPart(CHUNK);
+        if (!data || data.length === 0) break;
+        chunks.push(data);
+        if (data.length < CHUNK) break;
+      }
+    }
+
+    if (chunks.length === 0) return null;
+    const total = Buffer.concat(chunks.map((c) => Buffer.from(c)));
+    const base64 = total.toString('base64');
+    const mime = String(mimetype || 'image/png').split(';')[0].trim() || 'image/png';
+    return `data:${mime};base64,${base64}`;
   }
 
   /**

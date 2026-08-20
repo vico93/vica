@@ -52,13 +52,15 @@
 
 ## M4 — IA (OpenRouter)
 
-- [ ] **T4.1** `ai/agent.js`: `OpenRouter` + `callModel` com modelo configurável.
-- [ ] **T4.2** `system_prompt.md` (raiz) + injeção do system prompt.
-- [ ] **T4.3** `ai/triggers.js`: menção + reply a msg do bot + reação (emoji custom; vazio = desativado) → dispara agente; **remove reação** após responder.
-  - AC: menção por `username` replicando `hasMention` do SDK (substring `startIndex+1` → compara com username do bot, via code points); reply e reação funcionando; reação removida. `user_mention` opcional (fallback defensivo).
-- [ ] **T4.4** `ai/tools/loader.js`: carregar tools de `tools.json` → `tool()` (estratégia zod do SPEC §6.3).
-- [ ] **T4.5** `ai/mcp.js`: carregar MCP remoto de `mcp.json` via `createMCPTools` (ignorar/avisar stdio).
-- [ ] **T4.6** Smoke M4: menção (ID e nome) → resposta; reply → resposta; reação → resposta + remoção.
+- [x] **T4.1** `ai/agent.js`: `OpenRouter` + `callModel` com modelo configurável + estado por canal via `StateAccessor` (SQLite, tabela `conversations`).
+- [x] **T4.2** `system_prompt.md` (raiz) + injeção do system prompt (`instructions`).
+- [x] **T4.3** `ai/triggers.js`: menção (entity `username` + substring por code point) + reply a msg do bot (comparação com IDs enviados) + reação (diff do `count` do emoji configurado; vazio = desativado) → dispara agente. Inclui visão de imagem (download via `mediaDownloadFilePart`).
+   - ⚠️ **Remoção da reação após responder adiada**: no Osmium `RemoveReaction` só remove a reação do PRÓPRIO bot (semântica diferente do Discord). Decisão: só responder por ora; verificar com o Folf. `user_mention` mantido como fallback defensivo.
+- [x] **T4.4** `ai/tools/loader.js`: carregar tools de `tools.json` → `tool()` (zod v4).
+- [x] **T4.5** `ai/mcp.js`: carregar MCP remoto de `mcp.json` via `createMCPTools` (ignorar/avisar stdio).
+- [x] **T4.6** Smoke M4 (nível unidade): tags, tool loader, `StateAccessor` round-trip e imports verificados. Smoke end-to-end (menção/reply/reação → resposta) pendente de ambiente real (token/endpoint).
+
+> Notas de implementação: `@openrouter/mcp@^1` adicionado; `zod` atualizado para **v4** (o `tool().inputSchema` exige `zod/v4`). Estado de conversa persistido no SQLite (sobrevive a restart). Adiado (futuro): mensagens de boas-vindas/saída configuráveis.
 
 ## M5 — Deploy
 

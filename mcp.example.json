@@ -1,3 +1,10 @@
 {
-  "mcpServers": {}
+  "mcpServers": {
+    "exemplo": {
+      "url": "https://mcp.exemplo.com/mcp",
+      "headers": {
+        "Authorization": "Bearer SEU_TOKEN_AQUI"
+      }
+    }
+  }
 }

@@ -20,10 +20,11 @@
     "@bufbuild/protobuf": "^2.2.3",
     "@modelcontextprotocol/sdk": "^1.6.1",
     "@openrouter/agent": "^0.9.0",
+    "@openrouter/mcp": "^1.0.0",
     "better-sqlite3": "^13.0.3",
     "smol-toml": "^1.3.1",
     "ws": "^8.18.0",
-    "zod": "^3.24.2"
+    "zod": "^4.4.3"
   },
   "devDependencies": {
     "@bufbuild/buf": "^1.50.0",

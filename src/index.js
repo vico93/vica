@@ -9,6 +9,8 @@ import { perfilCommand } from './commands/perfil.js';
 import { rankCommand } from './commands/rank.js';
 import { perguntarCommand } from './commands/perguntar.js';
 import { adminCommand } from './commands/admin.js';
+import { Agent } from './ai/agent.js';
+import { AITriggers } from './ai/triggers.js';
 
 async function main() {
   logger.info('Iniciando Vica...');
@@ -42,6 +44,17 @@ async function main() {
     clientId: config.osmium?.client_id,
     appVersion: '0.1.0'
   });
+
+  // 5. IA (OpenRouter) — opcional; só responde se houver api_key
+  const aiEnabled = Boolean(config.openrouter?.api_key);
+  const agent = new Agent({ config, db });
+  const aiTriggers = new AITriggers({ client, agent, config, db });
+
+  if (aiEnabled) {
+    logger.info('IA habilitada (OpenRouter).');
+  } else {
+    logger.warn('IA DESABILITADA: openrouter.api_key não configurado.');
+  }
 
   client.on(Events.READY, (user) => {
     logger.info(`Bot conectado e pronto! Identidade: ${user?.name} (@${user?.username})`);
@@ -94,8 +107,22 @@ async function main() {
       };
 
       await registry.handleMessage(ctx, text);
+
+      // Se não era comando, tenta os triggers de IA (menção/reply)
+      if (aiEnabled) {
+        await aiTriggers.onMessageCreated(data);
+      }
     } catch (err) {
       logger.error('Erro no processamento da mensagem:', err.message);
+    }
+  });
+
+  client.on(Events.MESSAGE_REACTIONS, async (update) => {
+    if (!aiEnabled) return;
+    try {
+      await aiTriggers.onMessageReactions(update);
+    } catch (err) {
+      logger.error('Erro no processamento de reação:', err.message);
     }
   });
 
@@ -105,6 +132,7 @@ async function main() {
   const shutdown = () => {
     logger.info('Encerrando bot...');
     client.disconnect();
+    agent.close().catch(() => {});
     db.close();
     process.exit(0);
   };
