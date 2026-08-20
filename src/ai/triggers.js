@@ -47,7 +47,8 @@ export class AITriggers {
   /* ---------- menção / reply ---------- */
 
   _findBotMention(message) {
-    const identity = [this.client.user?.username, this.client.user?.name].filter(Boolean);
+    const user = this.client.user;
+    const identity = [user?.username, user?.name, user?.id != null ? String(user.id) : null].filter(Boolean);
     if (identity.length === 0) return null;
 
     const text = message?.message || '';
@@ -57,9 +58,18 @@ export class AITriggers {
 
       const start = entity.startIndex ?? 0;
       const length = entity.length ?? 0;
-      const name = sliceCodePoints(text, start + 1, start + 1 + length);
-      if (identity.some((id) => id && name.toLowerCase() === id.toLowerCase())) {
-        return { startIndex: start, length };
+
+      // Extrai o span de duas formas, cobrindo variações do offset (com/sem '@').
+      const candidates = new Set(
+        [sliceCodePoints(text, start, start + length), sliceCodePoints(text, start + 1, start + 1 + length)]
+          .map((s) => (s.startsWith('@') ? s.slice(1) : s))
+      );
+
+      for (const candidate of candidates) {
+        const c = candidate.toLowerCase();
+        if (identity.some((id) => id.toLowerCase() === c)) {
+          return { startIndex: start, length };
+        }
       }
     }
     return null;
@@ -199,6 +209,20 @@ export class AITriggers {
     const message = data?.message;
     const chatRef = message?.chatRef;
     if (!chatRef || chatRef.ref?.case !== 'channel') return;
+
+    const mentionEntities = (message?.entities || []).filter(
+      (e) => e?.entity?.case === 'username' || e?.entity?.case === 'userMention'
+    );
+    if (mentionEntities.length > 0) {
+      logger.info(
+        '[AI][DEBUG] mensagem com menção | texto:',
+        JSON.stringify(message?.message),
+        '| entities:',
+        JSON.stringify(mentionEntities.map((e) => ({ s: e.startIndex, l: e.length, c: e.entity?.case }))),
+        '| bot:',
+        JSON.stringify({ name: this.client.user?.name, username: this.client.user?.username, id: String(this.client.user?.id) })
+      );
+    }
 
     const mention = this._findBotMention(message);
     const replyToBot = this._isReplyToBot(message);
