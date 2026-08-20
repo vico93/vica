@@ -210,20 +210,6 @@ export class AITriggers {
     const chatRef = message?.chatRef;
     if (!chatRef || chatRef.ref?.case !== 'channel') return;
 
-    const mentionEntities = (message?.entities || []).filter(
-      (e) => e?.entity?.case === 'username' || e?.entity?.case === 'userMention'
-    );
-    if (mentionEntities.length > 0) {
-      logger.info(
-        '[AI][DEBUG] mensagem com menção | texto:',
-        JSON.stringify(message?.message),
-        '| entities:',
-        JSON.stringify(mentionEntities.map((e) => ({ s: e.startIndex, l: e.length, c: e.entity?.case }))),
-        '| bot:',
-        JSON.stringify({ name: this.client.user?.name, username: this.client.user?.username, id: String(this.client.user?.id) })
-      );
-    }
-
     const mention = this._findBotMention(message);
     const replyToBot = this._isReplyToBot(message);
     if (!mention && !replyToBot) return;
