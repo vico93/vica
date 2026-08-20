@@ -125,8 +125,9 @@ Pacotes: `@openrouter/agent`, `@openrouter/mcp`, `zod`.
 ### 6.1 Triggers
 - **Menção** do bot em uma mensagem (ver algoritmo abaixo).
 - **Reply** a uma mensagem do bot.
-- **Reação** com um **emoji customizado configurado por admin** em qualquer mensagem → após responder, **remover a reação**.
+- **Reação** com um **emoji configurado por admin** (por comunidade, via `!admin emoji`) em qualquer mensagem → após responder, **remover a reação** (adiado — `RemoveReaction` só remove a reação do próprio bot).
   - **Sem default:** se nenhum emoji estiver configurado, o trigger por reação fica **desativado**.
+  - ⚠️ **Custom emoji do Osmium é "skin" sobre um emoji Unicode base** (`MetadataCustomEmoji.emoji`): configure o **emoji base** (ex.: `👩`), não o shortcode (`:vica:`). `!admin emoji detect` descobre o valor exato.
 
 **Detecção de menção (referência: `hasMention` do SDK):**
 
@@ -234,7 +235,6 @@ voice_xp_per_minute = 1
 
 [openrouter]
 model = "..."           # ex.: modelo OpenRouter com crédito/gratuito
-reaction_emoji = ""     # emoji CUSTOM que dispara a IA; vazio = trigger por reação DESATIVADO
 api_key = "..."         # NUNCA versionar
 system_prompt = "system_prompt.md"  # system prompt na raiz (gitignored; template system_prompt.example.md)
 

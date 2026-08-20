@@ -14,7 +14,6 @@ const DEFAULT_CONFIG = {
   },
   openrouter: {
     model: 'z-ai/glm-5.2:free',
-    reaction_emoji: '',
     api_key: '',
     system_prompt: 'system_prompt.md'
   },

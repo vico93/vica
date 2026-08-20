@@ -91,6 +91,7 @@ async function main() {
         client,
         db,
         registry,
+        aiTriggers,
         author,
         message,
         chatRef,

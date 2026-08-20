@@ -4,6 +4,12 @@ import { sliceCodePoints, removeSpanCodePoints } from './tags.js';
 const FALLBACK_EMPTY = 'Bah, dei uma travada e não consegui montar a resposta 😵‍💫. Tenta de novo em seguida.';
 const IMAGE_ONLY_HINT = 'Veja a imagem anexada.';
 
+const VARIATION_SELECTOR_RE = /[\uFE0E\uFE0F]/g;
+
+function normalizeEmoji(str) {
+  return String(str || '').replace(VARIATION_SELECTOR_RE, '');
+}
+
 export class AITriggers {
   /**
    * @param {object} deps
@@ -18,6 +24,8 @@ export class AITriggers {
     this.config = config;
     this.db = db;
     this.reactionBaseline = new Map();
+    this.respondedReactions = new Set();
+    this.pendingCapture = null;
   }
 
   _communityId(chatRef) {
@@ -39,9 +47,7 @@ export class AITriggers {
   }
 
   _reactionEmoji(communityId) {
-    const fromDb = this._getSetting(communityId, 'reaction_emoji');
-    if (fromDb) return fromDb;
-    return this.config.openrouter?.reaction_emoji || '';
+    return this._getSetting(communityId, 'reaction_emoji') ?? '';
   }
 
   /* ---------- menção / reply ---------- */
@@ -86,7 +92,7 @@ export class AITriggers {
   _emojiKey(reactionEmoji) {
     const oneof = reactionEmoji?.emoji;
     if (!oneof) return null;
-    if (oneof.case === 'unicodeEmoji') return `u:${oneof.value}`;
+    if (oneof.case === 'unicodeEmoji') return `u:${normalizeEmoji(oneof.value)}`;
     if (oneof.case === 'customEmoji') return `c:${String(oneof.value)}`;
     return null;
   }
@@ -94,29 +100,57 @@ export class AITriggers {
   _configuredEmojiKey(configured) {
     if (!configured) return null;
     if (/^\d+$/.test(String(configured))) return `c:${configured}`;
-    return `u:${configured}`;
+    return `u:${normalizeEmoji(configured)}`;
   }
 
-  _detectNewReaction(update) {
+  _changedFields(update) {
     const chatRef = update?.chatRef;
     const reactions = update?.reactions;
-    if (!chatRef || !reactions?.messageId) return null;
+    if (!chatRef || !reactions?.messageId) return [];
 
     const communityId = this._communityId(chatRef);
-    const configuredKey = this._configuredEmojiKey(this._reactionEmoji(communityId));
-    if (!configuredKey) return null;
-
     const messageId = String(reactions.messageId);
-    const field = (reactions.reactionFields || []).find((f) => this._emojiKey(f.emoji) === configuredKey);
-    const count = field?.count ?? 0;
-    const me = field?.me ?? false;
+    const changed = [];
 
-    const baselineKey = `${communityId}:${messageId}:${configuredKey}`;
-    const previous = this.reactionBaseline.get(baselineKey);
-    this.reactionBaseline.set(baselineKey, count);
+    for (const field of reactions.reactionFields || []) {
+      const emojiKey = this._emojiKey(field.emoji);
+      if (!emojiKey) continue;
+      const count = field.count ?? 0;
+      const baselineKey = `${communityId}:${messageId}:${emojiKey}`;
+      const previous = this.reactionBaseline.get(baselineKey);
+      this.reactionBaseline.set(baselineKey, count);
+      if (!field.me && count > (previous ?? 0)) {
+        changed.push({ emojiKey, field, count });
+      }
+    }
 
-    if (me || previous === undefined || count <= previous) return null;
-    return { communityId, chatRef, messageId };
+    return changed;
+  }
+
+  armEmojiCapture(communityId) {
+    this.pendingCapture = { communityId: String(communityId || '') };
+  }
+
+  async _reportCapture(chatRef, field) {
+    const oneof = field?.emoji?.emoji;
+    if (!oneof) return;
+
+    let text;
+    if (oneof.case === 'unicodeEmoji') {
+      const value = normalizeEmoji(oneof.value);
+      text = `🔍 Reação detectada: \`${value}\`\nConfigure com: \`!admin emoji ${value}\``;
+    } else if (oneof.case === 'customEmoji') {
+      const id = String(oneof.value);
+      text = `🔍 Reação detectada: emoji customizado (ID \`${id}\`)\nConfigure com: \`!admin emoji ${id}\``;
+    } else {
+      return;
+    }
+
+    try {
+      await this.client.sendMessage(chatRef, text);
+    } catch (err) {
+      logger.warn('Falha ao reportar emoji capturado:', err.message);
+    }
   }
 
   /* ---------- imagem ---------- */
@@ -230,12 +264,32 @@ export class AITriggers {
   }
 
   async onMessageReactions(update) {
-    const hit = this._detectNewReaction(update);
+    const changed = this._changedFields(update);
+    if (changed.length === 0) return;
+
+    const chatRef = update?.chatRef;
+    const communityId = this._communityId(chatRef);
+
+    if (this.pendingCapture && this.pendingCapture.communityId === communityId) {
+      this.pendingCapture = null;
+      await this._reportCapture(chatRef, changed[0].field);
+      return;
+    }
+
+    const configuredKey = this._configuredEmojiKey(this._reactionEmoji(communityId));
+    if (!configuredKey) return;
+
+    const hit = changed.find((c) => c.emojiKey === configuredKey);
     if (!hit) return;
+
+    const messageId = String(update.reactions.messageId);
+    const dedupKey = `${communityId}:${messageId}`;
+    if (this.respondedReactions.has(dedupKey)) return;
+    this.respondedReactions.add(dedupKey);
 
     let message = null;
     try {
-      message = await this.client.getMessage(hit.chatRef, hit.messageId);
+      message = await this.client.getMessage(chatRef, messageId);
     } catch (err) {
       logger.warn('Falha ao buscar mensagem reagida:', err.message);
     }
@@ -244,9 +298,9 @@ export class AITriggers {
     const text = this._stripBotMention(message.message || '', null);
     const author = message.authorId != null ? { id: message.authorId } : undefined;
     await this._respond({
-      chatRef: hit.chatRef,
-      communityId: hit.communityId,
-      channelId: this._channelId(hit.chatRef),
+      chatRef,
+      communityId,
+      channelId: this._channelId(chatRef),
       message,
       author,
       text

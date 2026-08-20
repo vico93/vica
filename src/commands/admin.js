@@ -32,6 +32,16 @@ export const adminCommand = {
       return;
     }
 
+    if (sub === 'detect' || sub === 'debug') {
+      if (!ctx.aiTriggers?.armEmojiCapture) {
+        await ctx.reply('⚠️ Captura de emoji não disponível no momento.');
+        return;
+      }
+      ctx.aiTriggers.armEmojiCapture(communityId);
+      await ctx.reply('🔍 Reaja com o emoji desejado em qualquer mensagem — vou mostrar o valor exato para configurar.');
+      return;
+    }
+
     if (sub === 'emoji' || sub === 'reaction_emoji') {
       const emojiVal = value || '';
       if (ctx.db) {
@@ -52,7 +62,8 @@ export const adminCommand = {
     await ctx.reply([
       '⚙️ **Painel de Administração:**',
       '• `!admin prefix <novo_prefixo>` — Altera o prefixo de comandos',
-      '• `!admin emoji <emoji>` — Define o emoji de reação para acionar a IA (ou deixe vazio para desativar)'
+      '• `!admin emoji <emoji>` — Define o emoji de reação para acionar a IA (emoji Unicode; vazio = desativar)',
+      '• `!admin emoji detect` — Descobre o valor exato de um emoji (reaja com ele)'
     ].join('\n'));
   }
 };

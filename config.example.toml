@@ -11,7 +11,8 @@ voice_xp_per_minute = 1
 # Use um modelo ESPECÍFICO (não "openrouter/free": ele é um router e pode
 # cair no classificador de segurança "nemotron-3.5-content-safety").
 model = "z-ai/glm-5.2:free"
-reaction_emoji = ""
+# O emoji de reação da IA é configurado POR COMUNIDADE via `!admin emoji <emoji>`
+# (use o emoji Unicode base; `!admin emoji detect` descobre o valor exato).
 api_key = "YOUR_OPENROUTER_API_KEY_HERE"
 system_prompt = "system_prompt.md"
 
