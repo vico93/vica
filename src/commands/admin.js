@@ -32,17 +32,18 @@ export const adminCommand = {
       return;
     }
 
-    if (sub === 'detect' || sub === 'debug') {
-      if (!ctx.aiTriggers?.armEmojiCapture) {
-        await ctx.reply('⚠️ Captura de emoji não disponível no momento.');
+    if (sub === 'emoji' || sub === 'reaction_emoji') {
+      const loweredValue = (value || '').toLowerCase();
+      if (loweredValue === 'detect' || loweredValue === 'debug') {
+        if (!ctx.aiTriggers?.armEmojiCapture) {
+          await ctx.reply('⚠️ Captura de emoji não disponível no momento.');
+          return;
+        }
+        ctx.aiTriggers.armEmojiCapture(communityId);
+        await ctx.reply('🔍 Reaja com o emoji desejado em qualquer mensagem — vou mostrar o valor exato para configurar.');
         return;
       }
-      ctx.aiTriggers.armEmojiCapture(communityId);
-      await ctx.reply('🔍 Reaja com o emoji desejado em qualquer mensagem — vou mostrar o valor exato para configurar.');
-      return;
-    }
 
-    if (sub === 'emoji' || sub === 'reaction_emoji') {
       const emojiVal = value || '';
       if (ctx.db) {
         ctx.db.prepare(`
