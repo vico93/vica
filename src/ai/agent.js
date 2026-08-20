@@ -138,9 +138,34 @@ export class Agent {
       request.tools = tools;
     }
 
-    const result = await client.callModel(request);
-    const raw = await result.getText();
-    return sanitizeOutput(raw);
+    const maxRetries = 3;
+    let lastError;
+    for (let attempt = 1; attempt <= maxRetries; attempt++) {
+      try {
+        const result = await client.callModel(request);
+        const raw = await result.getText();
+        return sanitizeOutput(raw);
+      } catch (err) {
+        lastError = err;
+        const msg = String(err?.message || err);
+        if (attempt < maxRetries && this._isRetryable(msg)) {
+          const delay = attempt * 1500;
+          logger.warn(`Falha temporária da IA (tentativa ${attempt}/${maxRetries}): ${msg}. Retentando em ${delay}ms...`);
+          await new Promise((r) => setTimeout(r, delay));
+          continue;
+        }
+        throw err;
+      }
+    }
+    throw lastError;
+  }
+
+  /**
+   * Indica se um erro da API é transitório (vale retentar).
+   * @param {string} msg
+   */
+  _isRetryable(msg) {
+    return /provider returned error|rate.?limit|overloaded|capacity|temporarily unavailable|5[0-9][0-9]|429|timeout|econnreset|network/i.test(msg);
   }
 
   /**
