@@ -1,9 +1,3 @@
 {
-  "tools": [
-    {
-      "name": "get_time",
-      "module": "./tools/get_time.js",
-      "enabled": true
-    }
-  ]
+  "tools": []
 }
