@@ -13,7 +13,7 @@ const DEFAULT_CONFIG = {
     voice_xp_per_minute: 1
   },
   openrouter: {
-    model: 'anthropic/claude-3.5-sonnet',
+    model: 'nvidia/nemotron-3-ultra-550b-a55b:free',
     reaction_emoji: '',
     api_key: '',
     system_prompt: 'system_prompt.md'
