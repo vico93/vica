@@ -13,7 +13,7 @@ const DEFAULT_CONFIG = {
     voice_xp_per_minute: 1
   },
   openrouter: {
-    model: 'nvidia/nemotron-3-ultra-550b-a55b:free',
+    model: 'z-ai/glm-5.2:free',
     reaction_emoji: '',
     api_key: '',
     system_prompt: 'system_prompt.md'

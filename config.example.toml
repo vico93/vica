@@ -10,7 +10,7 @@ voice_xp_per_minute = 1
 [openrouter]
 # Use um modelo ESPECÍFICO (não "openrouter/free": ele é um router e pode
 # cair no classificador de segurança "nemotron-3.5-content-safety").
-model = "nvidia/nemotron-3-ultra-550b-a55b:free"
+model = "z-ai/glm-5.2:free"
 reaction_emoji = ""
 api_key = "YOUR_OPENROUTER_API_KEY_HERE"
 system_prompt = "system_prompt.md"
