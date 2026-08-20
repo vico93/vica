@@ -264,11 +264,19 @@ export class AITriggers {
   }
 
   async onMessageReactions(update) {
-    const changed = this._changedFields(update);
-    if (changed.length === 0) return;
-
     const chatRef = update?.chatRef;
     const communityId = this._communityId(chatRef);
+    const rawFields = (update?.reactions?.reactionFields || []).map((f) => ({
+      case: f?.emoji?.emoji?.case,
+      value: String(f?.emoji?.emoji?.value),
+      count: f?.count,
+      me: f?.me
+    }));
+    logger.info(`[reaction-dbg] community=${communityId} configured=${this._configuredEmojiKey(this._reactionEmoji(communityId))} fields=${JSON.stringify(rawFields)}`);
+
+    const changed = this._changedFields(update);
+    logger.info(`[reaction-dbg] changed=${JSON.stringify(changed.map((c) => c.emojiKey))}`);
+    if (changed.length === 0) return;
 
     if (this.pendingCapture && this.pendingCapture.communityId === communityId) {
       this.pendingCapture = null;
@@ -280,7 +288,10 @@ export class AITriggers {
     if (!configuredKey) return;
 
     const hit = changed.find((c) => c.emojiKey === configuredKey);
-    if (!hit) return;
+    if (!hit) {
+      logger.info(`[reaction-dbg] sem hit: configured=${configuredKey} changed=${JSON.stringify(changed.map((c) => c.emojiKey))}`);
+      return;
+    }
 
     const messageId = String(update.reactions.messageId);
     const dedupKey = `${communityId}:${messageId}`;
@@ -293,7 +304,11 @@ export class AITriggers {
     } catch (err) {
       logger.warn('Falha ao buscar mensagem reagida:', err.message);
     }
-    if (!message || (!message.message && !this._extractImageSource(message))) return;
+    if (!message || (!message.message && !this._extractImageSource(message))) {
+      logger.info(`[reaction-dbg] mensagem reagida não recuperada (messageId=${messageId})`);
+      return;
+    }
+    logger.info(`[reaction-dbg] disparando resposta (messageId=${messageId})`);
 
     const text = this._stripBotMention(message.message || '', null);
     const author = message.authorId != null ? { id: message.authorId } : undefined;
