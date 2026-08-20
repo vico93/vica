@@ -47,18 +47,19 @@ export class AITriggers {
   /* ---------- menção / reply ---------- */
 
   _findBotMention(message) {
-    const username = this.client.user?.username;
-    if (!username) return null;
+    const identity = [this.client.user?.username, this.client.user?.name].filter(Boolean);
+    if (identity.length === 0) return null;
 
     const text = message?.message || '';
     for (const entity of message?.entities || []) {
-      if (entity?.entity?.case === 'username') {
-        const start = entity.startIndex ?? 0;
-        const length = entity.length ?? 0;
-        const name = sliceCodePoints(text, start + 1, start + 1 + length);
-        if (name === username) {
-          return { startIndex: start, length };
-        }
+      const caseName = entity?.entity?.case;
+      if (caseName !== 'username' && caseName !== 'userMention') continue;
+
+      const start = entity.startIndex ?? 0;
+      const length = entity.length ?? 0;
+      const name = sliceCodePoints(text, start + 1, start + 1 + length);
+      if (identity.some((id) => id && name.toLowerCase() === id.toLowerCase())) {
+        return { startIndex: start, length };
       }
     }
     return null;
