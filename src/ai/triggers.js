@@ -280,6 +280,7 @@ export class AITriggers {
 
     if (this.pendingCapture && this.pendingCapture.communityId === communityId) {
       this.pendingCapture = null;
+      logger.info('[reaction-dbg] captura (detect) consumiu a reação — não dispara IA');
       await this._reportCapture(chatRef, changed[0].field);
       return;
     }
