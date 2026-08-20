@@ -7,6 +7,7 @@
   "scripts": {
     "gen": "buf generate",
     "start": "node src/index.js",
+    "set-username": "node scripts/set-username.js",
     "test": "node --test"
   },
   "keywords": [

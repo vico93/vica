@@ -280,4 +280,20 @@ export class OsmiumClient extends EventEmitter {
     });
     return res;
   }
+
+  /**
+   * Edita o perfil do próprio bot (name, username, bio, icon, color).
+   * @param {object} fields
+   * @param {string} [fields.name]
+   * @param {string} [fields.username]
+   * @param {string} [fields.bio]
+   * @param {bigint} [fields.icon]
+   * @param {number} [fields.color]
+   */
+  async editProfile(fields) {
+    await this.rpc.request({
+      case: 'settingsEditProfile',
+      value: fields
+    });
+  }
 }
