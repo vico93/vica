@@ -1,5 +1,5 @@
 /*
-**  caminho: events/messageReactionAdd.js
+**  caminho: src/events/messageReactionAdd.js
 **  últimaMod: 2026-04-08 01:16
 **  autor: Vico
 ** colaboração: Copilot (gpt-4o), GLM 4.5 Air, Grok Code (Fast)
@@ -195,14 +195,6 @@ module.exports = {
           content_type: textAttachment.contentType,
           size_bytes: textAttachment.size
         });
-      }
-
-      if (imageUrl || imageDataUrl) {
-        if (prompt) {
-          prompt = '[imagem] ' + prompt;
-        } else {
-          prompt = '[imagem]';
-        }
       }
 
       // Add has_embed tag if message contains embeds

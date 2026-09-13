@@ -1,5 +1,5 @@
 /*
-** caminho: events/messageCreate.js
+** caminho: src/events/messageCreate.js
 ** últimaMod: 2026-04-19 03:15
 ** autor: Vico
 ** colaboração: Grok Code (Fast), ChatGPT (GPT-5)
@@ -303,10 +303,8 @@ module.exports = {
       const userPdfAttachment = getFirstAttachmentByPredicate(message, isPdfAttachment);
       const userTextAttachment = getFirstAttachmentByPredicate(message, isTextAttachment);
 
-      let imageTag = null;
       if (userImageAttachment?.url) {
         imageUrl = userImageAttachment.url;
-        imageTag = '[imagem]';
         prompt = (prompt ? prompt + '\n' : '') + buildAttachmentHint({
           type: 'image',
           url: userImageAttachment.url,
@@ -317,7 +315,6 @@ module.exports = {
       } else if (userVideoAttachment?.url) {
         imageDataUrl = await extractFirstFrameFromVideo(userVideoAttachment.url);
         if (imageDataUrl) {
-          imageTag = '[imagem]';
           prompt = (prompt ? prompt + '\n' : '') + buildAttachmentHint({
             type: 'image',
             attachment_id: 'video_frame',
@@ -327,7 +324,6 @@ module.exports = {
         }
       } else if (repliedBotImageUrl) {
         imageUrl = repliedBotImageUrl;
-        imageTag = '[imagem_gerada]';
         prompt = (prompt ? prompt + '\n' : '') + buildAttachmentHint({
           type: 'image',
           url: repliedBotImageUrl,
@@ -364,10 +360,6 @@ module.exports = {
           content_type: userTextAttachment.contentType,
           size_bytes: userTextAttachment.size
         });
-      }
-
-      if (imageTag) {
-        prompt = prompt ? `${imageTag} ${prompt}` : imageTag;
       }
 
       // Add has_embed tag if message contains embeds

@@ -70,7 +70,7 @@ vica/
 │   │   └── voice_xp.js     # Voice channel XP service
 │   ├── commands/           # Slash commands (25 files)
 │   ├── events/             # Discord event handlers (6 files)
-│   └── tools/              # Tool implementations exposed to the AI (8 files)
+│   └── tools/              # Tool implementations exposed to the AI (7 files)
 ├── scripts/                # Standalone maintenance scripts
 ├── data/                   # Content and SQLite database (gitignored)
 │   ├── perguntas.txt       # Question bank for /perguntar
@@ -255,7 +255,7 @@ Handles the OpenAI-compatible API integration with retry logic.
 
 ### Tag Parser Module ([`src/discord/tagParser.js`](src/discord/tagParser.js:1))
 
-SGML tag parser. Strips control tags from model output and from incoming messages: `[imagem]`, `[imagem_gerada]`, `[meta]...[/meta]`, `[memory]...[/memory]`, `[thread_op]...[/thread_op]` and instruction tags (`[trigger]`, `[pergunta]`, `[welcome]`, `[leave]`, `[kick]`, `[ban]`, `[up_role]`).
+SGML tag parser. Strips control tags from model output and from incoming messages: `[imagem]`, `[imagem_gerada]`, `[meta]...[/meta]`, `[memory]...[/memory]` and leaked instruction tags (`[trigger]`, `[pergunta]`, `[welcome]`, `[leave]`, `[kick]`, `[ban]`, `[up_role]`).
 
 ### Tool Loader Module ([`src/ai/tool_loader.js`](src/ai/tool_loader.js:1))
 
@@ -350,7 +350,7 @@ Tools may override the model used for their own API calls with a `runtime` block
 "runtime": { "model": "provider/model-name" }
 ```
 
-Available implementations: `analyze_image`, `audio_transcription`, `discord_calendar`, `discord_embed`, `discord_guild_management`, `extract_document_text`, `image_generation`, `read_text_attachment`.
+Available implementations: `audio_transcription`, `discord_calendar`, `discord_embed`, `discord_guild_management`, `extract_document_text`, `image_generation`, `read_text_attachment`.
 
 ---
 

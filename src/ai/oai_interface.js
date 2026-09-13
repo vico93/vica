@@ -1,5 +1,5 @@
 /*
-** caminho: core/oai_interface.js
+** caminho: src/ai/oai_interface.js
 ** últimaMod: 2026-05-12 15:30
 ** autor: Vico
 ** colaboração: Gemini, GPT-4o, Grok Code (Fast), GPT-5, Claude Opus 4.6, Kimi K2
@@ -117,7 +117,6 @@ const MAX_TOOL_RESULT_CHARS = (() => {
 
   return Math.max(500, Math.min(configuredValue, 20000));
 })();
-const TOKEN_BUDGET_TARGET_RATIO = 0.9;
 
 function getToolTurnLimit() {
   const configuredValue = config.settings?.maxToolTurns;
@@ -139,50 +138,6 @@ function truncateToolResultForContext(toolResult) {
 
   const omittedChars = toolResult.length - MAX_TOOL_RESULT_CHARS;
   return `${toolResult.slice(0, MAX_TOOL_RESULT_CHARS)}\n[tool_result_truncated:${omittedChars}]`;
-}
-
-function isPinnedContextMessage(messages, index) {
-  const message = messages[index];
-  if (!message) {
-    return false;
-  }
-
-  if (index === 0 && message.role === 'system') {
-    return true;
-  }
-
-  return index === messages.length - 1;
-}
-
-async function pruneMessagesToBudget(messages, tools, requestModel, capability, budget) {
-  let estimatedTokens = await tokenizer.countTokens(messages, tools, requestModel, capability);
-  if (estimatedTokens <= budget) {
-    return {
-      estimatedTokens,
-      removedMessages: 0,
-      targetBudget: budget
-    };
-  }
-
-  const targetBudget = Math.max(500, Math.floor(budget * TOKEN_BUDGET_TARGET_RATIO));
-  let removedMessages = 0;
-
-  while (estimatedTokens > targetBudget) {
-    const removableIndex = messages.findIndex((_, index) => !isPinnedContextMessage(messages, index));
-    if (removableIndex === -1) {
-      break;
-    }
-
-    messages.splice(removableIndex, 1);
-    removedMessages++;
-    estimatedTokens = await tokenizer.countTokens(messages, tools, requestModel, capability);
-  }
-
-  return {
-    estimatedTokens,
-    removedMessages,
-    targetBudget
-  };
 }
 
 function getEmptyResponseFallbackMessage(pendingTools = []) {
@@ -235,59 +190,12 @@ function getRetryConfig() {
 }
 
 /* --- Helper para obter modelo a ser usado --- */
-function getModel(useVision = false) {
-  const capability = useVision ? 'vision' : 'default';
-  return getModelConfig(capability).model;
+function getModel() {
+  return getModelConfig('default').model;
 }
 
 function shouldSendSystemPrompt() {
   return getAISettings().send_system_prompt !== false;
-}
-
-function getVisionToolStrategy() {
-  const configuredValue = typeof config.settings?.visionToolStrategy === 'string'
-    ? config.settings.visionToolStrategy.trim().toLowerCase()
-    : '';
-
-  if (configuredValue === 'direct' || configuredValue === 'handoff' || configuredValue === 'auto') {
-    return configuredValue;
-  }
-
-  return 'auto';
-}
-
-function shouldUseVisionToolHandoff({
-  hasImageContext = false,
-  toolsEnabled = false,
-  forceHandoff = false
-} = {}) {
-  if (!hasImageContext || !toolsEnabled) {
-    return false;
-  }
-
-  if (forceHandoff) {
-    return true;
-  }
-
-  return getVisionToolStrategy() === 'handoff';
-}
-
-function shouldAttemptVisionToolRecovery({
-  hasImageContext = false,
-  toolsEnabled = false,
-  disableToolsOnVision = false,
-  usedVisionToolHandoff = false,
-  allowVisionToolRecovery = true
-} = {}) {
-  if (!allowVisionToolRecovery || usedVisionToolHandoff) {
-    return false;
-  }
-
-  if (!hasImageContext || !toolsEnabled || disableToolsOnVision) {
-    return false;
-  }
-
-  return getVisionToolStrategy() === 'auto';
 }
 
 /* --- Helper para converter URL de imagem para base64 --- */
@@ -316,121 +224,6 @@ function normalizeVisionImageInput(imageUrl = null, imageDataUrl = null) {
   }
 
   return imageUrl;
-}
-
-async function buildVisionToolHandoffSummary(mensagemUsuario, imageSource) {
-  if (!imageSource) {
-    return '';
-  }
-
-  const base64Url = imageSource.startsWith('data:image/')
-    ? imageSource
-    : await fetchImageAsBase64(imageSource);
-  if (!base64Url) {
-    return '';
-  }
-
-  const messages = [
-    {
-      role: 'system',
-      content: `Você é uma etapa interna de análise visual para outro assistente.
-
-### Tarefa
-Forneça uma descrição estruturada da imagem para contexto visual do modelo principal.
-
-### Regras
-1. Forneça uma descrição estruturada e objetiva da imagem
-2. Identifique elementos relevantes ao pedido do usuário
-3. Se o usuário pedir para criar uma nova imagem, inclua um "Prompt visual sugerido" detalhado
-4. Indique incertezas brevemente quando aplicável
-
-### Formato de Saída
-"""
-Resumo visual:
-- [descrição concisa dos elementos principais]
-
-Detalhes relevantes:
-- [informações específicas relacionadas ao pedido]
-
-Prompt visual sugerido:
-- [prompt detalhado para geração de imagem, OU "não necessário"]
-"""
-
-### Exemplo
-Pedido: "Descreve essa foto do meu gato"
-Sua saída:
-"""
-Resumo visual:
-- Gato laranja adulto deitado em sofá cinza
-
-Detalhes relevantes:
-- Pelagem curta, olhos verdes
-- Ambiente doméstico com iluminação natural
-- Expressão relaxada
-
-Prompt visual sugerido:
-- não necessário
-"""`
-    },
-    {
-      role: 'user',
-      content: [
-        {
-          type: 'text',
-          text: `Pedido do usuário:\n"""\n${mensagemUsuario}\n"""\n\nAnalise a imagem anexada e produza um resumo interno que ajude um modelo sem visão a responder e decidir se precisa chamar alguma ferramenta.`
-        },
-        { type: 'image_url', image_url: { url: base64Url } }
-      ]
-    }
-  ];
-
-  try {
-    const visionOpenAI = getOpenAIClient('vision');
-    const response = await withRetries(
-      () => visionOpenAI.chat.completions.create({
-        model: getModel(true),
-        messages,
-        temperature: 0.2,
-        max_tokens: Math.min(config.settings.maxTokens || config.settings.budgetTokenLimit || 1200, 1200),
-      }),
-      '[CHAT][vision_handoff]'
-    );
-
-    const content = response?.choices?.[0]?.message?.content || '';
-    const parsedTags = tagParser.parseTags(content, { guildId: null });
-    const cleanedMessage = typeof parsedTags.cleanedMessage === 'string'
-      ? parsedTags.cleanedMessage.trim()
-      : '';
-
-    if (!cleanedMessage || looksLikeLeakedToolCall(cleanedMessage)) {
-      console.warn('[OAI][VISION][WARN] Handoff visual retornou conteudo invalido.');
-      return '';
-    }
-
-    return cleanedMessage.slice(0, 3500);
-  } catch (error) {
-    console.warn('[OAI][VISION][WARN] Falha ao gerar handoff visual:', error.message);
-    return '';
-  }
-}
-
-async function retryContextualResponseViaVisionToolHandoff(params, reason) {
-  console.warn(`[OAI][VISION][WARN] ${reason}. Tentando recuperar com handoff visual para o modelo principal.`);
-  return await gerarRespostaContextualInternal(
-    params.guildId,
-    params.canalId,
-    params.usuarioId,
-    params.botUserId,
-    params.mensagemUsuario,
-    params.imageUrl,
-    params.channel,
-    params.sourceMessageId,
-    params.originalAuthorId,
-    {
-      forceVisionToolHandoff: true,
-      allowVisionToolRecovery: false
-    }
-  );
 }
 
 /* --- Helper de Retry --- */
@@ -761,25 +554,15 @@ async function gerarRespostaContextualInternal(
 
   // Ferramentas
   let tools = [];
-  const useModelVision = config.settings.useModelVision === true;
   const imageSource = normalizeVisionImageInput(imageUrl, imageDataUrl);
   const hasImageContext = !!imageSource;
-  const visionInline = useModelVision && hasImageContext;
 
   if (config.tools?.enabled !== false) {
-    const toolOpts = visionInline ? { excludeTools: ['analyze_image'] } : {};
-    tools = await toolLoader.getOpenAITools(toolOpts);
-  }
-  const inlineAttachments = {};
-  if (typeof imageDataUrl === 'string' && imageDataUrl.startsWith('data:image/')) {
-    inlineAttachments.video_frame = {
-      dataUrl: imageDataUrl,
-      sourceLabel: 'video_frame',
-    };
+    tools = await toolLoader.getOpenAITools();
   }
 
-  // Build user message — multimodal if vision inline is active
-  if (visionInline) {
+  // Mensagem do usuário - multimodal: imagens vão SEMPRE inline para o modelo principal
+  if (hasImageContext) {
     const resolvedImage = imageSource.startsWith('data:image/')
       ? imageSource
       : await fetchImageAsBase64(imageSource);
@@ -792,9 +575,9 @@ async function gerarRespostaContextualInternal(
           { type: 'image_url', image_url: { url: resolvedImage } }
         ]
       });
-      console.log('[OAI][VISION][INFO] Imagem enviada inline ao modelo principal (useModelVision=true).');
+      console.log('[OAI][VISION][INFO] Imagem enviada inline ao modelo principal.');
     } else {
-      // Fallback: could not resolve image, send text only
+      // Fallback: não foi possível resolver a imagem, envia apenas texto
       console.warn('[OAI][VISION][WARN] Falha ao resolver imagem para envio inline. Enviando apenas texto.');
       messages.push({ role: 'user', content: mensagemUsuario });
     }
@@ -802,8 +585,7 @@ async function gerarRespostaContextualInternal(
     messages.push({ role: 'user', content: mensagemUsuario });
   }
 
-  // Tokenizer removed – OpenRouter free tem limite de 200.000 tokens.
-  // Não fazemos pruning aqui; apenas registramos uso quando a API devolve info.
+  // Sem pruning local de contexto: apenas registramos o usage devolvido pela API.
 
   const requestModel = getModel();
   const requestClient = getOpenAIClient('default');
@@ -855,7 +637,6 @@ async function gerarRespostaContextualInternal(
         botUserId,
         channel,
         client: channel?.client || channel?.guild?.client,
-        inlineAttachments,
         toolUsageState,
         sourceMessageId
       };
@@ -904,7 +685,7 @@ async function gerarRespostaContextualInternal(
         canalId,
         usuarioId
       });
-      return getToolLeakFallbackMessage(false);
+      return getToolLeakFallbackMessage(hasImageContext);
     }
 
     const cleanedMessage = typeof parsedTags.cleanedMessage === 'string'

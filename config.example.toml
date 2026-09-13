@@ -58,11 +58,7 @@ channelContextTtlMinutes = 30
 channelContextMaxChars = 400
 # A cada quantas mensagens forçar reavaliação do contexto
 channelContextReevalEvery = 3
-# Se true, envia imagens diretamente ao modelo principal (vision nativo).
-# Se false, usa a tool analyze_image para descrever a imagem primeiro.
-useModelVision = false
-  # Estratégia de contagem de tokens foi removida. O OpenRouter Free tem limite de 200.000 tokens.
-
+# Estratégia de contagem de tokens foi removida. O OpenRouter Free tem limite de 200.000 tokens.
 
 [ai_tools]
 # Habilita ou desabilita o uso de tools/function calling

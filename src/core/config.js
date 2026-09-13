@@ -1,5 +1,5 @@
 /*
-** caminho: core/config.js
+** caminho: src/core/config.js
 ** últimaMod: 2026-06-06 01:15
 ** autor: Vico
 ** colaboração: ChatGPT (GPT-5.4), Claude Opus 4.6
@@ -86,16 +86,6 @@ function mergeModelConfig(defaultConfig, overrideConfig = {}) {
   };
 }
 
-function normalizeVisionToolStrategy(value) {
-  const normalized = normalizeString(value).toLowerCase();
-
-  if (normalized === 'direct' || normalized === 'handoff' || normalized === 'auto') {
-    return normalized;
-  }
-
-  return 'auto';
-}
-
 function normalizeTokenizerStrategy(value) {
   const normalized = normalizeString(value).toLowerCase();
 
@@ -144,10 +134,7 @@ function normalizeAISettings(settings = {}) {
     max_search_calls_per_response: maxSearchCallsPerResponse,
     maxSearchCallsPerResponse,
     mcpToolTimeoutMs,
-    disableToolsOnVision: normalizeBoolean(settings.disableToolsOnVision, true),
-    visionToolStrategy: normalizeVisionToolStrategy(settings.visionToolStrategy),
     memoryStrictMode: normalizeBoolean(settings.memoryStrictMode, false),
-    useModelVision: normalizeBoolean(settings.useModelVision, false),
     channelContextEnabled: normalizeBoolean(settings.channelContextEnabled, true),
     channelContextTtlMinutes: normalizeInteger(settings.channelContextTtlMinutes, 30),
     channelContextMaxChars: normalizeInteger(settings.channelContextMaxChars, 400),
@@ -199,7 +186,7 @@ function getMergedModelMap(primaryProvider, rawModels = {}) {
     default: defaultModel,
   };
 
-  for (const capability of ['vision', 'transcriptions', 'imagegen']) {
+  for (const capability of ['transcriptions', 'imagegen']) {
     mergedModels[capability] = mergeModelConfig(defaultModel, normalizeModelSection(rawModels[capability]));
   }
 

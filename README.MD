@@ -242,7 +242,6 @@ A tag `[memory]...[/memory]` é removida das respostas antes de enviar ao Discor
 
 Exemplos de tags presentes nas mensagens:
 - `[meta]user:João|globalname:João|id:123456789012345678[/meta]`
-- `[imagem] Texto com imagem.`
 - `[thread_op]João: mensagem que abriu o tópico[/thread_op]`
 
 Placeholders como `{GUILD_ID}` e `{reason}` são substituídos automaticamente conforme o contexto.
@@ -253,7 +252,6 @@ As colunas `embedding` já existem no schema, mas a busca semântica de memória
 
 ## Próximos Passos
 
-* Concluir a reintegração da visão nativa, removendo a ferramenta `analyze_image` e o caminho de handoff.
 * Religar a recuperação de memórias por embeddings ao prompt.
 * Deduplicar helpers repetidos (`splitText`, `getOpenThreadForMessage`) e o envio de respostas em chunks.
 * Adicionar uma suíte de testes automatizados (hoje não existe) e lint.
