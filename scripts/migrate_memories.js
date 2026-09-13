@@ -6,7 +6,7 @@
 
 const Database = require('better-sqlite3');
 const path = require('path');
-const toolLoader = require('../core/tool_loader');
+const toolLoader = require('../src/ai/tool_loader');
 
 // Caminho do banco de dados
 const dbPath = path.join(__dirname, '..', 'data', 'database.db');

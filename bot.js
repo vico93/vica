@@ -15,10 +15,10 @@
 const fs   = require('fs');
 const path = require('path');
 const { Client, GatewayIntentBits, Collection, Partials, Events } = require('discord.js');
-const config   = require('./core/config');
-const database = require('./core/database');
-const toolLoader = require('./core/tool_loader');
-const voiceXp = require('./core/voice_xp');
+const config   = require('./src/core/config');
+const database = require('./src/core/database');
+const toolLoader = require('./src/ai/tool_loader');
+const voiceXp = require('./src/rank/voice_xp');
 
 // ----------------------------------------------------------
 // Cliente Discord
@@ -41,7 +41,7 @@ client.commands = new Collection();
 // ----------------------------------------------------------
 // Carregamento de comandos
 // ----------------------------------------------------------
-const commandsPath = path.join(__dirname, 'commands');
+const commandsPath = path.join(__dirname, 'src', 'commands');
 const commandFiles = fs.readdirSync(commandsPath).filter(f => f.endsWith('.js'));
 
 for (const file of commandFiles) {
@@ -56,7 +56,7 @@ for (const file of commandFiles) {
 // ----------------------------------------------------------
 // Carregamento de eventos
 // ----------------------------------------------------------
-const eventsPath = path.join(__dirname, 'events');
+const eventsPath = path.join(__dirname, 'src', 'events');
 if (fs.existsSync(eventsPath)) {
   const eventFiles = fs.readdirSync(eventsPath).filter(f => f.endsWith('.js'));
   for (const file of eventFiles) {

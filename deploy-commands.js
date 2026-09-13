@@ -17,13 +17,13 @@ const { REST, Routes } = require('discord.js');
 const fs   = require('fs');
 const path = require('path');
 const args = require('minimist')(process.argv.slice(2));
-const config = require('./core/config');
+const config = require('./src/core/config');
 
 // ----------------------------------------------------------
 // Coleta comandos
 // ----------------------------------------------------------
 const commands = [];
-const commandsPath = path.join(__dirname, 'commands');
+const commandsPath = path.join(__dirname, 'src', 'commands');
 const commandFiles = fs.readdirSync(commandsPath)
                       .filter(f => f.endsWith('.js') && f !== 'index.js');
 
