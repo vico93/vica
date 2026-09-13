@@ -1,5 +1,5 @@
 /*
-** caminho: tools/discord_calendar.js
+** caminho: src/tools/discord_calendar.js
 ** últimaMod: 2026-02-01
 ** autor: Vico
 ** colaboração: Gemini

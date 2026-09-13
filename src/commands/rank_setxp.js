@@ -1,5 +1,5 @@
 /*
-** caminho: commands/rank_setxp.js
+** caminho: src/commands/rank_setxp.js
 ** últimaMod: 2025-10-09 17:23
 ** autor: Vico
 ** colaboração: xai/grok-code-fast-1

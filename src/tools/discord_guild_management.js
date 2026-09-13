@@ -1,5 +1,5 @@
 /*
-** caminho: tools/discord_guild_management.js
+** caminho: src/tools/discord_guild_management.js
 ** últimaMod: 2026-04-13
 ** autor: Vico
 ** colaboração: OpenCode (GPT-5.3-Codex)

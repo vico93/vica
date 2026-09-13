@@ -1,5 +1,5 @@
 /*
-** caminho: commands/reaction_emoji.js
+** caminho: src/commands/reaction_emoji.js
 ** últimaMod: 2025-10-03 19:08
 ** autor: Vico
 ** colaboração: Grok Code (Fast)

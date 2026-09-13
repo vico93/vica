@@ -1,5 +1,5 @@
 /*
-** caminho: core/voice_xp.js
+** caminho: src/rank/voice_xp.js
 ** últimaMod: 2026-02-24 20:05
 ** autor: Vico
 ** colaboração: OpenCode (GPT-5.3-Codex)

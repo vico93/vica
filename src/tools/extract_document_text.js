@@ -1,5 +1,5 @@
 /*
-** caminho: tools/extract_document_text.js
+** caminho: src/tools/extract_document_text.js
 ** últimaMod: 2026-04-08 01:55
 ** autor: Vico
 ** colaboração: GPT-5.4

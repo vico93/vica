@@ -1,5 +1,5 @@
 /*
-** caminho: tools/read_text_attachment.js
+** caminho: src/tools/read_text_attachment.js
 ** últimaMod: 2026-04-09 01:20
 ** autor: Vico
 ** colaboração: GPT-5.4

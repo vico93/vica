@@ -1,5 +1,5 @@
 /*
-** caminho: commands/reaction_thread.js
+** caminho: src/commands/reaction_thread.js
 ** últimaMod: 2025-09-23 11:09
 ** autor: Vico
 ** colaboração: Grok Code (Fast)

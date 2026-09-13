@@ -1,5 +1,5 @@
 /*
-** caminho: commands/rank_blacklist.js
+** caminho: src/commands/rank_blacklist.js
 ** últimaMod: 2026-02-24 20:05
 ** autor: Vico
 ** colaboração: Roo Sonic (xai/grok-code-fast-1)

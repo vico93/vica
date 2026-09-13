@@ -1,5 +1,5 @@
 /*
-** caminho: commands/trigger.js
+** caminho: src/commands/trigger.js
 ** últimaMod: 2026-03-02 19:05
 ** autor: Vico
 ** colaboração: Roo Sonic (xai/grok-code-fast-1), OpenAI Codex

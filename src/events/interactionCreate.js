@@ -1,5 +1,5 @@
 /*
-** caminho: events/interactionCreate.js
+** caminho: src/events/interactionCreate.js
 ** últimaMod: 2026-03-02 19:05
 ** autor: Vico
 ** colaboração: Grok Code (Fast), OpenAI Codex

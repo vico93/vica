@@ -1,5 +1,5 @@
 /*
-** caminho: commands/chat_blacklist.js
+** caminho: src/commands/chat_blacklist.js
 ** últimaMod: 2025-10-09 17:20
 ** autor: Vico
 ** colaboração: xai/grok-code-fast-1

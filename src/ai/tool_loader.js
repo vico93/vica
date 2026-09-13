@@ -1,5 +1,5 @@
 /*
-** caminho: core/tool_loader.js
+** caminho: src/ai/tool_loader.js
 ** últimaMod: 2026-06-06 01:15
 ** autor: Vico
 ** colaboração: Roo, ChatGPT (GPT-5), Claude Opus 4.6

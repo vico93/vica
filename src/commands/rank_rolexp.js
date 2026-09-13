@@ -1,5 +1,5 @@
 /*
-** caminho: commands/rank_rolexp.js
+** caminho: src/commands/rank_rolexp.js
 ** últimaMod: 2025-10-09 17:34
 ** autor: Vico
 ** colaboração: Roo Sonic (xai/grok-code-fast-1)

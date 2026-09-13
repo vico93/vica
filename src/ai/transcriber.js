@@ -1,5 +1,5 @@
 /*
-** caminho: core/transcriber.js
+** caminho: src/ai/transcriber.js
 ** últimaMod: 2025-09-21 11:31
 ** autor: Vico
 ** colaboração: Roo Sonic (xai/grok-code-fast-1)

@@ -1,5 +1,5 @@
 /*
-** caminho: core/mcp_client.js
+** caminho: src/ai/mcp_client.js
 ** últimaMod: 2026-06-06 01:00
 ** autor: Vico
 ** colaboração: Roo

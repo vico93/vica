@@ -1,5 +1,5 @@
 /*
-** caminho: commands/rank_profile.js
+** caminho: src/commands/rank_profile.js
 ** últimaMod: 2026-04-03 09:25
 ** autor: Vico
 ** colaboração: Factory Droid

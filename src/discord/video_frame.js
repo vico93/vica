@@ -1,5 +1,5 @@
 /*
-** caminho: helpers/video_frame.js
+** caminho: src/discord/video_frame.js
 ** últimaMod: 2026-03-17 18:51
 ** autor: Vico
 ** colaboração: GPT-5.4

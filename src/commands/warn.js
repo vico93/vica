@@ -1,5 +1,5 @@
 /*
-** caminho: commands/warn.js
+** caminho: src/commands/warn.js
 ** últimaMod: 2026-03-01 11:05
 ** autor: Vico
 ** colaboração: OpenCode (GPT-5.3-Codex)

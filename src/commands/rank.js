@@ -1,5 +1,5 @@
 /*
-**  caminho: commands/rank.js
+**  caminho: src/commands/rank.js
 **  últimaMod: 02/05/2026 00:00
 **  autor: Vico
 **  colaboração: ChatGPT, Gemini, Kimi AI

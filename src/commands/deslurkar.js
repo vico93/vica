@@ -1,5 +1,5 @@
 /*
-** caminho: commands/deslurkar.js
+** caminho: src/commands/deslurkar.js
 ** autor: Vico
 ** colaboração: Gemini
 */

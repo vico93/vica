@@ -1,5 +1,5 @@
 /*
-** caminho: core/channel_context.js
+** caminho: src/discord/channel_context.js
 ** últimaMod: 2026-06-06 14:00
 ** autor: Vico
 ** colaboração: Kimi AI

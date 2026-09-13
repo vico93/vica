@@ -1,5 +1,5 @@
 /*
-** caminho: core/moderation.js
+** caminho: src/moderation/moderation.js
 ** últimaMod: 2026-03-01 10:55
 ** autor: Vico
 ** colaboração: OpenCode (GPT-5.3-Codex)

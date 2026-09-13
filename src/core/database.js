@@ -1,5 +1,5 @@
 /*
-** caminho: core/database.js
+** caminho: src/core/database.js
 ** últimaMod: 2026-02-24 20:05
 ** autor: Vico
 ** colaboração: GPT-4o, GLM 4.5 Air, Grok Code (Fast) e Claude

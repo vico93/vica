@@ -1,5 +1,5 @@
 /*
-** caminho: events/guildMemberRemove.js
+** caminho: src/events/guildMemberRemove.js
 ** últimaMod: 2025-09-23 09:15
 ** autor: Vico
 ** colaboração: Gemini, ChatGPT, Kimi AI e Roo Sonic (xai/grok-code-fast-1)

@@ -1,5 +1,5 @@
 /*
-** caminho: commands/reaction_translate.js
+** caminho: src/commands/reaction_translate.js
 ** últimaMod: 2026-02-03
 ** autor: Vico
 ** colaboração: Gemini

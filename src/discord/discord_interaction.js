@@ -1,5 +1,5 @@
 /*
-** caminho: core/discord_interaction.js
+** caminho: src/discord/discord_interaction.js
 ** últimaMod: 2026-03-02 19:05
 ** autor: Vico
 ** colaboração: OpenAI Codex

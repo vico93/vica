@@ -1,5 +1,5 @@
 /*
-** caminho: commands/comment.js
+** caminho: src/commands/comment.js
 ** últimaMod: 2026-03-02 19:05
 ** autor: Vico
 ** colaboração: Roo Sonic, OpenAI Codex

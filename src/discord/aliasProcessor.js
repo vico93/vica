@@ -1,5 +1,5 @@
 /*
-** caminho: core/aliasProcessor.js
+** caminho: src/discord/aliasProcessor.js
 ** últimaMod: 2026-04-23 15:00
 ** autor: Vico
 ** colaboração: OpenCode

@@ -1,5 +1,5 @@
 /**
- ** caminho: core/auditCache.js
+ ** caminho: src/discord/auditCache.js
  ** últimaMod: 2025-09-03 00:50
  ** autor: Vico
  ** colaboração: Roo Sonic e Kimi AI

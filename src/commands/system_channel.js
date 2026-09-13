@@ -1,5 +1,5 @@
 /*
-** caminho: commands/system_channel.js
+** caminho: src/commands/system_channel.js
 ** últimaMod: 2025-10-09 17:25
 ** autor: Vico
 ** colaboração: xai/grok-code-fast-1

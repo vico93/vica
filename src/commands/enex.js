@@ -1,5 +1,5 @@
 /*
-** caminho: commands/enex.js
+** caminho: src/commands/enex.js
 ** últimaMod: 2025-09-12 19:56
 ** autor: Vico
 ** colaboração: Roo Sonic (xai/grok-code-fast-1)

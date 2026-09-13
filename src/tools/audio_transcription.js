@@ -1,5 +1,5 @@
 /*
-** caminho: tools/audio_transcription.js
+** caminho: src/tools/audio_transcription.js
 ** desc: Tool para transcrever arquivos de áudio via API
 */
 const fs = require('fs');

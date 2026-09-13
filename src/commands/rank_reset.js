@@ -1,5 +1,5 @@
 /*
-** caminho: commands/rank_reset.js
+** caminho: src/commands/rank_reset.js
 ** últimaMod: 2025-11-18 10:30
 ** autor: Vico
 ** colaboração: Grok Code (Fast), Gemini

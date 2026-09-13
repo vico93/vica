@@ -1,5 +1,5 @@
 /*
-** caminho: events/guildMemberUpdate.js
+** caminho: src/events/guildMemberUpdate.js
 ** últimaMod: 2025-09-22 20:26
 ** autor: Vico
 ** colaboração: Roo Sonic (xai/grok-code-fast-1), Claude, ChatGPT

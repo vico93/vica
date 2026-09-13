@@ -1,5 +1,5 @@
 /*
-** caminho: commands/clearwarn.js
+** caminho: src/commands/clearwarn.js
 ** últimaMod: 2026-03-01 11:06
 ** autor: Vico
 ** colaboração: OpenCode (GPT-5.3-Codex)

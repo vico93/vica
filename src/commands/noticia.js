@@ -1,5 +1,5 @@
 /*
-** caminho: commands/noticia.js
+** caminho: src/commands/noticia.js
 ** últimaMod: 2025-10-04 01:15
 ** autor: Vico
 ** colaboração: Grok Code (Fast) e Claude

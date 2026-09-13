@@ -1,5 +1,5 @@
 /*
-** caminho: commands/up_role.js
+** caminho: src/commands/up_role.js
 ** últimaMod: 2025-09-12 22:13
 ** autor: Vico
 ** colaboração: Roo Sonic (xai/grok-code-fast-1)

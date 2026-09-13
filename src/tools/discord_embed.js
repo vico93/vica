@@ -1,5 +1,5 @@
 /*
-** caminho: tools/discord_embed.js
+** caminho: src/tools/discord_embed.js
 ** últimaMod: 2026-05-04
 ** autor: Vico
 ** colaboração: OpenCode (GPT-5.3-Codex)

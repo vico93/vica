@@ -1,5 +1,5 @@
 /*
-**  caminho: commands/perguntar.js
+**  caminho: src/commands/perguntar.js
 **  últimaMod: 07/10/2025 22:02
 **  autor: Vico
 **  colaboração: ChatGPT, Gemini, Kimi AI, xai/grok-code-fast-1

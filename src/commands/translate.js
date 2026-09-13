@@ -1,5 +1,5 @@
 /*
-** caminho: commands/translate.js
+** caminho: src/commands/translate.js
 ** últimaMod: 2026-02-03
 ** autor: Vico
 ** colaboração: Gemini

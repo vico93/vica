@@ -1,5 +1,5 @@
 /*
-** caminho: helpers/message_attachments.js
+** caminho: src/discord/message_attachments.js
 ** últimaMod: 2026-04-08 01:05
 ** autor: Vico
 ** colaboração: GPT-5.4

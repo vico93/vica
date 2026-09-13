@@ -1,5 +1,5 @@
 /*
-** caminho: tools/image_generation.js
+** caminho: src/tools/image_generation.js
 ** últimaMod: 2026-04-17 22:30
 ** autor: Vico
 ** colaboração: ChatGPT (GPT-5), Roo

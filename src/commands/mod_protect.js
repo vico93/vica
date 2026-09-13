@@ -1,5 +1,5 @@
 /*
-** caminho: commands/mod_protect.js
+** caminho: src/commands/mod_protect.js
 ** últimaMod: 2026-03-01 11:08
 ** autor: Vico
 ** colaboração: OpenCode (GPT-5.3-Codex)
