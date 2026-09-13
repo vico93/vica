@@ -2,16 +2,17 @@
 
 ## Sobre
 
-Vica é um bot para Discord que unifica funcionalidades de chatbot via API da OpenAI (modo IA) e comando de perguntas aleatórias de um banco local (modo banco). Desenvolvido em Node.js ~~para rodar em Raspberry Pi~~ (atualmente rodando em um VPS, gratidão @mojomast.
+Vica é um bot para Discord que unifica funcionalidades de chatbot via API compatível com a OpenAI (modo IA) e comando de perguntas aleatórias de um banco local (modo banco). Desenvolvido em Node.js, roda atualmente em um VPS (gratidão @mojomast) e tem a Raspberry Pi 3B+ como alvo futuro.
 
 ---
 
 ## Pré-requisitos
 
-* Node.js (versão 16 ou superior recomendada)
+* Node.js 20 ou superior (desenvolvido e testado com Node 24)
 * Acesso a um bot registrado no Discord (token e client ID)
-* Chave de API compatível com Responses API (ou OpenAI Chat Completions)
-* SQLite3 instalado (para banco de dados local)
+* Chave de API compatível com OpenAI Chat Completions (endpoint `/v1`)
+* Modelo principal com suporte a visão (as imagens são enviadas direto ao modelo)
+* `ffmpeg` no PATH (opcional; usado para extrair o primeiro frame de vídeos)
 
 ---
 
@@ -20,7 +21,7 @@ Vica é um bot para Discord que unifica funcionalidades de chatbot via API da Op
 1. Clone o repositório
 
 ```bash
-git clone https://github.com/seuusuario/vica.git
+git clone https://github.com/vico93/vica.git
 cd vica
 ```
 
@@ -30,48 +31,54 @@ cd vica
 npm install
 ```
 
-3. Crie o arquivo `config.toml` na raiz do projeto (você pode copiar `config.example.toml`) com uma estrutura como esta:
+3. Crie o arquivo `config.toml` na raiz do projeto (você pode copiar `config.example.toml`):
 
 ```toml
 [discord]
 token = "SEU_DISCORD_BOT_TOKEN"
 client_id = "SEU_CLIENT_ID"
 
-[models.default]
+[ai_provider]
 base_url = "https://sua.api.openai.compativel/v1"
 api_key = "SUA_CHAVE_API"
-model = "gpt-4o"
-
-[models.vision]
-base_url = "https://sua.api.openai.compativel/v1"
-api_key = "SUA_CHAVE_API"
-model = "gpt-4o"
-
-[models.transcriptions]
-base_url = "https://sua.api.openai.compativel/v1"
-api_key = "SUA_CHAVE_API"
-model = "whisper-1"
+model = "seu-modelo-com-visao"
 
 [ai_settings]
 send_system_prompt = true
 retries = 3
 initial_delay_ms = 1000
-historyLimit = 6
-historyMaxAge = 60
-budgetTokenLimit = 3000
+historyLimit = 8
+historyMaxAge = 480
+budgetTokenLimit = 8000
 rate_limit_ms = 5000
+maxToolTurns = 5
+mcpToolTimeoutMs = 30000
 
 [ai_tools]
 enabled = true
 tools_file = "data/tools.json"
 ```
 
-4. Adicione perguntas no arquivo `data/perguntas.txt` (uma por linha)
+As seções opcionais `[models.transcriptions]` e `[models.imagegen]` sobrescrevem provider e modelo apenas para transcrição de áudio e geração de imagem, herdando o restante de `[ai_provider]`. Veja `config.example.toml` para a lista completa de opções.
+
+4. Crie a pasta `data/` com os arquivos de conteúdo:
+
+* `data/system_prompt.txt` - prompt de sistema (personalidade da Vica)
+* `data/perguntas.txt` - banco de perguntas do `/perguntar`, uma por linha
+* `data/tools.json` - definição das ferramentas e servidores MCP
+
+A pasta `data/` é ignorada pelo git. O arquivo `data/database.db` é criado automaticamente no primeiro boot, com o schema e as migrações definidos em `src/core/database.js`.
 
 5. Registre os comandos slash no Discord
 
 ```bash
 node deploy-commands.js
+```
+
+Para registrar apenas em um servidor durante o desenvolvimento:
+
+```bash
+node deploy-commands.js --guild ID_DO_SERVIDOR
 ```
 
 6. Inicie o bot
@@ -84,25 +91,35 @@ node bot.js
 
 ## Estrutura do Projeto
 
-* `bot.js` - arquivo principal que inicializa o bot
-* `commands/` - comandos slash do bot (ex: `/perguntar`)
-* `core/` - lógica de comunicação com a API e manipulação de contexto
-* `data/` - banco de perguntas (`perguntas.txt`) e banco SQLite (`database.db`)
-* `events/` - listeners de eventos Discord
-* `utils/` - funções auxiliares
-* `config.toml` - configurações do bot e API (não deve ser versionado)
-* `.gitignore` - arquivos e pastas ignorados pelo git
+* `bot.js` - inicializa o cliente, carrega comandos e eventos, sobe os servidores MCP e trata o shutdown
+* `src/core/` - configuração (`config.js`) e acesso ao SQLite (`database.js`)
+* `src/ai/` - integração com a API (`oai_interface.js`), carregamento de ferramentas (`tool_loader.js`), MCP (`mcp_client.js`), prompt e perguntas (`static_data.js`) e transcrição (`transcriber.js`)
+* `src/discord/` - utilitários de Discord: interações, parser de tags, aliases, contexto de canal, cache de auditoria e anexos
+* `src/moderation/` - advertências, timeouts, kicks e bans
+* `src/rank/` - XP por voz
+* `src/commands/` - comandos slash
+* `src/events/` - listeners de eventos do Discord
+* `src/tools/` - implementações das ferramentas expostas à IA
+* `scripts/` - scripts avulsos de manutenção
+* `data/` - conteúdo e banco SQLite (não versionado)
+* `config.toml` - configurações do bot e da API (não versionado)
+
+---
+
+## Comandos
+
+`/canal-noticia`, `/chat_blacklist`, `/clearwarn`, `/comment`, `/deslurkar`, `/enex`, `/macro`, `/mod_protect`, `/noticia`, `/perguntar`, `/rank`, `/rank_blacklist`, `/rank_profile`, `/rank_reset`, `/rank_rolexp`, `/rank_setxp`, `/reaction_emoji`, `/reaction_thread`, `/reaction_translate`, `/system_channel`, `/translate`, `/trigger`, `/up_role`, `/warn`, `/warn_config`
 
 ---
 
 ## Funcionalidades
 
-* **Chatbot com IA:** Responde a menções e replies utilizando modelos compatíveis com OpenAI, com suporte a contexto de conversação.
-* **Sistema de Níveis (XP):** Ganho de XP por mensagens, com ranking e mensagens de level up configuráveis.
-* **Memória de Longo Prazo:** Armazena fatos sobre usuários e o servidor para personalizar interações futuras (via embeddings e busca semântica).
-* **Configuração via Discord:** Comandos dedicados para gerenciar canais, mensagens de entrada/saída, memórias e outras configurações sem reiniciar o bot.
+* **Chatbot com IA:** Responde a menções e replies com contexto de conversa, function calling e visão nativa.
+* **Sistema de Níveis (XP):** Ganho de XP por mensagem e por voz, com ranking, multiplicadores por cargo e mensagens de level up configuráveis.
+* **Ferramentas:** Agenda de eventos do servidor, moderação (warn, timeout, kick, ban e consultas de ranking), leitura de embeds, OCR de documentos, leitura de anexos de texto, transcrição de áudio e geração de imagens.
+* **Memórias:** Fatos sobre usuários são gravados automaticamente em mudanças de cargo. A recuperação dessas memórias ainda não está ligada ao prompt (veja Próximos Passos).
+* **Configuração via Discord:** Comandos dedicados para gerenciar canais, mensagens de entrada/saída, macros, triggers e blacklists sem reiniciar o bot.
 * **Blacklists:** Comandos para impedir o chatbot (`/chat_blacklist`) ou o sistema de XP (`/rank_blacklist`) de funcionar em canais específicos.
-* **Multimodalidade:** Suporte a envio de imagens para análise pela IA.
 
 ---
 
@@ -112,17 +129,21 @@ node bot.js
 
 O **Model Context Protocol (MCP)** é um protocolo padronizado que permite que assistentes de IA se comuniquem com serviços externos e ferramentas. O Vica suporta MCP para estender suas capacidades sem modificar o código principal.
 
-### Servidores MCP Suportados
+### Servidores MCP configurados
 
-| Servidor | Transporte | Status | Ferramentas |
-|----------|------------|--------|-------------|
-| Memory | stdio | ✅ Funcionando | 9 ferramentas (operações de grafo de conhecimento) |
-| Sequential Thinking | http | ⚠️ Precisa de investigação | - |
-| Time | http | ⚠️ Precisa de investigação | - |
+Os servidores abaixo estão descritos em `data/tools.json` (arquivo não versionado, então esta tabela reflete a configuração local):
+
+| Servidor | Transporte | Observação |
+|----------|------------|------------|
+| Time | stdio (`uvx`) | `mcp-server-time`, com `--local-timezone=America/Sao_Paulo` |
+| Fetch | stdio (`uvx`) | `mcp-server-fetch` |
+| Google Search | stdio (`npx`) | `@mcp-server/google-search-mcp` |
+| SportDB | http | Requer `X-API-Key` em `headers` |
+| MeuPC | stdio (`npx`) | Específico do PC do Vico; não faz sentido em VPS |
 
 ### Configurando Servidores MCP
 
-Os servidores MCP são configurados no arquivo [`data/tools.json`](data/tools.json). Adicione servidores com o seguinte formato:
+Adicione servidores em `data/tools.json`. Servidores MCP são identificados por `"type": "mcp"`.
 
 **Transporte stdio (servidores locais):**
 
@@ -146,17 +167,20 @@ Os servidores MCP são configurados no arquivo [`data/tools.json`](data/tools.js
   "name": "example_server",
   "type": "mcp",
   "transport": "http",
-  "url": "https://example.com/mcp-endpoint"
+  "url": "https://example.com/mcp-endpoint",
+  "headers": {
+    "X-API-Key": "SUA_CHAVE"
+  }
 }
 ```
 
 ### Variáveis de Ambiente
 
-Servidores MCP podem receber variáveis de ambiente através do campo `env`:
+Servidores MCP podem receber variáveis de ambiente através do campo `env`, mescladas com o ambiente do processo:
 
 ```json
 "env": {
-  "MEMORY_FILE_PATH": "d:/Projetos/Discord/vica/data/memory.json",
+  "MEMORY_FILE_PATH": "/caminho/absoluto/data/memory.json",
   "CUSTOM_VAR": "valor"
 }
 ```
@@ -176,74 +200,60 @@ O servidor MCP de memória fornece operações de grafo de conhecimento:
 8. `search_nodes` - Buscar nós baseado em queries
 9. `open_nodes` - Abrir nós específicos por nome
 
-### Testando Integração MCP
-
-Execute o script de teste para verificar a conectividade dos servidores MCP:
-
-```bash
-node test_mcp.js
-```
-
-Este script:
-- Inicia todos os servidores MCP configurados
-- Lista as ferramentas disponíveis de cada servidor
-- Realiza um teste simples de chamada de ferramenta
-- Para todos os servidores gracefulmente
-
 ### Solução de Problemas
 
-**Servidores HTTP retornando HTML:**
+**Falhas na inicialização do servidor:**
 
-As URLs do mcp.so podem não ser endpoints HTTP MCP corretos. Possíveis problemas:
-- Protocolo diferente necessário (SSE, WebSocket)
-- Headers de autenticação faltando
-- Formato de endpoint incorreto
+Falhas de MCP não derrubam o bot: `src/ai/tool_loader.js` captura erros por servidor e continua. O efeito colateral é que a ferramenta simplesmente não existe para a IA, então confira os logs de inicialização (`[TOOL_LOADER]`).
+
+- Verifique se o comando (`npx`, `uvx`) está disponível no PATH do sistema
+- Cuidado com caminhos absolutos específicos de uma máquina (ex: `/home/vico/.local/bin/uvx`)
+- Confirme que as variáveis de ambiente estão configuradas corretamente
+- Certifique-se de que as dependências necessárias estão instaladas
 
 **Compatibilidade com Windows:**
 
 - Use `npm.cmd exec` em vez de `npx` no Windows
-- O [`core/mcp_client.js`](core/mcp_client.js) adiciona automaticamente `shell: true` para Windows
-
-**Falhas na inicialização do servidor:**
-
-- Verifique se o comando está disponível no PATH do sistema
-- Confirme que as variáveis de ambiente estão configuradas corretamente
-- Certifique-se de que as dependências necessárias estão instaladas
-- Revise os logs do servidor para mensagens de erro detalhadas
+- O [`src/ai/mcp_client.js`](src/ai/mcp_client.js) adiciona automaticamente `shell: true` para Windows
 
 ### Adicionando um Novo Servidor MCP
 
-1. Adicione a configuração do servidor em [`data/tools.json`](data/tools.json)
+1. Adicione a configuração do servidor em `data/tools.json`
 2. Escolha o tipo de transporte apropriado (stdio ou http)
 3. Configure as variáveis de ambiente necessárias
-4. Teste com `node test_mcp.js`
-5. Reinicie o bot para carregar o novo servidor
-6. Verifique que as ferramentas estão disponíveis para chamada de função da IA
+4. Reinicie o bot para carregar o novo servidor
+5. Confirme nos logs que as ferramentas foram listadas pelo `tool_loader`
 
 ### Boas Práticas MCP
 
 1. **Prefira transporte stdio** para servidores locais (mais confiável e fácil de debugar)
-2. **Use caminhos absolutos** para configurações de servidores baseados em arquivos
-3. **Teste completamente** antes de implantar em produção
-4. **Monitore a saúde do servidor** através dos logs
-5. **Implemente lógica de fallback** quando ferramentas MCP falharem
+2. **Evite caminhos absolutos** amarrados a uma máquina específica
+3. **Use caminhos absolutos** apenas para configurações de servidores baseados em arquivos
+4. **Teste completamente** antes de implantar em produção
+5. **Monitore a saúde do servidor** através dos logs
 
 ---
 
 ## Sistema de Memórias
-Vica usa tags especiais para armazenar e sinalizar contexto:
-- `[salvar_memoria]...[/salvar_memoria]`: salva um fato no banco com `importance` (1–10) e `confidence` (0.0–1.0).
-- `[meta]...[/meta]`: bloco de metadados inline.
-- `[imagem]`: sinaliza que a mensagem possui imagem anexada.
 
-Exemplos:
-- `[salvar_memoria]{GUILD_ID}:123456789012345678:curte animes:8:0.9[/salvar_memoria]`
-- `[meta]user:João|id:123[/meta]`
+Fatos sobre usuários são gravados automaticamente em mudanças de cargo, via `database.adicionarMemoriaUsuario` (chamado em [`src/ai/oai_interface.js`](src/ai/oai_interface.js) e [`src/events/guildMemberUpdate.js`](src/events/guildMemberUpdate.js)), nas tabelas `user_memories` e `guild_memories`.
+
+A tag `[memory]...[/memory]` é removida das respostas antes de enviar ao Discord, junto com `[imagem]`, `[imagem_gerada]` e `[meta]...[/meta]`. O parser fica em [`src/discord/tagParser.js`](src/discord/tagParser.js).
+
+Exemplos de tags presentes nas mensagens:
+- `[meta]user:João|globalname:João|id:123456789012345678[/meta]`
 - `[imagem] Texto com imagem.`
+- `[thread_op]João: mensagem que abriu o tópico[/thread_op]`
 
-As tags são parseadas por [core/tagParser.js](core/tagParser.js) e consumidas nas respostas da IA por [core/oai_interface.js](core/oai_interface.js). Placeholders como `{GUILD_ID}` são substituídos automaticamente conforme o contexto.
- 
+Placeholders como `{GUILD_ID}` e `{reason}` são substituídos automaticamente conforme o contexto.
+
+As colunas `embedding` já existem no schema, mas a busca semântica de memórias ainda não é usada no prompt.
+
+---
+
 ## Próximos Passos
 
-* Refinamento da "personalidade" através de prompt engineering contínuo.
-* Melhorias na performance de busca de memórias (embeddings).
+* Concluir a reintegração da visão nativa, removendo a ferramenta `analyze_image` e o caminho de handoff.
+* Religar a recuperação de memórias por embeddings ao prompt.
+* Deduplicar helpers repetidos (`splitText`, `getOpenThreadForMessage`) e o envio de respostas em chunks.
+* Adicionar uma suíte de testes automatizados (hoje não existe) e lint.
