@@ -25,73 +25,14 @@ const {
   buildAttachmentHint
 } = require('../discord/message_attachments');
 const { isVideoAttachment, extractFirstFrameFromVideo } = require('../discord/video_frame');
+const { getOpenThreadForMessage } = require('../discord/threads');
+const { sendChunkedReply } = require('../discord/replies');
+const { splitText } = require('../discord/text');
 
 /* ----------------------------------------------------------
     Helpers
 ---------------------------------------------------------- */
 
-
-// Divide texto em chunks de até 2000 caracteres, preservando palavras
-function splitText(text, maxLength = 2000) {
-  if (typeof text !== 'string') return [];
-
-  const normalizedText = text.trim();
-  if (!normalizedText) return [];
-  if (normalizedText.length <= maxLength) return [normalizedText];
-
-  const chunks = [];
-  let start = 0;
-  while (start < normalizedText.length) {
-    let end = Math.min(start + maxLength, normalizedText.length);
-    if (end === normalizedText.length) {
-      chunks.push(normalizedText.slice(start));
-      break;
-    }
-    // Encontra o último espaço antes do limite
-    const lastSpace = normalizedText.lastIndexOf(' ', end);
-    if (lastSpace > start) {
-      chunks.push(normalizedText.slice(start, lastSpace));
-      start = lastSpace + 1;
-    } else {
-      // Sem espaço, corta forçadamente
-      chunks.push(normalizedText.slice(start, end));
-      start = end;
-    }
-  }
-  return chunks;
-}
-
-async function getOpenThreadForMessage(message) {
-  if (!message?.hasThread) return null;
-
-  if (message.thread && !message.thread.archived) {
-    return message.thread;
-  }
-
-  try {
-    if (message.channel?.threads?.fetch) {
-      const fetchedThread = await message.channel.threads.fetch(message.id);
-      if (fetchedThread && !fetchedThread.archived) {
-        return fetchedThread;
-      }
-    }
-  } catch {
-    // ignore and fallback below
-  }
-
-  try {
-    if (message.guild?.channels?.fetch) {
-      const fallbackThread = await message.guild.channels.fetch(message.id);
-      if (fallbackThread?.isThread?.() && !fallbackThread.archived) {
-        return fallbackThread;
-      }
-    }
-  } catch {
-    // ignore fallback errors
-  }
-
-  return null;
-}
 
 module.exports = {
   name: 'messageReactionAdd',
@@ -218,31 +159,7 @@ module.exports = {
           guildId, responseChannelId, usuarioId, message.client.user.id, prompt, imageUrl, responseChannel, message.id, usuarioId, imageDataUrl
         );
 
-        const chunks = splitText(resposta).filter(chunk => typeof chunk === 'string' && chunk.trim().length > 0);
-        if (chunks.length === 0) {
-          console.warn('[VICA][REACTION][WARN] IA retornou resposta vazia após sanitização. Enviando fallback.');
-          if (responseChannel.id === message.channel.id) {
-            await message.reply({
-              content: 'Bah, dei uma travada e não consegui montar a resposta 😵‍💫. Tenta de novo em seguida.',
-              failIfNotExists: false
-            });
-          } else {
-            await responseChannel.send('Bah, dei uma travada e não consegui montar a resposta 😵‍💫. Tenta de novo em seguida.');
-          }
-          return;
-        }
-
-        if (chunks.length > 1) {
-          console.log('[VICA][REACTION][INFO] Response length > 2000, splitting into ' + chunks.length + ' chunks');
-        }
-        if (responseChannel.id === message.channel.id) {
-          await message.reply({ content: chunks[0], failIfNotExists: false });
-        } else {
-          await responseChannel.send(chunks[0]);
-        }
-        for (let i = 1; i < chunks.length; i++) {
-          await responseChannel.send(chunks[i]);
-        }
+        await sendChunkedReply({ response: resposta, sourceMessage: message, responseChannel });
 
         // Remove reação para evitar spam
         try {

@@ -24,36 +24,7 @@ const {
   safeEditReply,
   safeReply
 } = require('../discord/discord_interaction');
-
-function splitText(text, maxLength = 2000) {
-  if (typeof text !== 'string') return [];
-
-  const normalizedText = text.trim();
-  if (!normalizedText) return [];
-  if (normalizedText.length <= maxLength) return [normalizedText];
-
-  const chunks = [];
-  let start = 0;
-
-  while (start < normalizedText.length) {
-    let end = Math.min(start + maxLength, normalizedText.length);
-    if (end === normalizedText.length) {
-      chunks.push(normalizedText.slice(start));
-      break;
-    }
-
-    const lastSpace = normalizedText.lastIndexOf(' ', end);
-    if (lastSpace > start) {
-      chunks.push(normalizedText.slice(start, lastSpace));
-      start = lastSpace + 1;
-    } else {
-      chunks.push(normalizedText.slice(start, end));
-      start = end;
-    }
-  }
-
-  return chunks;
-}
+const { splitText } = require('../discord/text');
 
 module.exports = {
   data: new SlashCommandBuilder()
