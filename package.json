@@ -16,6 +16,9 @@
   },
   "license": "MIT",
   "author": "Vico",
+  "engines": {
+    "node": ">=24 <25"
+  },
   "type": "commonjs",
   "main": "bot.js",
   "scripts": {
@@ -29,5 +32,8 @@
     "node-fetch": "^2.7.0",
     "openai": "^5.8.2",
     "toml": "^4.1.1"
+  },
+  "allowScripts": {
+    "better-sqlite3@12.10.0": true
   }
 }
