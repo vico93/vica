@@ -40,6 +40,8 @@ client_id = "SEU_CLIENT_ID"
 
 [ai_provider]
 base_url = "https://sua.api.openai.compativel/v1"
+# Opcional: deixe "" para provedores gratuitos que não exigem autenticação
+# (nesse caso o header Authorization não é enviado)
 api_key = "SUA_CHAVE_API"
 model = "seu-modelo-com-visao"
 

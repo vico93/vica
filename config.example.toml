@@ -9,7 +9,9 @@ client_id = "SEU_CLIENT_ID"
 [ai_provider]
 # Endpoint base compatível com OpenAI, normalmente terminando em /v1
 base_url = "https://example.com/v1"
-# Chave da API do provider padrão
+# Chave da API do provider padrão (opcional: deixe "" para provedores gratuitos
+# que não exigem autenticação, como alguns endpoints do Hugging Face e o OpenCode
+# Zen gratuito — nesse caso o header Authorization não é enviado)
 api_key = "SUA_API_KEY"
 # Modelo principal de chat/texto
 model = "glm-5"

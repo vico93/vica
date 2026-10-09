@@ -1,8 +1,8 @@
 /*
 ** caminho: src/core/config.js
-** últimaMod: 2026-06-06 01:15
+** últimaMod: 2026-10-09 01:17
 ** autor: Vico
-** colaboração: ChatGPT (GPT-5.4), Claude Opus 4.6
+** colaboração: Muse Spark
 */
 
 const fs = require('fs');
@@ -178,8 +178,12 @@ function getPrimaryProviderConfig(parsed = {}) {
 function getMergedModelMap(primaryProvider, rawModels = {}) {
   const defaultModel = normalizeModelSection(primaryProvider);
 
-  if (!defaultModel.base_url || !defaultModel.api_key || !defaultModel.model) {
-    throw new Error('Configuração inválida em config.toml: [ai_provider] precisa definir base_url, api_key e model.');
+  // api_key is optional for the main provider: some free providers
+  // (e.g. Hugging Face free endpoints, OpenCode Zen) require no auth.
+  // Other capabilities and tool runtimes still require a key (see
+  // oai_interface.getModelConfig and each tool's own validation).
+  if (!defaultModel.base_url || !defaultModel.model) {
+    throw new Error('Configuração inválida em config.toml: [ai_provider] precisa definir base_url e model. (api_key é opcional: deixe vazio para provedores que não exigem autenticação.)');
   }
 
   const mergedModels = {
@@ -256,6 +260,10 @@ function parseConfig() {
         : !!parsed.models?.[capability];
     },
   };
+
+  if (!aiProvider.api_key) {
+    console.warn('[CONFIG][WARN] [ai_provider] sem api_key: as requisições serão enviadas sem o header Authorization. Use apenas com provedores que não exigem autenticação.');
+  }
 
   return config;
 }

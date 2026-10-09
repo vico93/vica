@@ -1,8 +1,8 @@
 /*
 ** caminho: src/ai/oai_interface.js
-** últimaMod: 2026-05-12 15:30
+** últimaMod: 2026-10-09 01:17
 ** autor: Vico
-** colaboração: Gemini, GPT-4o, Grok Code (Fast), GPT-5, Claude Opus 4.6, Kimi K2
+** colaboração: Gemini, GPT-4o, Grok Code (Fast), GPT-5, Claude Opus 4.6, Kimi K2, Muse Spark
 */
 
 const OpenAI = require('openai');
@@ -26,8 +26,14 @@ function getAISettings() {
 function getModelConfig(capability = 'default') {
   const modelConfig = config.getModelConfig(capability);
 
-  if (!modelConfig?.base_url || !modelConfig?.api_key || !modelConfig?.model) {
-    throw new Error(`Configuração de modelo inválida para '${capability}'. Verifique config.toml.`);
+  if (!modelConfig?.base_url || !modelConfig?.model) {
+    throw new Error(`Configuração de modelo inválida para '${capability}'. Verifique base_url e model em config.toml.`);
+  }
+
+  // Only the main provider accepts an empty key (keyless free providers).
+  // Other capabilities keep requiring api_key.
+  if (capability !== 'default' && !modelConfig?.api_key) {
+    throw new Error(`Configuração de modelo inválida para '${capability}': esta capability exige api_key em config.toml (apenas o provider principal aceita key vazia).`);
   }
 
   return modelConfig;
@@ -40,13 +46,23 @@ function getOpenAIClient(capability = 'default') {
 
   const modelConfig = getModelConfig(capability);
   const client = new OpenAI({
-    apiKey: modelConfig.api_key,
+    // Explicit empty string: avoids the SDK throw on undefined and avoids
+    // falling back to the OPENAI_API_KEY env var.
+    apiKey: modelConfig.api_key || '',
     baseURL: modelConfig.base_url,
     defaultHeaders: modelConfig.headers || {},
   });
 
+  if (!modelConfig.api_key) {
+    // Keyless provider: omit the Authorization header entirely
+    // (by default the SDK would send `Bearer ` with an empty token).
+    client.authHeaders = async () => ({});
+    console.log(`[OAI][INFO] Cliente '${capability}' inicializado sem API key: ${modelConfig.base_url}`);
+  } else {
+    console.log(`[OAI][INFO] Cliente '${capability}' inicializado: ${modelConfig.base_url}`);
+  }
+
   openaiClients.set(capability, client);
-  console.log(`[OAI][INFO] Cliente '${capability}' inicializado: ${modelConfig.base_url}`);
   return client;
 }
 
