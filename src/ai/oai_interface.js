@@ -1,8 +1,8 @@
 /*
 ** caminho: src/ai/oai_interface.js
-** últimaMod: 2026-10-09 01:17
+** últimaMod: 2026-10-22 23:40
 ** autor: Vico
-** colaboração: Gemini, GPT-4o, Grok Code (Fast), GPT-5, Claude Opus 4.6, Kimi K2, Muse Spark
+** colaboração: Gemini, GPT-4o, Grok Code (Fast), GPT-5, Claude Opus 4.6, Kimi K2, Muse Spark, OpenCode
 */
 
 const OpenAI = require('openai');
@@ -45,17 +45,19 @@ function getOpenAIClient(capability = 'default') {
   }
 
   const modelConfig = getModelConfig(capability);
+  const hasApiKey = Boolean(modelConfig.api_key);
   const client = new OpenAI({
-    // Explicit empty string: avoids the SDK throw on undefined and avoids
-    // falling back to the OPENAI_API_KEY env var.
-    apiKey: modelConfig.api_key || '',
+    // SDK v7 rejects an empty string with "Missing credentials", so keyless
+    // providers get a placeholder. A non-empty value also avoids falling back
+    // to the OPENAI_API_KEY env var; the header is stripped below.
+    apiKey: hasApiKey ? modelConfig.api_key : 'keyless',
     baseURL: modelConfig.base_url,
     defaultHeaders: modelConfig.headers || {},
   });
 
-  if (!modelConfig.api_key) {
+  if (!hasApiKey) {
     // Keyless provider: omit the Authorization header entirely
-    // (by default the SDK would send `Bearer ` with an empty token).
+    // (by default the SDK would send `Bearer keyless`).
     client.authHeaders = async () => ({});
     console.log(`[OAI][INFO] Cliente '${capability}' inicializado sem API key: ${modelConfig.base_url}`);
   } else {

@@ -1,8 +1,8 @@
 /*
 ** caminho: src/commands/noticia.js
-** últimaMod: 2025-10-04 01:15
+** últimaMod: 2026-10-22 23:40
 ** autor: Vico
-** colaboração: Grok Code (Fast) e Claude
+** colaboração: Grok Code (Fast) e Claude, OpenCode
 */
 
 /*
@@ -19,7 +19,6 @@ const {
     PermissionsBitField
 } = require('discord.js');
 const database = require('../core/database');
-const fetch = require('node-fetch');
 
 /* ----------------------------------------------------------
 //    Funções auxiliares
@@ -73,7 +72,8 @@ async function fetchOpenGraphData(url) {
             headers: {
                 'User-Agent': 'Mozilla/5.0 (compatible; VicaBot/1.0)'
             },
-            timeout: 10000
+            // Global fetch has no `timeout` option; abort after 10s instead.
+            signal: AbortSignal.timeout(10000)
         });
 
         if (!response.ok) {

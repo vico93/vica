@@ -25,15 +25,14 @@
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "dependencies": {
-    "better-sqlite3": "^12.11.1",
+    "better-sqlite3": "^13.0.3",
     "discord.js": "^14.25.1",
-    "lru-cache": "^7.18.3",
+    "lru-cache": "^11.5.3",
     "minimist": "^1.2.8",
-    "node-fetch": "^2.7.0",
-    "openai": "^5.8.2",
-    "toml": "^4.1.1"
+    "openai": "^7.43.0",
+    "toml": "^5.0.1"
   },
   "allowScripts": {
-    "better-sqlite3@12.11.1": true
+    "better-sqlite3": false
   }
 }

@@ -1,12 +1,11 @@
 /*
 ** caminho: src/tools/read_text_attachment.js
-** últimaMod: 2026-04-09 01:20
+** últimaMod: 2026-10-22 23:40
 ** autor: Vico
-** colaboração: GPT-5.4
+** colaboração: GPT-5.4, OpenCode
 */
 
 const path = require('path');
-const fetch = require('node-fetch');
 const config = require('../core/config');
 
 const ALLOWED_DISCORD_HOSTS = new Set([
@@ -391,7 +390,7 @@ async function downloadTextAttachment(validatedUrl) {
     throw new Error(`O arquivo anexado excede o limite suportado para leitura textual (${formatBytes(MAX_TEXT_BYTES)}).`);
   }
 
-  const fileBuffer = await response.buffer();
+  const fileBuffer = Buffer.from(await response.arrayBuffer());
   if (!fileBuffer || fileBuffer.length === 0) {
     throw new Error('O anexo baixado do Discord veio vazio.');
   }

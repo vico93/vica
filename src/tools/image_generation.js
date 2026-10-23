@@ -1,12 +1,11 @@
 /*
 ** caminho: src/tools/image_generation.js
-** últimaMod: 2026-04-17 22:30
+** últimaMod: 2026-10-22 23:40
 ** autor: Vico
-** colaboração: ChatGPT (GPT-5), Roo
+** colaboração: ChatGPT (GPT-5), Roo, OpenCode
 */
 
 const OpenAI = require('openai');
-const fetch = require('node-fetch');
 const config = require('../core/config');
 
 const ZAI_IMAGE_ENDPOINT = '/images/generations';
@@ -184,7 +183,7 @@ async function downloadImageFromUrl(imageUrl, options = {}) {
                 throw new Error(`Falha ao baixar imagem da URL (HTTP ${response.status}).`);
             }
 
-            const imageBuffer = await response.buffer();
+            const imageBuffer = Buffer.from(await response.arrayBuffer());
             const contentType = response.headers.get('content-type') || '';
 
             if (!imageBuffer || imageBuffer.length === 0) {

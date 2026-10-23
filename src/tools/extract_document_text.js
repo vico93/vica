@@ -1,12 +1,11 @@
 /*
 ** caminho: src/tools/extract_document_text.js
-** últimaMod: 2026-04-08 01:55
+** últimaMod: 2026-10-22 23:40
 ** autor: Vico
-** colaboração: GPT-5.4
+** colaboração: GPT-5.4, OpenCode
 */
 
 const path = require('path');
-const fetch = require('node-fetch');
 const config = require('../core/config');
 
 const ALLOWED_DISCORD_HOSTS = new Set([
@@ -341,7 +340,7 @@ async function downloadAttachmentAsInlinePayload(validatedUrl) {
     throw new Error(`O arquivo anexado excede o limite do OCR para ${format.kind === 'pdf' ? 'PDF' : 'imagem'} (${formatBytes(format.maxBytes)}).`);
   }
 
-  const fileBuffer = await response.buffer();
+  const fileBuffer = Buffer.from(await response.arrayBuffer());
   if (!fileBuffer || fileBuffer.length === 0) {
     throw new Error('O anexo baixado do Discord veio vazio.');
   }
