@@ -99,7 +99,7 @@ Each command file in `src/commands/` must export:
 ** caminho: src/commands/example.js
 ** últimaMod: YYYY-MM-DD HH:MM
 ** autor: Vico
-** colaboração: [AI assistants]
+** colaboração: [AI assistants (don't remove what is already in this section if pre-existant! only append your name if not already!)]
 */
 
 const { SlashCommandBuilder } = require('discord.js');
@@ -170,7 +170,7 @@ Each event file in `src/events/` must export:
 ** caminho: src/events/exampleEvent.js
 ** últimaMod: YYYY-MM-DD HH:MM
 ** autor: Vico
-** colaboração: [AI assistants]
+** colaboração: [AI assistants (don't remove what is already in this section if pre-existant! only append your name if not already!)]
 */
 
 module.exports = {
@@ -422,6 +422,45 @@ Failing MCP servers do **not** crash the bot: `startMCPServers()` catches errors
 3. **Test before deployment**: verify the tool list in the logs
 4. **Handle failures gracefully**: never assume a tool exists
 
+### VSCode Tools
+
+If you detect the tools to interact with VSCode with this projected opened (if the tools under `vscode-mcp-server` are active), consider the following instructions of these section:
+
+WORKFLOW ESSENTIALS:
+1. Always start exploration with list_files_code on root directory (.) first
+2. CRITICAL: Run get_diagnostics_code after EVERY set of code changes before completing tasks
+3. For small edits (≤10 lines): use replace_lines_code with exact original content
+4. For large changes, new files, or uncertain content: use create_file_code with overwrite=true
+
+EXPLORATION STRATEGY:
+- Start: list_files_code with path='.' (never recursive on root)
+- Understand structure: read key files like package.json, README, main entry points
+- Find symbols: use search_symbols_code for functions/classes, get_document_symbols_code for file overviews
+- Before editing: read_file_code the target file to understand current content
+
+EDITING BEST PRACTICES:
+- Small modifications: replace_lines_code (requires exact original content match)
+- If replace_lines_code fails: read_file_code the target lines, then retry with correct content
+- Large changes: create_file_code with overwrite=true is more reliable
+- After any changes: get_diagnostics_code to check for errors
+
+PLANNING REQUIREMENTS:
+Before making code modifications, present a comprehensive plan including:
+- Confidence level (1-10) and reasoning
+- Specific tools you'll use and why
+- Files you'll modify and approach (small edits vs complete rewrites)
+- How you'll verify the changes work (diagnostics, testing, etc.)
+
+ERROR HANDLING:
+- Let errors happen naturally - don't add unnecessary try/catch blocks
+- For tool failures: follow the specific recovery guidance in each tool's description
+- If uncertain about file content: use read_file_code to verify before making changes
+
+APPROVAL PROCESS:
+IMPORTANT: Only run code modification tools after presenting a plan and receiving explicit approval. Each change requires separate approval.
+
+Do not add tests unless specifically requested. If you believe testing is important, explain why and let the user decide.
+
 ### Vibe Check Reflection Policy
 
 When the `vibe_check` tool is available, it must be used for reflection before major actions.
@@ -457,7 +496,7 @@ Every file must include a header with the following format:
 ** caminho: src/path/to/file.js
 ** últimaMod: YYYY-MM-DD HH:MM
 ** autor: Vico
-** colaboração: [AI assistants]
+** colaboração: [AI assistants (don't remove what is already in this section if pre-existant! only append your name if not already!)]
 */
 ```
 
@@ -877,6 +916,6 @@ For questions or issues:
 
 ---
 
-**Last Updated**: 2026-09-12
+**Last Updated**: 2026-10-22
 **Maintained By**: Vico
-**Contributors**: AI assistants (ChatGPT, Gemini, Claude, Roo, Cursor, Codex)
+**Contributors**: AI assistants (ChatGPT, Gemini, Claude, Roo, Cursor, Codex, OpenCode)

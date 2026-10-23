@@ -22,6 +22,7 @@ Thumbs.db
 /data/
 /.github/instructions
 /opencode.json
+/opencode.jsonc
 /.factory/
 
 # Ferramentas de depuração
