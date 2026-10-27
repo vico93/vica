@@ -137,11 +137,7 @@ Os servidores abaixo estão descritos em `data/tools.json` (arquivo não version
 
 | Servidor | Transporte | Observação |
 |----------|------------|------------|
-| Time | stdio (`uvx`) | `mcp-server-time`, com `--local-timezone=America/Sao_Paulo` |
-| Fetch | stdio (`uvx`) | `mcp-server-fetch` |
-| Google Search | stdio (`npx`) | `@mcp-server/google-search-mcp` |
-| SportDB | http | Requer `X-API-Key` em `headers` |
-| MeuPC | stdio (`npx`) | Específico do PC do Vico; não faz sentido em VPS |
+| Rival Search | http | `https://RivalSearchMCP.fastmcp.app/mcp` — 9 ferramentas de pesquisa (web, social, notícias, acadêmico), sem API key |
 
 ### Configurando Servidores MCP
 

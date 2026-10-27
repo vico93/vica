@@ -1,8 +1,8 @@
 /*
 ** caminho: src/ai/tool_loader.js
-** últimaMod: 2026-06-06 01:15
+** últimaMod: 2026-10-27 12:10
 ** autor: Vico
-** colaboração: Roo, ChatGPT (GPT-5), Claude Opus 4.6
+** colaboração: Roo, ChatGPT (GPT-5), Claude Opus 4.6, pi
 */
 
 const fs = require('fs');
@@ -233,10 +233,10 @@ async function getTool(toolName) {
 
   // Fallback: check MCP tools by original name (without server prefix)
   // Allows direct calls to MCP tools without knowing the server prefix
-  // (e.g., "search" -> "google-search_search")
+  // (e.g., "web_search" -> "rival_web_search")
   const mcpToolByOriginalName = mcpTools.find(tool => {
     const prefixedName = tool.function?.name || '';
-    // Extract original name: "memory_create_entities" -> "create_entities"
+    // Extract original name: "rival_web_search" -> "web_search"
     const underscoreIndex = prefixedName.indexOf('_');
     if (underscoreIndex === -1) return false;
     const originalName = prefixedName.slice(underscoreIndex + 1);
@@ -281,9 +281,8 @@ function enforceConversationToolLimits(toolName, context = {}) {
     return { allowed: true };
   }
 
-  // Limit web search tools (MCP with prefixed names)
-  const searchTools = ['google-search_search'];
-  if (searchTools.includes(toolName) || toolName.endsWith('_search')) {
+  // Limit web search tools (MCP tools are prefixed with the server name)
+  if (toolName.endsWith('_search')) {
     const currentCount = Number.isInteger(usageState.webSearchCalls)
       ? usageState.webSearchCalls
       : 0;
@@ -298,9 +297,8 @@ function enforceConversationToolLimits(toolName, context = {}) {
     usageState.webSearchCalls = currentCount + 1;
   }
 
-  // Limit fetch tools (MCP with prefixed names)
-  const fetchTools = ['fetch', 'fetch_content', 'fetch_fetch'];
-  if (fetchTools.includes(toolName) || toolName.endsWith('_fetch') || toolName.endsWith('_fetch_content')) {
+  // Limit fetch tools (MCP tools are prefixed with the server name)
+  if (toolName.endsWith('_fetch') || toolName.endsWith('_fetch_content')) {
     const currentCount = Number.isInteger(usageState.fetchCalls)
       ? usageState.fetchCalls
       : 0;
